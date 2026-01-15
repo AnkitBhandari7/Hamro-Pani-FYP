@@ -1,21 +1,28 @@
-const admin = require('firebase-admin');
-const config = require('./config/config');
+import admin from "firebase-admin";
+import config from "./config/config.js";
 
 let initialized = false;
 
-function initFirebaseAdmin() {
-  if (initialized) return;
+export function initFirebaseAdmin() {
+  if (initialized || admin.apps.length > 0) return admin;
 
-  if (config.firebase.projectId && config.firebase.clientEmail && config.firebase.privateKey) {
+  const { projectId, clientEmail, privateKey } = config.firebase;
+
+  if (projectId && clientEmail && privateKey) {
     admin.initializeApp({
-      credential: admin.credential.cert(config.firebase),
+      credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
     });
+    console.log("Firebase Admin initialized (from .env)");
   } else {
-    console.warn('Using Application Default Credentials. Set GOOGLE_APPLICATION_CREDENTIALS or provide FIREBASE_* env vars.');
+    console.warn("Firebase Admin: Missing env vars. Initializing without cert.");
     admin.initializeApp();
   }
 
   initialized = true;
+  return admin;
 }
 
-module.exports = { admin, initFirebaseAdmin };
+// init immediately
+initFirebaseAdmin();
+
+export { admin };

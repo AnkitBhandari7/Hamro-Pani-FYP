@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fyp/main.dart';  // This imports TankerTapApp
+import '../mobile/lib/main.dart';  // This imports TankerTapApp
 
 void main() {
   testWidgets('App launches and shows Login screen', (WidgetTester tester) async {

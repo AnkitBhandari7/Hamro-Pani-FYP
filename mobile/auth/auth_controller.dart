@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import 'package:fyp/auth/auth_service.dart';
 import '../models/auth_user.dart';
 
 class AuthController {
@@ -63,9 +63,9 @@ class AuthController {
     }
   }
 
-  // -------------------------------------------------
+
   // Google Sign-In
-  // -------------------------------------------------
+
   Future<AuthUser?> googleLogin({
     required bool remember,
     required BuildContext context,
@@ -86,9 +86,7 @@ class AuthController {
     }
   }
 
-  // -------------------------------------------------
-  // Misc
-  // -------------------------------------------------
+
   Future<void> forgotPassword(String email, BuildContext context) async {
     if (email.isEmpty) {
       _toast(context, 'Enter your email to reset password');

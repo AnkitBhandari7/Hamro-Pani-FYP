@@ -9,6 +9,13 @@ import '../../core/routes/routes.dart';
 import 'login_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> main
 class SignUpView extends StatefulWidget {
   static const String route = '/signup';
   const SignUpView({super.key});
@@ -83,7 +90,11 @@ class _SignUpViewState extends State<SignUpView> {
     }
 
     try {
+<<<<<<< HEAD
       //  Create Firebase user from controller
+=======
+      //  Create Firebase user
+>>>>>>> main
       final user = await _authController.register(
         email: email,
         password: password,
@@ -96,7 +107,11 @@ class _SignUpViewState extends State<SignUpView> {
 
       if (user == null) return;
 
+<<<<<<< HEAD
       // Get Firebase token
+=======
+      //  Get Firebase token
+>>>>>>> main
       final firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser == null) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Signup failed: Firebase user is null")));
@@ -105,7 +120,11 @@ class _SignUpViewState extends State<SignUpView> {
 
       final idToken = await firebaseUser.getIdToken(true);
 
+<<<<<<< HEAD
       //  call backend /auth/register to create user in DB
+=======
+      // call backend /auth/register to create user in DB
+>>>>>>> main
       final registerRes = await http.post(
         Uri.parse('$_baseUrl/auth/register'),
         headers: {
@@ -132,7 +151,11 @@ class _SignUpViewState extends State<SignUpView> {
       final registerData = jsonDecode(registerRes.body);
       final dbUser = registerData['user'] ?? {};
 
+<<<<<<< HEAD
       //  call /auth/me
+=======
+      // safely call /auth/me (
+>>>>>>> main
       final meRes = await http.get(
         Uri.parse('$_baseUrl/auth/me'),
         headers: {'Authorization': 'Bearer $idToken'},

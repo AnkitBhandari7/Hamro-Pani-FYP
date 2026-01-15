@@ -86,6 +86,10 @@ class AuthController {
     }
   }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> main
   Future<void> forgotPassword(String email, BuildContext context) async {
     if (email.isEmpty) {
       _toast(context, 'Enter your email to reset password');
