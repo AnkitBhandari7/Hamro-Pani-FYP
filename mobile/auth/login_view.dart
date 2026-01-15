@@ -10,10 +10,7 @@ import '../../core/routes/routes.dart';
 import 'signup_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-<<<<<<< HEAD
-=======
 
->>>>>>> main
 class LoginView extends StatefulWidget {
   static const String route = '/login';
   const LoginView({super.key});
@@ -58,11 +55,7 @@ class _LoginViewState extends State<LoginView> {
     setState(() => _isLoading = true);
 
     try {
-<<<<<<< HEAD
-      // Firebase Authentication
-=======
       //  Firebase Authentication
->>>>>>> main
       final user = await _authController.login(
         email: email,
         password: password,
@@ -75,11 +68,7 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-<<<<<<< HEAD
-      // Get Firebase ID Token
-=======
       //  Get Firebase ID Token
->>>>>>> main
       final firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser == null) {
         _showError("Firebase user not found");
@@ -153,16 +142,11 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-<<<<<<< HEAD
-      //FCM Setup
-      // Save FCM token to backend
-=======
 
       //   FCM Setup
 
 
       // Save FCM token to backend (in case it wasn't saved before login)
->>>>>>> main
       try {
         await FCMService().saveTokenAfterLogin();
         print(" FCM token saved after login");
@@ -172,13 +156,6 @@ class _LoginViewState extends State<LoginView> {
 
       // Subscribe to appropriate topics based on role
       await _subscribeToTopics(role: userRole, ward: ward);
-<<<<<<< HEAD
-      // END FCM Setup
-
-      setState(() => _isLoading = false);
-
-      // Navigate to dashboard
-=======
 
       // END FCM Setup
 
@@ -186,7 +163,6 @@ class _LoginViewState extends State<LoginView> {
       setState(() => _isLoading = false);
 
       //  Navigate to dashboard
->>>>>>> main
       AppNavigation.pushHomeWithRole(
         context,
         role: userRole,
@@ -204,11 +180,7 @@ class _LoginViewState extends State<LoginView> {
   }
 
 
-<<<<<<< HEAD
-  // Subscribe to FCM topics
-=======
   //  Subscribe to FCM topics
->>>>>>> main
 
   Future<void> _subscribeToTopics({required String role, String? ward}) async {
     final fcmService = FCMService();
@@ -216,28 +188,16 @@ class _LoginViewState extends State<LoginView> {
 
     try {
       if (normalizedRole == 'resident') {
-<<<<<<< HEAD
-        // Residents subscribe to their ward topic
-=======
         //global notices for all residents
         await fcmService.subscribeToAllResidents();
         print(" Resident subscribed to all_residents");
 
         // ward-specific schedules/alerts
 
->>>>>>> main
         if (ward != null && ward.isNotEmpty) {
           await fcmService.subscribeToWard(ward);
           print(" Resident subscribed to ward: $ward");
         } else {
-<<<<<<< HEAD
-          print(" Resident has no ward set, skipping topic subscription");
-        }
-      } else if (normalizedRole == 'vendor') {
-        // Vendors subscribe to all_vendors topic
-        await fcmService.subscribeToVendorNotifications();
-        print(" Vendor subscribed to all_vendors topic");
-=======
           print("️ Resident has no ward set, skipping topic subscription");
         }
       } else if (normalizedRole == 'vendor') {
@@ -245,7 +205,6 @@ class _LoginViewState extends State<LoginView> {
         await fcmService.subscribeToAllVendors();
         print(" Vendor subscribed to all_vendors topic");
 
->>>>>>> main
       } else if (normalizedRole == 'ward admin' || normalizedRole == 'ward_admin') {
         // Ward Admin doesn't need to subscribe (they send notifications)
         print(" Ward Admin - no subscription needed");

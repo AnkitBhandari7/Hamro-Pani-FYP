@@ -1,4 +1,16 @@
 import 'dart:convert';
+<<<<<<< HEAD
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+
+import '../../core/routes/app_navigation.dart';
+import '../../core/routes/routes.dart';
+import 'package:fyp/notifications/fcm_service.dart';
+=======
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +22,7 @@ import 'package:intl/intl.dart';
 
 
 
+>>>>>>> main
 
 class SavedLocationModel {
   final int id;
@@ -110,7 +123,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loadingProfile = true;
 
   String? selectedWard;
+<<<<<<< HEAD
+  String? _originalWard; // ward loaded from backend (to unsubscribe properly)
+=======
   String? _originalWard; // ward loaded from backend
+>>>>>>> main
 
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
