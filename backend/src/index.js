@@ -1,9 +1,11 @@
-const app = require('./app');
-const config = require('./config/config');
-const { initFirebaseAdmin } = require('./firebaseAdmin');
+import app from "./app.js";
+import config from "./config/config.js";
+import "./firebaseAdmin.js";
 
-initFirebaseAdmin();
+const PORT = config.port || 3000;
 
-app.listen(config.port, () => {
-  console.log(`API listening on http://localhost:${config.port}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(" API server is running!");
+  console.log(`   • Local:            http://localhost:${PORT}`);
+  console.log(`   • Android Emulator: http://10.0.2.2:${PORT}`);
 });

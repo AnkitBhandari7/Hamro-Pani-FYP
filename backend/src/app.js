@@ -1,32 +1,43 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const config = require('./config/config');
-const authRoutes = require('./routes/auth.routes');
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+
+import config from "./config/config.js";
+
+import authRoutes from "./auth/auth.routes.js";
+import profileRoutes from "./profile/profile.routes.js";
+import notificationRoutes from "./notifications/notification.routes.js";
+import scheduleRoutes from "./schedules/schedule.routes.js";
+import vendorRoutes from "./vendors/vendor.routes.js";
 
 const app = express();
 
 app.use(helmet());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan("dev"));
 
-if (config.corsOrigins === '*') {
+if (config.corsOrigins === "*") {
   app.use(cors());
 } else {
-  const origins = config.corsOrigins.split(',').map(s => s.trim());
+  const origins = config.corsOrigins.split(",").map((s) => s.trim());
   app.use(cors({ origin: origins, credentials: true }));
 }
 
-app.use(express.json());
-app.use(morgan('dev'));
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.use("/auth", authRoutes);
+app.use("/profile", profileRoutes);
+app.use("/notifications", notificationRoutes);
+app.use("/schedules", scheduleRoutes);
+app.use("/vendors", vendorRoutes);
 
-app.use('/auth', authRoutes);
+app.use((req, res) => res.status(404).json({ error: "Route not found" }));
 
-// Global error handler
 app.use((err, _req, res, _next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Server error' });
+  console.error("Unhandled error:", err);
+  res.status(500).json({ error: "Server error" });
 });
 
-module.exports = app;
+export default app;
