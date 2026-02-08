@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-
+import 'package:fyp/core/routes/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -502,13 +502,12 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
 
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Create route not implemented yet")),
-          );
+          Navigator.of(context).pushNamed(AppRoutes.manageSlots);
         },
         backgroundColor: Colors.blue,
         child: Icon(Icons.add, size: 32.w),
       ),
+
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
       bottomNavigationBar: BottomAppBar(
