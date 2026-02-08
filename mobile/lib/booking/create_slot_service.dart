@@ -1,246 +1,156 @@
-// mobile/lib/booking/tanker_booking_controller.dart
-import 'package:flutter/material.dart';
+
+import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
-import 'tanker_booking_service.dart';
+class CreateSlotService {
+  const CreateSlotService(this._dio);
 
-/// Immutable state for the tanker booking vendor screen
-class TankerBookingState {
-  final String selectedDateFilter; // "Today" | "Tomorrow" | "Custom"
-  final TimeOfDay? selectedStartTime;
-  final List<Map<String, dynamic>> routes; // raw backend routes
-  final List<Map<String, dynamic>> slots; // UI-ready slots
-  final bool isLoading;
-  final bool isPublishing;
+  final Dio _dio;
 
-  const TankerBookingState({
-    this.selectedDateFilter = 'Today',
-    this.selectedStartTime,
-    this.routes = const [],
-    this.slots = const [],
-    this.isLoading = false,
-    this.isPublishing = false,
-  });
+  /// GET /vendors/routes/my
+  Future<List<Map<String, dynamic>>> fetchMyRoutes() async {
+    final response = await _dio.get('/vendors/routes/my');
 
-  TankerBookingState copyWith({
-    String? selectedDateFilter,
-    TimeOfDay? selectedStartTime,
-    List<Map<String, dynamic>>? routes,
-    List<Map<String, dynamic>>? slots,
-    bool? isLoading,
-    bool? isPublishing,
-  }) {
-    return TankerBookingState(
-      selectedDateFilter: selectedDateFilter ?? this.selectedDateFilter,
-      selectedStartTime: selectedStartTime ?? this.selectedStartTime,
-      routes: routes ?? this.routes,
-      slots: slots ?? this.slots,
-      isLoading: isLoading ?? this.isLoading,
-      isPublishing: isPublishing ?? this.isPublishing,
-    );
-  }
-}
-
-/// Riverpod 3: use Notifier instead of StateNotifier
-class TankerBookingController extends Notifier<TankerBookingState> {
-  late final TankerBookingService _service;
-
-  @override
-  TankerBookingState build() {
-    // read dependencies here
-    _service = ref.read(tankerBookingServiceProvider);
-
-    // load initial data after build (cannot be async)
-    Future.microtask(loadInitialData);
-
-    // initial state
-    return const TankerBookingState();
+    final list = response.data as List<dynamic>;
+    return list
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
   }
 
-  /// Load vendor routes + slots on screen start / refresh
-  Future<void> loadInitialData() async {
-    state = state.copyWith(isLoading: true);
-    try {
-      final routes = await _service.fetchMyRoutes();
-      final slots = _buildSlotsFromRoutes(routes);
-      state = state.copyWith(routes: routes, slots: slots);
-    } catch (_) {
-      state = state.copyWith(routes: [], slots: []);
-    } finally {
-      state = state.copyWith(isLoading: false);
-    }
-  }
+  /// POST /vendors/routes
 
-  List<Map<String, dynamic>> _buildSlotsFromRoutes(
-      List<Map<String, dynamic>> routes) {
-    final List<Map<String, dynamic>> uiSlots = [];
-
-    for (final route in routes) {
-      final routeName = (route['name'] ?? '').toString();
-      final slotList = (route['slots'] as List<dynamic>? ?? [])
-          .cast<Map<String, dynamic>>();
-
-      for (final slotJson in slotList) {
-        uiSlots.add(_slotToUiMap(routeName, slotJson));
-      }
-    }
-
-    return uiSlots;
-  }
-
-  Map<String, dynamic> _slotToUiMap(
-      String routeName, Map<String, dynamic> slotJson) {
-    final capacity = (slotJson['capacity'] ?? 0) as int;
-    final bookedCount = (slotJson['bookedCount'] ?? 0) as int;
-    final dbStatus = (slotJson['status'] ?? 'OPEN').toString();
-
-    final startStr = slotJson['startTime']?.toString() ?? '';
-    final endStr = slotJson['endTime']?.toString() ?? '';
-    final dateStr = slotJson['date']?.toString() ?? '';
-
-    final start = DateTime.tryParse(startStr) ?? DateTime.now();
-    final end = DateTime.tryParse(endStr) ?? start.add(const Duration(hours: 2));
-    final date = DateTime.tryParse(dateStr) ?? start;
-
-    final dateLabel = _service.buildDateLabel(date);
-    final timeRange = _service.buildTimeRange(start, end);
-
-    final uiStatus = bookedCount >= capacity ? 'FULL' : dbStatus;
-
-    return {
-      'slotId': slotJson['id'],
-      'date': dateLabel,
-      'time': timeRange,
-      'status': uiStatus,
-      'location': routeName,
-      'booked': bookedCount,
-      'total': capacity,
-    };
-  }
-
-  void setDateFilter(String value) {
-    state = state.copyWith(selectedDateFilter: value);
-  }
-
-  void setStartTime(TimeOfDay value) {
-    state = state.copyWith(selectedStartTime: value);
-  }
-
-  String get formattedSelectedTime {
-    final time = state.selectedStartTime;
-    if (time == null) return 'Select Time';
-
-    final now = DateTime.now();
-    final dt = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      time.hour,
-      time.minute,
-    );
-
-    final range = _service.buildTimeRange(dt, dt);
-    return range.split(' - ').first;
-  }
-
-  /// Returns null on success; error message on failure
-  Future<String?> publishSlot({
-    required String capacityText,
-    required String routeText,
+  Future<Map<String, dynamic>> createRoute({
+    int? wardId,
+    String? ward,
+    required String name,
+    String? description,
   }) async {
-    if (state.selectedStartTime == null) {
-      return 'Please select a start time';
+    if ((ward == null || ward.trim().isEmpty) && wardId == null) {
+      throw ArgumentError('Either ward or wardId must be provided');
     }
 
-    final capacity = int.tryParse(capacityText);
-    if (capacity == null || capacity <= 0) {
-      return 'Please enter a valid capacity';
-    }
-
-    final routeName = routeText.trim();
-    if (routeName.isEmpty) {
-      return 'Please enter a delivery route/area';
-    }
-
-    final now = DateTime.now();
-    DateTime date;
-
-    switch (state.selectedDateFilter) {
-      case 'Today':
-        date = DateTime(now.year, now.month, now.day);
-        break;
-      case 'Tomorrow':
-        final tmr = now.add(const Duration(days: 1));
-        date = DateTime(tmr.year, tmr.month, tmr.day);
-        break;
-      case 'Custom':
-      // TODO: attach a proper date picker here
-        date = DateTime(now.year, now.month, now.day);
-        break;
-      default:
-        date = DateTime(now.year, now.month, now.day);
-    }
-
-    final startDateTime = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      state.selectedStartTime!.hour,
-      state.selectedStartTime!.minute,
+    final response = await _dio.post(
+      '/vendors/routes',
+      data: {
+        if (wardId != null) 'wardId': wardId,
+        if (ward != null && ward.trim().isNotEmpty) 'ward': ward.trim(),
+        'name': name,
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
+      },
     );
-    final endDateTime = startDateTime.add(const Duration(hours: 2));
 
-    state = state.copyWith(isPublishing: true);
+    return Map<String, dynamic>.from(response.data as Map);
+  }
 
-    try {
-      // 1) Find existing route with same name (case-insensitive)
-      Map<String, dynamic>? route;
-      for (final r in state.routes) {
-        final rName = (r['name'] ?? '').toString().toLowerCase();
-        if (rName == routeName.toLowerCase()) {
-          route = r;
-          break;
-        }
-      }
+  /// POST /vendors/routes/:routeId/slots
+  Future<Map<String, dynamic>> createSlot({
+    required int routeId,
+    required DateTime date,
+    required DateTime startTime,
+    required DateTime endTime,
+    required int capacity,
+  }) async {
+    // Send date-only so backend parses it cleanly
+    final dateOnly = DateFormat('yyyy-MM-dd').format(date);
 
-      // 2) If not found, create new route
-      if (route == null) {
-        const defaultWardId = 16; // TODO: use vendor's actual ward
-        final newRoute = await _service.createRoute(
-          wardId: defaultWardId,
-          name: routeName,
-        );
-        final newRoutes = [...state.routes, newRoute];
-        state = state.copyWith(routes: newRoutes);
-        route = newRoute;
-      }
+    final response = await _dio.post(
+      '/vendors/routes/$routeId/slots',
+      data: {
+        'date': dateOnly,
+        'startTime': startTime.toIso8601String(),
+        'endTime': endTime.toIso8601String(),
+        'capacity': capacity,
+      },
+    );
 
-      final routeId = route['id'] as int;
+    return Map<String, dynamic>.from(response.data as Map);
+  }
 
-      // 3) Create slot
-      final createdSlot = await _service.createSlot(
-        routeId: routeId,
-        date: date,
-        startTime: startDateTime,
-        endTime: endDateTime,
-        capacity: capacity,
-      );
+  String buildDateLabel(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(date.year, date.month, date.day);
 
-      final uiSlot = _slotToUiMap(routeName, createdSlot);
-      final updatedSlots = [uiSlot, ...state.slots];
-      state = state.copyWith(slots: updatedSlots);
+    if (target == today) return 'TODAY';
 
-      return null;
-    } catch (_) {
-      return 'Failed to publish slot. Please try again.';
-    } finally {
-      state = state.copyWith(isPublishing: false);
-    }
+    final tomorrow = today.add(const Duration(days: 1));
+    if (target == tomorrow) return 'TOMORROW';
+
+    return DateFormat('MMM dd').format(date).toUpperCase();
+  }
+
+  String buildTimeRange(DateTime start, DateTime end) {
+    final fmt = DateFormat('hh:mm a');
+    return '${fmt.format(start)} - ${fmt.format(end)}';
   }
 }
 
-/// Riverpod 3 provider using NotifierProvider
-final tankerBookingControllerProvider =
-NotifierProvider<TankerBookingController, TankerBookingState>(
-      () => TankerBookingController(),
-);
+
+// Providers
+
+
+final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
+  return FirebaseAuth.instance;
+});
+
+/// Base URL provider:
+/// - Android emulator: http://10.0.2.2:3000
+
+final apiBaseUrlProvider = Provider<String>((ref) {
+
+  const fromEnv = String.fromEnvironment('API_BASE_URL');
+  if (fromEnv.isNotEmpty) return fromEnv;
+
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    return 'http://10.0.2.2:3000';
+  }
+  return 'http://localhost:3000';
+});
+
+final apiDioProvider = Provider<Dio>((ref) {
+  final auth = ref.watch(firebaseAuthProvider);
+  final baseUrl = ref.watch(apiBaseUrlProvider);
+
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: baseUrl, // <-- THIS MUST MATCH YOUR NODE SERVER
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 15),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    ),
+  );
+
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        // Debug: confirm the exact URL being hit
+        debugPrint('➡️ [DIO] ${options.method} ${options.uri}');
+
+        final user = auth.currentUser;
+        if (user != null) {
+          final token = await user.getIdToken();
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        return handler.next(options);
+      },
+      onError: (e, handler) {
+        debugPrint(' [DIO] ${e.response?.statusCode} ${e.requestOptions.uri}');
+        debugPrint(' [DIO] ${e.response?.data}');
+        return handler.next(e);
+      },
+    ),
+  );
+
+  return dio;
+});
+
+final createSlotServiceProvider = Provider<CreateSlotService>((ref) {
+  final dio = ref.watch(apiDioProvider);
+  return CreateSlotService(dio);
+});
