@@ -1,10 +1,10 @@
-// lib/booking/create_slot_controller.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'create_slot_service.dart';
 
-/// Immutable state for the vendor create-slot screen
+
 class CreateSlotState {
   final String selectedDateFilter; // "Today" | "Tomorrow" | "Custom"
   final TimeOfDay? selectedStartTime;
@@ -48,7 +48,6 @@ class CreateSlotController extends Notifier<CreateSlotState> {
   @override
   CreateSlotState build() {
     _service = ref.read(createSlotServiceProvider);
-    // load initial data after build (cannot be async here)
     Future.microtask(loadInitialData);
     return const CreateSlotState();
   }
@@ -88,8 +87,8 @@ class CreateSlotController extends Notifier<CreateSlotState> {
 
   Map<String, dynamic> _slotToUiMap(
       String routeName, Map<String, dynamic> slotJson) {
-    // NOTE: adjust keys to match your backend JSON.
-    // If you use TankerSlot(capacityLiters, bookedLiters), change these lines:
+    // For safety, handle both capacityLiters/bookedLiters and
+    // capacity/bookedCount depending on  backend response
     final capacity = (slotJson['capacityLiters'] ??
         slotJson['capacity'] ??
         0) as int;
@@ -178,7 +177,6 @@ class CreateSlotController extends Notifier<CreateSlotState> {
         date = DateTime(tmr.year, tmr.month, tmr.day);
         break;
       case 'Custom':
-      // TODO: attach a proper date picker here
         date = DateTime(now.year, now.month, now.day);
         break;
       default:
@@ -209,7 +207,7 @@ class CreateSlotController extends Notifier<CreateSlotState> {
 
       // 2) If not found, create new route
       if (route == null) {
-        const defaultWardId = 16; // TODO: use vendor's actual ward / area
+        const defaultWardId = 16; // TODO: use vendor's actual ward/area
         final newRoute = await _service.createRoute(
           wardId: defaultWardId,
           name: routeName,
@@ -219,7 +217,7 @@ class CreateSlotController extends Notifier<CreateSlotState> {
         route = newRoute;
       }
 
-      final routeId = route['id'] as int;
+      final routeId = route!['id'] as int;
 
       // 3) Create slot
       final createdSlot = await _service.createSlot(
@@ -236,7 +234,6 @@ class CreateSlotController extends Notifier<CreateSlotState> {
 
       return null;
     } catch (e, st) {
-      // DEBUG: show the real error causing "Failed to publish slot"
       debugPrint('publishSlot error: $e');
       debugPrint(st.toString());
       return 'Failed to publish slot. Please try again.';
