@@ -28,6 +28,9 @@ model User {
   vendorBookings   Booking[]       @relation("VendorBookings")
   issues           Issue[]
 
+  // Inverse relation for TankerRoute.vendor
+  tankerRoutes     TankerRoute[]
+
   @@map("users")
 }
 
@@ -81,12 +84,54 @@ model Booking {
   price      Float?
   status     String   @default("PENDING")
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  // Link to tanker slot (optional)
+  slotId     Int?
+  slot       TankerSlot? @relation(fields: [slotId], references: [id])
 
   resident   User     @relation("ResidentBookings", fields: [residentId], references: [id], onDelete: Cascade)
   vendor     User?    @relation("VendorBookings", fields: [vendorId], references: [id])
 
   @@map("bookings")
+}
+
+model TankerRoute {
+  id          Int          @id @default(autoincrement())
+  vendorId    Int
+  vendor      User         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  ward        String?
+  name        String
+  description String?
+
+  slots       TankerSlot[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("tanker_routes")
+}
+
+model TankerSlot {
+  id             Int          @id @default(autoincrement())
+  routeId        Int
+  route          TankerRoute  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  date           DateTime
+  startTime      DateTime
+  endTime        DateTime
+
+  capacityLiters Int
+  bookedLiters   Int          @default(0)
+  status         String       @default("OPEN") // OPEN | CLOSED | CANCELLED
+
+  bookings       Booking[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("tanker_slots")
 }
 
 model Issue {

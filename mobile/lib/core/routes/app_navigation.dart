@@ -12,9 +12,10 @@ import 'package:fyp/notifications/notifications_screen.dart';
 import 'package:fyp/booking/orders_screen.dart';
 import 'package:fyp/booking/new_schedule.dart';
 
+// NEW: import your manage-slots screen
+import 'package:fyp/booking/create_slot.dart';
+
 import 'package:fyp/admin/send_notice.dart';
-
-
 
 class AppNavigation {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -80,10 +81,18 @@ class AppNavigation {
       case AppRoutes.sendNotice:
         return MaterialPageRoute(builder: (_) => const SendNoticeScreen());
 
+    // NEW: Vendor Manage Slots screen
+      case AppRoutes.manageSlots:
+        return MaterialPageRoute(
+          builder: (_) => const ManageSlotsScreen(),
+        );
+
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
-            body: Center(child: Text('No route defined for ${settings.name}')),
+            body: Center(
+              child: Text('No route defined for ${settings.name}'),
+            ),
           ),
         );
     }
@@ -121,7 +130,6 @@ class AppNavigation {
         required String email,
         String? ward,
       }) {
-
     // DEBUG
     print('=== pushHomeWithRole called ===');
     print('role: $role');
@@ -140,7 +148,6 @@ class AppNavigation {
         'phone': phone,
         'email': email,
         'ward': ward,
-
       },
     );
   }
