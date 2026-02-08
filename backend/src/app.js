@@ -26,12 +26,21 @@ if (config.corsOrigins === "*") {
 }
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
+// api
 app.use("/auth", authRoutes);
 app.use("/profile", profileRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/schedules", scheduleRoutes);
 app.use("/vendors", vendorRoutes);
+
+// with /api
+app.use("/api/auth", authRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/schedules", scheduleRoutes);
+app.use("/api/vendors", vendorRoutes);
 
 app.use((req, res) => res.status(404).json({ error: "Route not found" }));
 
