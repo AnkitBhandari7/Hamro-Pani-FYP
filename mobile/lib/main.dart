@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'firebase_options.dart';
 import 'app/config/app_config.dart';
@@ -12,14 +13,14 @@ import 'core/routes/routes.dart';
 import 'core/routes/app_navigation.dart';
 import 'package:fyp/notifications/fcm_service.dart';
 
-///  Global navigator key to navigate from notification taps
+/// Global navigator key to navigate from notification taps
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-
-//  Background message handler
-
+/// Background message handler
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+Future<void> _firebaseMessagingBackgroundHandler(
+    RemoteMessage message,
+    ) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -41,9 +42,11 @@ Future<void> main() async {
   );
 
   // Set up FCM background handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  FirebaseMessaging.onBackgroundMessage(
+    _firebaseMessagingBackgroundHandler,
+  );
 
-  //  Initialize FCM Service with onTap callback
+  // Initialize FCM Service with onTap callback
   try {
     await FCMService().initialize(
       onTap: (data) {
@@ -51,23 +54,21 @@ Future<void> main() async {
 
         final screen = data['screen']?.toString();
 
-        //  routing based on screen
+        // Routing based on payload
         if (screen == 'notifications') {
           navigatorKey.currentState?.pushNamed(AppRoutes.notifications);
         } else if (screen == 'schedule') {
-
-
           navigatorKey.currentState?.pushNamed(AppRoutes.notifications);
         } else {
-          // default fallback
+          // Default fallback
           navigatorKey.currentState?.pushNamed(AppRoutes.notifications);
         }
       },
     );
 
-    debugPrint(' FCM Service initialized in main');
+    debugPrint('FCM Service initialized in main');
   } catch (e) {
-    debugPrint('️ FCM initialization error (non-fatal): $e');
+    debugPrint('FCM initialization error (non-fatal): $e');
   }
 
   // Debug: Print API URL & health check
@@ -76,7 +77,12 @@ Future<void> main() async {
     await _testHealth();
   }
 
-  runApp(const TankerTapApp());
+  // IMPORTANT: Wrap your app with ProviderScope for Riverpod
+  runApp(
+    const ProviderScope(
+      child: TankerTapApp(),
+    ),
+  );
 }
 
 class TankerTapApp extends StatelessWidget {
@@ -117,14 +123,16 @@ class TankerTapApp extends StatelessWidget {
 // Health check function
 Future<void> _testHealth() async {
   try {
-    final dio = Dio(BaseOptions(
-      baseUrl: kApiBaseUrl,
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 5),
-    ));
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: kApiBaseUrl,
+        connectTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+      ),
+    );
     final res = await dio.get('/health');
-    debugPrint(' Health: ${res.data}');
+    debugPrint('Health: ${res.data}');
   } catch (e) {
-    debugPrint(' Health check failed: $e');
+    debugPrint('Health check failed: $e');
   }
 }

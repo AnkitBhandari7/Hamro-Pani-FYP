@@ -3,11 +3,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../models/auth_user.dart';
 import 'package:fyp/profile/session_manager.dart';
 
-<<<<<<< HEAD
-=======
 
 
->>>>>>> main
 class AuthService {
   final FirebaseAuth _fa = FirebaseAuth.instance;
 
@@ -15,10 +12,7 @@ class AuthService {
     scopes: ['email', 'profile'],
   );
 
-<<<<<<< HEAD
-=======
 
->>>>>>> main
   // GOOGLE SIGN IN
 
   Future<AuthUser?> signInWithGoogle({required bool remember}) async {

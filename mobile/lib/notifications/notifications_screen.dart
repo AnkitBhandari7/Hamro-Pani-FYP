@@ -1,41 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-class NotificationScreen extends StatelessWidget {
+import 'package:fyp/models/notification_model.dart';
+import 'package:fyp/notifications/notification_service.dart';
+
+class NotificationScreen extends StatefulWidget {
   static const String route = '/notifications';
   const NotificationScreen({super.key});
 
+  @override
+  State<NotificationScreen> createState() => _NotificationScreenState();
+}
 
-  final List<Map<String, dynamic>> notifications = const [
-    {
-      "title": "Booking Confirmed!",
-      "message": "Your 5000L tanker booking for tomorrow 10:00 AM has been confirmed.",
-      "time": "2025-11-17T14:30:00",
-      "type": "success",
-      "read": false,
-    },
-    {
-      "title": "Tanker On The Way",
-      "message": "Driver Ram Bahadur is on the way with 6000L tanker (Reg: Ba 2-1234).",
-      "time": "2025-11-17T12:15:00",
-      "type": "info",
-      "read": false,
-    },
-    {
-      "title": "Payment Received",
-      "message": "Rs 780 has been added to your wallet.",
-      "time": "2025-11-16T18:45:00",
-      "type": "payment",
-      "read": true,
-    },
-    {
-      "title": "New Offer!",
-      "message": "Book 3 times this week & get 10% off on next order!",
-      "time": "2025-11-15T09:00:00",
-      "type": "offer",
-      "read": true,
-    },
-  ];
+class _NotificationScreenState extends State<NotificationScreen> {
+  bool loading = true;
+  String? error;
+  List<AppNotification> notifications = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+
+    try {
+      final data = await NotificationService.getNotifications();
+      if (!mounted) return;
+      setState(() {
+        notifications = data;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        error = e.toString();
+        loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,118 +56,78 @@ class NotificationScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () {
+              // Student note: "mark all read" API is not implemented yet
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("All notifications marked as read")),
+                const SnackBar(content: Text("Mark all read (not implemented)")),
               );
             },
             child: const Text("Mark all read", style: TextStyle(color: Colors.white70)),
           ),
         ],
       ),
-      body: notifications.isEmpty
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : error != null
+          ? Center(child: Text(error!))
+          : notifications.isEmpty
           ? Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.notifications_off, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
-            Text("No notifications yet", style: TextStyle(fontSize: 18, color: Colors.grey[600])),
-            Text("We'll notify you when something new arrives", style: TextStyle(color: Colors.grey)),
+            Text("No notifications yet",
+                style: TextStyle(fontSize: 18, color: Colors.grey[600])),
+            const Text("We'll notify you when something new arrives",
+                style: TextStyle(color: Colors.grey)),
           ],
         ),
       )
-          : ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: notifications.length,
-        itemBuilder: (context, index) {
-          final noti = notifications[index];
-          final time = DateTime.parse(noti["time"]);
-          final formattedTime = DateFormat('MMM dd, hh:mm a').format(time);
+          : RefreshIndicator(
+        onRefresh: _load,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: notifications.length,
+          itemBuilder: (context, index) {
+            final n = notifications[index];
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            elevation: noti["read"] ? 1 : 4,
-            color: noti["read"] ? Colors.white : Colors.blue[50],
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: ListTile(
-              leading: CircleAvatar(
-                radius: 24,
-                backgroundColor: _getTypeColor(noti["type"]).withOpacity(0.2),
-                child: Icon(
-                  _getTypeIcon(noti["type"]),
-                  color: _getTypeColor(noti["type"]),
-                  size: 28,
+            // Adjust these fields based on your AppNotification model.
+            final title = n.title;
+            final message = n.message;
+            final createdAt = n.createdAt;
+
+            final formattedTime =
+            DateFormat('MMM dd, hh:mm a').format(createdAt.toLocal());
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: ListTile(
+                leading: CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.blue.withOpacity(0.15),
+                  child: const Icon(Icons.notifications, color: Colors.blue),
+                ),
+                title: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 4),
+                    Text(message, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(height: 6),
+                    Text(formattedTime,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  ],
                 ),
               ),
-              title: Text(
-                noti["title"],
-                style: TextStyle(
-                  fontWeight: noti["read"] ? FontWeight.normal : FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Text(noti["message"], style: const TextStyle(fontSize: 14)),
-                  const SizedBox(height: 6),
-                  Text(
-                    formattedTime,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-              trailing: noti["read"]
-                  ? null
-                  : Container(
-                width: 12,
-                height: 12,
-                decoration: const BoxDecoration(
-                  color: Colors.blue,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              onTap: () {
-                // Mark as read on tap
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("${noti["title"]} tapped")),
-                );
-              },
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
-  }
-
-  Color _getTypeColor(String type) {
-    switch (type) {
-      case "success":
-        return Colors.green;
-      case "info":
-        return Colors.blue;
-      case "payment":
-        return Colors.purple;
-      case "offer":
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getTypeIcon(String type) {
-    switch (type) {
-      case "success":
-        return Icons.check_circle;
-      case "info":
-        return Icons.local_shipping;
-      case "payment":
-        return Icons.account_balance_wallet;
-      case "offer":
-        return Icons.local_offer;
-      default:
-        return Icons.notifications;
-    }
   }
 }

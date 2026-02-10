@@ -1,74 +1,52 @@
 import 'dart:convert';
-<<<<<<< HEAD
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/routes/app_navigation.dart';
 import '../../core/routes/routes.dart';
 import 'package:fyp/notifications/fcm_service.dart';
-=======
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../core/routes/app_navigation.dart';
-import '../../core/routes/routes.dart';
-import 'package:fyp/notifications/fcm_service.dart';
-import 'package:intl/intl.dart';
-
-
-
->>>>>>> main
-
-class SavedLocationModel {
-  final int id;
-  final String title;
-  final String address;
-  final bool isDefault;
-
-  SavedLocationModel({
-    required this.id,
-    required this.title,
-    required this.address,
-    required this.isDefault,
-  });
-
-  factory SavedLocationModel.fromJson(Map<String, dynamic> json) {
-    return SavedLocationModel(
-      id: json['id'],
-      title: (json['title'] ?? '').toString(),
-      address: (json['address'] ?? '').toString(),
-      isDefault: json['isDefault'] == true,
-    );
-  }
-}
 
 class BookingModel {
   final int id;
   final String status;
-  final int? liters;
-  final double? price;
   final DateTime createdAt;
+
+  final String? ward;
+  final String? vendorName;
+  final String? routeLocation;
+  final DateTime? slotStartTime;
+  final DateTime? slotEndTime;
 
   BookingModel({
     required this.id,
     required this.status,
     required this.createdAt,
-    this.liters,
-    this.price,
+    this.ward,
+    this.vendorName,
+    this.routeLocation,
+    this.slotStartTime,
+    this.slotEndTime,
   });
 
   factory BookingModel.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDt(dynamic v) {
+      if (v == null) return null;
+      return DateTime.tryParse(v.toString());
+    }
+
     return BookingModel(
       id: json['id'],
       status: (json['status'] ?? 'PENDING').toString(),
-      liters: json['liters'],
-      price: json['price'] == null ? null : (json['price'] as num).toDouble(),
       createdAt: DateTime.parse(json['createdAt']),
+      ward: json['ward']?.toString(),
+      vendorName: json['vendorName']?.toString(),
+      routeLocation: json['routeLocation']?.toString(),
+      slotStartTime: parseDt(json['slotStartTime']),
+      slotEndTime: parseDt(json['slotEndTime']),
     );
   }
 }
@@ -78,12 +56,14 @@ class IssueModel {
   final String title;
   final String status;
   final DateTime createdAt;
+  final String? message;
 
   IssueModel({
     required this.id,
     required this.title,
     required this.status,
     required this.createdAt,
+    this.message,
   });
 
   factory IssueModel.fromJson(Map<String, dynamic> json) {
@@ -92,6 +72,7 @@ class IssueModel {
       title: (json['title'] ?? '').toString(),
       status: (json['status'] ?? 'OPEN').toString(),
       createdAt: DateTime.parse(json['createdAt']),
+      message: json['message']?.toString(),
     );
   }
 }
@@ -117,23 +98,20 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   static const String _baseUrl = "http://10.0.2.2:3000";
 
-  int selectedTab = 0; // 0 = Bookings, 1 = Issues Reported
+  int selectedTab = 0;
 
   bool _isSaving = false;
   bool _loadingProfile = true;
 
   String? selectedWard;
-<<<<<<< HEAD
-  String? _originalWard; // ward loaded from backend (to unsubscribe properly)
-=======
-  String? _originalWard; // ward loaded from backend
->>>>>>> main
+  String? _originalWard;
+
+  String _roleLabel = "Resident";
 
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
 
-  List<SavedLocationModel> _locations = [];
   List<BookingModel> _bookings = [];
   List<IssueModel> _issues = [];
 
@@ -162,6 +140,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  String? _wardNameFrom(dynamic wardRaw) {
+    if (wardRaw == null) return null;
+    if (wardRaw is String) return wardRaw;
+    if (wardRaw is Map) return wardRaw['name']?.toString();
+    return wardRaw.toString();
+  }
+
   Future<String?> _getFirebaseToken() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -177,19 +162,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return DateFormat('MMM d, yyyy • hh:mm a').format(dt.toLocal());
   }
 
+  String _formatTimeRange(DateTime? start, DateTime? end) {
+    if (start == null || end == null) return "-";
+    final fmt = DateFormat('hh:mm a');
+    return "${fmt.format(start.toLocal())} - ${fmt.format(end.toLocal())}";
+  }
+
   Color _bookingStatusColor(String status) {
     final s = status.toUpperCase();
-    if (s == "DELIVERED") return Colors.green;
+    if (s == "COMPLETED") return Colors.green;
     if (s == "CONFIRMED") return Colors.blue;
     if (s == "CANCELLED") return Colors.red;
-    return Colors.orange; // PENDING / default
+    return Colors.orange;
   }
 
   Color _issueStatusColor(String status) {
     final s = status.toUpperCase();
     if (s == "RESOLVED") return Colors.green;
     if (s == "IN_REVIEW") return Colors.blue;
-    return Colors.orange; // OPEN / default
+    return Colors.orange;
+  }
+
+  String _roleToLabel(String role) {
+    final r = role.toUpperCase();
+    if (r == "VENDOR") return "Vendor";
+    if (r == "WARD_ADMIN") return "Ward Admin";
+    if (r == "ADMIN") return "Admin";
+    return "Resident";
   }
 
   Future<void> _loadProfile() async {
@@ -197,9 +196,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final idToken = await _getFirebaseToken();
-      if (idToken == null) {
-        throw Exception("Not authenticated. Please login again.");
-      }
+      if (idToken == null) throw Exception("Not authenticated. Please login again.");
 
       final res = await http.get(
         Uri.parse("$_baseUrl/profile/me"),
@@ -213,19 +210,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final user = data['user'] as Map<String, dynamic>;
 
-      final newWard = (user['ward'] as String?);
+      final newWard = _wardNameFrom(user['ward']);
+      final role = (user['role'] ?? 'RESIDENT').toString();
 
       setState(() {
         _nameController.text = (user['name'] ?? '').toString();
         _phoneController.text = (user['phone'] ?? '').toString();
         _emailController.text = (user['email'] ?? '').toString();
 
+        _roleLabel = _roleToLabel(role);
+
         selectedWard = newWard;
         _originalWard = newWard;
-
-        _locations = ((data['locations'] ?? []) as List)
-            .map((e) => SavedLocationModel.fromJson(e as Map<String, dynamic>))
-            .toList();
 
         _bookings = ((data['bookings'] ?? []) as List)
             .map((e) => BookingModel.fromJson(e as Map<String, dynamic>))
@@ -268,7 +264,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
-      final oldWard = _originalWard;
+      final oldWardName = _originalWard;
 
       final updateResponse = await http.patch(
         Uri.parse('$_baseUrl/auth/update-profile'),
@@ -289,19 +285,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       final decoded = jsonDecode(updateResponse.body);
-      final userData = (decoded is Map && decoded['user'] != null) ? decoded['user'] : decoded;
+      final userData =
+      (decoded is Map && decoded['user'] != null) ? decoded['user'] : decoded;
 
-      final String newWard = (userData['ward'] ?? selectedWard ?? '').toString();
+      final wardRaw = userData['ward'];
+      final newWardName =
+          _wardNameFrom(wardRaw) ?? (selectedWard ?? '');
 
-      // Update FCM subscription if ward changed
+      // Update Firebase display name (optional, but good)
+      await FirebaseAuth.instance.currentUser?.updateDisplayName(name);
+
+      // Update FCM subscription if ward changed (string name only)
       try {
         final fcmService = FCMService();
 
-        if (oldWard != null && oldWard.isNotEmpty && oldWard != newWard) {
-          await fcmService.unsubscribeFromWard(oldWard);
+        if (oldWardName != null &&
+            oldWardName.isNotEmpty &&
+            oldWardName != newWardName) {
+          await fcmService.unsubscribeFromWard(oldWardName);
         }
-        if (newWard.isNotEmpty && oldWard != newWard) {
-          await fcmService.subscribeToWard(newWard);
+        if (newWardName.isNotEmpty && oldWardName != newWardName) {
+          await fcmService.subscribeToWard(newWardName);
         }
       } catch (e) {
         debugPrint("FCM subscription error (non-fatal): $e");
@@ -309,10 +313,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       _showSnackBar("Profile saved successfully!", isError: false);
 
-      // Refresh local screen data too
-      _originalWard = newWard;
+      _originalWard = newWardName;
 
-      // Navigate back to home with updated data
       await Future.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
 
@@ -320,11 +322,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         context,
         AppRoutes.home,
         arguments: {
-          'role': userData['role'] ?? 'Resident',
+          'role': userData['role'] ?? 'RESIDENT',
           'userName': userData['name'] ?? name,
           'phone': userData['phone'] ?? phone,
           'email': userData['email'] ?? _emailController.text.trim(),
-          'ward': newWard,
+          // pass raw ward if backend sends object, else ward name
+          'ward': wardRaw ?? newWardName,
         },
       );
     } catch (e) {
@@ -332,159 +335,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _showSnackBar("Network error: $e", isError: true);
     } finally {
       if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  Future<void> _openLocationForm({SavedLocationModel? existing}) async {
-    final titleC = TextEditingController(text: existing?.title ?? "");
-    final addressC = TextEditingController(text: existing?.address ?? "");
-
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        final bottom = MediaQuery.of(context).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: bottom + 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                existing == null ? "Add New Location" : "Edit Location",
-                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: titleC,
-                decoration: const InputDecoration(labelText: "Title (Home/Office/etc)"),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: addressC,
-                maxLines: 3,
-                decoration: const InputDecoration(labelText: "Address"),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (titleC.text.trim().isEmpty || addressC.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Please enter title and address")),
-                      );
-                      return;
-                    }
-                    Navigator.pop(context, true);
-                  },
-                  child: const Text("Save"),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (ok != true) return;
-
-    try {
-      final idToken = await _getFirebaseToken();
-      if (idToken == null) throw Exception("Not authenticated");
-
-      if (existing == null) {
-        final res = await http.post(
-          Uri.parse("$_baseUrl/profile/locations"),
-          headers: {
-            'Authorization': 'Bearer $idToken',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'title': titleC.text.trim(), 'address': addressC.text.trim()}),
-        );
-
-        if (res.statusCode != 201 && res.statusCode != 200) {
-          throw Exception("Failed to add location (${res.statusCode})");
-        }
-      } else {
-        final res = await http.patch(
-          Uri.parse("$_baseUrl/profile/locations/${existing.id}"),
-          headers: {
-            'Authorization': 'Bearer $idToken',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'title': titleC.text.trim(), 'address': addressC.text.trim()}),
-        );
-
-        if (res.statusCode != 200) {
-          throw Exception("Failed to update location (${res.statusCode})");
-        }
-      }
-
-      await _loadProfile();
-    } catch (e) {
-      debugPrint("Location save error: $e");
-      _showSnackBar("Failed to save location: $e", isError: true);
-    }
-  }
-
-  Future<void> _deleteLocation(int id) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Delete location", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-        content: Text("Are you sure you want to delete this location?", style: GoogleFonts.poppins()),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text("Cancel", style: GoogleFonts.poppins())),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text("Delete", style: GoogleFonts.poppins(color: Colors.red))),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      final idToken = await _getFirebaseToken();
-      if (idToken == null) throw Exception("Not authenticated");
-
-      final res = await http.delete(
-        Uri.parse("$_baseUrl/profile/locations/$id"),
-        headers: {'Authorization': 'Bearer $idToken'},
-      );
-
-      if (res.statusCode != 200) {
-        throw Exception("Failed to delete (${res.statusCode})");
-      }
-
-      await _loadProfile();
-    } catch (e) {
-      debugPrint("Delete location error: $e");
-      _showSnackBar("Failed to delete location: $e", isError: true);
-    }
-  }
-
-  Future<void> _setDefaultLocation(int id) async {
-    try {
-      final idToken = await _getFirebaseToken();
-      if (idToken == null) throw Exception("Not authenticated");
-
-      final res = await http.patch(
-        Uri.parse("$_baseUrl/profile/locations/$id/default"),
-        headers: {'Authorization': 'Bearer $idToken'},
-      );
-
-      if (res.statusCode != 200) {
-        throw Exception("Failed to set default (${res.statusCode})");
-      }
-
-      await _loadProfile();
-    } catch (e) {
-      debugPrint("Set default error: $e");
-      _showSnackBar("Failed to set default: $e", isError: true);
     }
   }
 
@@ -510,7 +360,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirm != true) return;
 
     try {
-      // Unsubscribe from ward topic
       try {
         final wardToUnsub = selectedWard ?? _originalWard ?? widget.ward;
         if (wardToUnsub != null && wardToUnsub.isNotEmpty) {
@@ -543,7 +392,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final displayName = _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : widget.userName;
+    final displayName =
+    _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : widget.userName;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -579,41 +429,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // Profile Header
+              // Header
               Column(
                 children: [
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.blue[100],
-                        child: Text(
-                          displayName.isNotEmpty ? displayName[0].toUpperCase() : "U",
-                          style: GoogleFonts.poppins(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
-                        ),
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: Colors.blue[100],
+                    child: Text(
+                      displayName.isNotEmpty ? displayName[0].toUpperCase() : "U",
+                      style: GoogleFonts.poppins(
+                        fontSize: 40,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
                       ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Colors.blue,
-                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 12),
+                  Text(displayName, style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold)),
                   Text(
-                    displayName,
-                    style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    "Resident • ${selectedWard ?? "No ward selected"}",
+                    "$_roleLabel • ${selectedWard ?? "No ward selected"}",
                     style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
                   ),
                 ],
@@ -621,7 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 24),
 
-              // Stats Row (dynamic counts from DB)
+              // Stats
               Row(
                 children: [
                   Expanded(child: _buildStatCard("${_bookings.length}", "Bookings", Colors.blue[50]!)),
@@ -632,7 +466,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 32),
 
-              // Personal Details
               _buildSection(
                 title: "Personal Details",
                 child: Column(
@@ -650,105 +483,66 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 32),
 
-              // Saved Locations
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Saved Locations", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-                  TextButton(
-                    onPressed: () => _openLocationForm(),
-                    child: Text("+ Add New", style: GoogleFonts.poppins(color: Colors.blue)),
-                  ),
-                ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text("Recent Activity", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
               ),
               const SizedBox(height: 12),
 
-              if (_locations.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-                  ),
-                  child: Text("No saved locations yet", style: GoogleFonts.poppins(color: Colors.grey[700])),
-                )
-              else
-                Column(
-                  children: _locations.map((loc) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildLocationCardDb(
-                        title: loc.title,
-                        address: loc.address,
-                        isDefault: loc.isDefault,
-                        onSetDefault: () => _setDefaultLocation(loc.id),
-                        onEdit: () => _openLocationForm(existing: loc),
-                        onDelete: () => _deleteLocation(loc.id),
-                      ),
-                    );
-                  }).toList(),
-                ),
-
-              const SizedBox(height: 32),
-
-              // Recent Activity Tabs
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Recent Activity", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-                ],
-              ),
-              const SizedBox(height: 12),
               Container(
                 decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(30)),
                 child: Row(
                   children: [
                     Expanded(child: _buildActivityTab("Bookings", 0)),
-                    Expanded(child: _buildActivityTab("Issues Reported", 1)),
+                    Expanded(child: _buildActivityTab("Complaints", 1)),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Activity Items (from DB)
               if (selectedTab == 0) ...[
                 if (_bookings.isEmpty)
                   _emptyCard("No bookings yet")
                 else
-                  ..._bookings.map((b) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildActivityItem(
-                      icon: Icons.local_shipping,
-                      title: "Booking #${b.id}",
-                      subtitle:
-                      "${b.liters ?? '-'} Liters • Rs ${b.price?.toStringAsFixed(0) ?? '-'} • ${_formatDate(b.createdAt)}",
-                      status: b.status,
-                      statusColor: _bookingStatusColor(b.status),
-                      onTap: () {},
+                  ..._bookings.map(
+                        (b) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildActivityItem(
+                        icon: Icons.local_shipping,
+                        title: "Booking #${b.id}",
+                        subtitle:
+                        "${b.routeLocation ?? "-"} • ${_formatTimeRange(b.slotStartTime, b.slotEndTime)} • ${_formatDate(b.createdAt)}",
+                        status: b.status,
+                        statusColor: _bookingStatusColor(b.status),
+                        onTap: () {},
+                      ),
                     ),
-                  )),
+                  ),
               ] else ...[
                 if (_issues.isEmpty)
-                  _emptyCard("No issues yet")
+                  _emptyCard("No complaints yet")
                 else
-                  ..._issues.map((i) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildActivityItem(
-                      icon: Icons.warning,
-                      title: i.title,
-                      subtitle: "Issue #${i.id} • ${_formatDate(i.createdAt)}",
-                      status: i.status,
-                      statusColor: _issueStatusColor(i.status),
-                      onTap: () {},
+                  ..._issues.map(
+                        (i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildActivityItem(
+                        icon: Icons.warning,
+                        title: i.title,
+                        subtitle: "Complaint #${i.id} • ${_formatDate(i.createdAt)}",
+                        status: i.status,
+                        statusColor: _issueStatusColor(i.status),
+                        onTap: () {
+                          if (i.message != null && i.message!.isNotEmpty) {
+                            _showSnackBar(i.message!, isError: false);
+                          }
+                        },
+                      ),
                     ),
-                  )),
+                  ),
               ],
 
               const SizedBox(height: 32),
 
-              // Logout Button
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -771,24 +565,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        currentIndex: 4,
-        onTap: (index) {
-          if (index == 0) Navigator.pop(context);
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.schedule), label: "Schedule"),
-          BottomNavigationBarItem(icon: Icon(Icons.add_circle), label: "Book"),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: "Alerts"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
-      ),
     );
   }
+
+  // ---- UI helpers ----
 
   Widget _emptyCard(String text) {
     return Container(
@@ -944,65 +724,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
       ],
-    );
-  }
-
-  Widget _buildLocationCardDb({
-    required String title,
-    required String address,
-    required bool isDefault,
-    required VoidCallback onSetDefault,
-    required VoidCallback onEdit,
-    required VoidCallback onDelete,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.place, color: Colors.blue, size: 32),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(child: Text(title, style: GoogleFonts.poppins(fontWeight: FontWeight.w600))),
-                    if (isDefault)
-                      Container(
-                        margin: const EdgeInsets.only(left: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(12)),
-                        child: Text("DEFAULT", style: GoogleFonts.poppins(fontSize: 10, color: Colors.blue)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(address, style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600])),
-                TextButton(
-                  onPressed: onSetDefault,
-                  child: Text("Set Default", style: GoogleFonts.poppins(color: Colors.blue)),
-                ),
-              ],
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == "edit") onEdit();
-              if (v == "delete") onDelete();
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: "edit", child: Text("Edit")),
-              PopupMenuItem(value: "delete", child: Text("Delete")),
-            ],
-          ),
-        ],
-      ),
     );
   }
 

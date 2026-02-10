@@ -1,69 +1,57 @@
-// backend/bookings/booking.controller.js
+// src/bookings/tankerbooking.controller.js
 import prisma from "../prisma.js";
 
-/**
- * POST /bookings
- * Body: { slotId, liters, price? }
- */
+/*
+  POST /bookings
+  ERD booking: { userId, slotId, status }
+  - Your old body had liters/price; now we only need slotId
+*/
 export async function createBooking(req, res) {
-  const auth = req.auth;
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  const userId = Number(req.auth?.sub);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const userId = Number(auth.sub);
-  const { slotId, liters, price } = req.body || {};
-
-  if (!slotId || !liters) {
-    return res
-      .status(400)
-      .json({ error: "slotId and liters are required" });
-  }
+  const { slotId } = req.body || {};
+  if (!slotId) return res.status(400).json({ error: "slotId is required" });
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const slot = await tx.tankerSlot.findUnique({
+      const slot = await tx.slot.findUnique({
         where: { id: Number(slotId) },
         include: {
-          route: true,
+          route: { include: { ward: true, vendor: { include: { user: true } } } },
         },
       });
 
-      if (!slot || slot.status !== "OPEN") {
-        throw new Error("SLOT_FULL_OR_CLOSED");
+      if (!slot) throw new Error("SLOT_NOT_FOUND");
+
+      // Student comment: slot is available if bookedCount < capacity
+      if (slot.bookedCount >= slot.capacity) {
+        throw new Error("SLOT_FULL");
       }
 
-      const litersInt = Number(liters);
-      if (
-        slot.bookedLiters + litersInt >
-        slot.capacityLiters
-      ) {
-        throw new Error("SLOT_FULL_OR_CLOSED");
-      }
-
-      await tx.tankerSlot.update({
+      // Student comment: increase bookedCount by 1
+      await tx.slot.update({
         where: { id: slot.id },
-        data: {
-          bookedLiters: {
-            increment: litersInt,
-          },
-        },
+        data: { bookedCount: { increment: 1 } },
       });
 
+      // Student comment: create booking for this user and this slot
       const booking = await tx.booking.create({
         data: {
-          residentId: userId,
-          vendorId: slot.route.vendorId,
-          ward: slot.route.ward,
-          liters: litersInt,
-          price: price != null ? Number(price) : null,
-          status: "PENDING",
+          userId,
           slotId: slot.id,
+          status: "PENDING",
         },
         include: {
-          resident: { select: { name: true, phone: true } },
-          vendor: { select: { name: true, phone: true } },
+          user: { select: { id: true, name: true, phoneNumber: true } },
           slot: {
             include: {
-              route: true,
+              route: {
+                include: {
+                  ward: true,
+                  vendor: { include: { user: true } },
+                },
+              },
             },
           },
         },
@@ -73,133 +61,132 @@ export async function createBooking(req, res) {
     });
 
     return res.status(201).json(result);
-  } catch (error) {
-    if (error.message === "SLOT_FULL_OR_CLOSED") {
-      return res
-        .status(409)
-        .json({ error: "Slot is full or not open" });
+  } catch (e) {
+    if (e.message === "SLOT_FULL") {
+      return res.status(409).json({ error: "Slot is full" });
     }
-    console.error("createBooking error:", error);
-    return res
-      .status(500)
-      .json({ error: "Failed to create booking" });
+    if (e.message === "SLOT_NOT_FOUND") {
+      return res.status(404).json({ error: "Slot not found" });
+    }
+    console.error("createBooking error:", e);
+    return res.status(500).json({ error: "Failed to create booking" });
   }
 }
 
-/**
- * GET /bookings/my
- * Current user's bookings
- */
+/*
+  GET /bookings/my
+  - show bookings for current user
+*/
 export async function getMyBookings(req, res) {
-  const auth = req.auth;
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
-
-  const userId = Number(auth.sub);
+  const userId = Number(req.auth?.sub);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
     const bookings = await prisma.booking.findMany({
-      where: { residentId: userId },
+      where: { userId },
       orderBy: { createdAt: "desc" },
       include: {
-        vendor: { select: { name: true, phone: true } },
         slot: {
           include: {
-            route: true,
+            route: {
+              include: {
+                ward: true,
+                vendor: { include: { user: true } },
+              },
+            },
           },
         },
       },
     });
 
     return res.json(bookings);
-  } catch (error) {
-    console.error("getMyBookings error:", error);
-    return res
-      .status(500)
-      .json({ error: "Failed to load bookings" });
+  } catch (e) {
+    console.error("getMyBookings error:", e);
+    return res.status(500).json({ error: "Failed to load bookings" });
   }
 }
 
-/**
- * PATCH /bookings/:id/status
- * Body: { status: "CONFIRMED" | "CANCELLED" | "COMPLETED" }
- * - Resident can cancel own booking
- * - Vendor can confirm/complete/cancel for their own bookings
- */
+/*
+  PATCH /bookings/:id/status
+  - resident can cancel their own booking
+  - vendor can update booking if booking belongs to their route
+  - also writes StatusHistory in ERD
+*/
 export async function updateBookingStatus(req, res) {
-  const auth = req.auth;
-  if (!auth) return res.status(401).json({ error: "Unauthorized" });
+  const userId = Number(req.auth?.sub);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const userId = Number(auth.sub);
-  const role = String(auth.role || "").toLowerCase();
   const bookingId = Number(req.params.id);
   const { status } = req.body || {};
 
   const allowed = ["CONFIRMED", "CANCELLED", "COMPLETED"];
-  if (!allowed.includes(status)) {
-    return res.status(400).json({ error: "Invalid status" });
-  }
+  if (!allowed.includes(status)) return res.status(400).json({ error: "Invalid status" });
 
   try {
+    // load booking with route vendor owner info
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
-        slot: true,
+        user: true,
+        slot: { include: { route: { include: { vendor: true } } } },
       },
     });
 
-    if (!booking) {
-      return res.status(404).json({ error: "Booking not found" });
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    // load current user's role
+    const me = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    const myRole = String(me?.role || "");
+
+    // Student comment: permission checks
+    if (myRole === "RESIDENT") {
+      if (booking.userId !== userId) return res.status(403).json({ error: "Not allowed" });
+      if (status !== "CANCELLED") {
+        return res.status(403).json({ error: "Residents can only cancel" });
+      }
     }
 
-    // permission checks
-    if (role === "resident") {
-      if (booking.residentId !== userId) {
-        return res.status(403).json({ error: "Not allowed" });
+    if (myRole === "VENDOR") {
+      const vendor = await prisma.vendor.findUnique({ where: { userId } });
+      if (!vendor) return res.status(403).json({ error: "Vendor profile not found" });
+
+      if (booking.slot.route.vendorId !== vendor.id) {
+        return res.status(403).json({ error: "Booking does not belong to you" });
       }
-      if (status !== "CANCELLED") {
-        return res
-          .status(403)
-          .json({ error: "Residents can only cancel" });
-      }
-    } else if (role === "vendor") {
-      if (booking.vendorId !== userId) {
-        return res
-          .status(403)
-          .json({ error: "Booking does not belong to you" });
-      }
-    } else {
-      return res.status(403).json({ error: "Not allowed" });
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      if (
-        status === "CANCELLED" &&
-        booking.status !== "CANCELLED" &&
-        booking.slotId
-      ) {
-        await tx.tankerSlot.update({
+      // Student comment: if cancelled, free one seat (decrement bookedCount by 1)
+      if (status === "CANCELLED" && booking.status !== "CANCELLED") {
+        await tx.slot.update({
           where: { id: booking.slotId },
-          data: {
-            bookedLiters: {
-              decrement: booking.liters ?? 0,
-            },
-          },
+          data: { bookedCount: { decrement: 1 } },
         });
       }
 
-      const updatedBooking = await tx.booking.update({
+      // Student comment: save status history (ERD requirement)
+      await tx.statusHistory.create({
+        data: {
+          bookingId: bookingId,
+          oldStatus: booking.status,
+          newStatus: status,
+        },
+      });
+
+      // Student comment: update booking
+      return tx.booking.update({
         where: { id: bookingId },
         data: { status },
       });
-
-      return updatedBooking;
     });
 
     return res.json(updated);
-  } catch (error) {
-    console.error("updateBookingStatus error:", error);
-    return res
-      .status(500)
-      .json({ error: "Failed to update booking status" });
+  } catch (e) {
+    console.error("updateBookingStatus error:", e);
+    return res.status(500).json({ error: "Failed to update booking status" });
   }
 }

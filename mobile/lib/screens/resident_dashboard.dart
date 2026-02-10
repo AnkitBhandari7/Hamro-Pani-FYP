@@ -1,28 +1,23 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-<<<<<<< HEAD
-
-class ResidentDashboardScreen extends StatelessWidget {
-  const ResidentDashboardScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-=======
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+
 import '../../core/routes/app_navigation.dart';
 import '../../core/routes/routes.dart';
-import 'package:fyp/profile/profile_screen.dart';
 import 'package:fyp/models/notification_model.dart';
 import 'package:fyp/notifications/notification_service.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-
-
 
 class ResidentDashboardScreen extends StatefulWidget {
   final String userName;
   final String phone;
   final String email;
-  final String? ward;
+
+  /// ERD: ward can be String OR Map {id, name}
+  final dynamic ward;
 
   const ResidentDashboardScreen({
     super.key,
@@ -37,739 +32,861 @@ class ResidentDashboardScreen extends StatefulWidget {
 }
 
 class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
+  static const String _baseUrl = "http://10.0.2.2:3000";
+
+  // --- Colors from your screenshot ---
+  static const Color bg = Color(0xFFF5F5F5); // screen background
+  static const Color primaryBlue = Color(0xFF2196F3); // gradient start, FAB
+  static const Color primaryBlue2 = Color(0xFF42A5F5); // gradient end
+  static const Color accentBlue = Color(0xFF1976D2); // buttons/selected text
+
+  static const Color greenTagBg = Color(0xFFE8F5E9);
+  static const Color greenTagText = Color(0xFF2E7D32);
+
+  static const Color normalFlowBg = Color(0xFFC8E6C9);
+  static const Color normalFlowText = Color(0xFF388E3C);
+
+  static const Color cardWhite = Colors.white;
+  static const Color textPrimary = Color(0xFF212121);
+  static const Color textSecondary = Color(0xFF757575);
+
+  int _navIndex = 0;
+
   List<AppNotification> notifications = [];
-  bool loading = true;
+  bool loadingReports = true;
+  List<Map<String, dynamic>> myReports = [];
 
-  Future<void> subscribeToAllResidents() async {
-    //  Global topic for notices sent to all residents
-    await FirebaseMessaging.instance.subscribeToTopic("all_residents");
-    debugPrint("Subscribed to: all_residents");
+  // -----------------------
+  // Ward helpers (FIX)
+  // -----------------------
+  String? _extractWardName(dynamic w) {
+    if (w == null) return null;
+
+    if (w is Map && w['name'] != null) return w['name'].toString();
+
+    if (w is String) {
+      final s = w.trim();
+
+      // If it looks like "{id: 3, name: Kathmandu Ward 6}"
+      final matchName =
+      RegExp(r'name:\s*([^}]+)', caseSensitive: false).firstMatch(s);
+      if (matchName != null) return matchName.group(1)?.trim();
+
+      return s;
+    }
+
+    return w.toString();
   }
 
-  Future<void> subscribeToWard(String ward) async {
-    final topic = 'ward_' + ward.toLowerCase().replaceAll(' ', '_');
+  String get wardName => _extractWardName(widget.ward) ?? '';
 
-    await FirebaseMessaging.instance.subscribeToTopic(topic);
+  String get prettyWardText {
+    final name = wardName.trim();
+    if (name.isEmpty) return "Ward not set";
 
-    print("Subscribed to: $topic");
+    final match =
+    RegExp(r'^(.*)\s+Ward\s*(\d+)$', caseSensitive: false).firstMatch(name);
+    if (match != null) {
+      final city = match.group(1)!.trim();
+      final number = match.group(2)!.trim();
+      return "$city, Ward $number";
+    }
+    return name;
   }
 
+  // -----------------------
+  // API
+  // -----------------------
+  Future<void> fetchNotifications() async {
+    try {
+      final data = await NotificationService.getNotifications();
+      if (!mounted) return;
+      setState(() => notifications = data);
+    } catch (_) {}
+  }
+
+  Future<void> fetchMyReports() async {
+    setState(() => loadingReports = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception("Not logged in");
+      final token = await user.getIdToken();
+
+      final res = await http.get(
+        Uri.parse("$_baseUrl/profile/me"),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (res.statusCode != 200) {
+        throw Exception("Failed to load profile (${res.statusCode})");
+      }
+
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final issues = (data['issues'] as List? ?? []).cast<dynamic>();
+      final mapped =
+      issues.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+      if (!mounted) return;
+      setState(() {
+        myReports = mapped;
+        loadingReports = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => loadingReports = false);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    // Subscribe in background
-    () async {
-      try {
-        // request permission
-        await FirebaseMessaging.instance.requestPermission();
-
-        await subscribeToAllResidents();
-
-        if (widget.ward != null && widget.ward!.trim().isNotEmpty) {
-          await subscribeToWard(widget.ward!.trim());
-        }
-      } catch (e) {
-        debugPrint("FCM subscribe error: $e");
-      }
-    }();
-
     fetchNotifications();
+    fetchMyReports();
   }
 
-  Future<void> fetchNotifications() async {
-    if (widget.ward == null) return;
-
-    try {
-      final data = await NotificationService.getNotifications(ward: widget.ward!);
-      if (!mounted) return;
-      setState(() {
-        notifications = data;
-        loading = false;
-      });
-    } catch (e) {
-      debugPrint("Fetch notifications failed: $e");
-      if (!mounted) return;
-      setState(() => loading = false);
-    }
+  // -----------------------
+  // UI helpers
+  // -----------------------
+  Widget pngIcon(
+      String asset, {
+        double size = 22,
+        Color? tint,
+      }) {
+    return Image.asset(
+      asset,
+      height: size,
+      width: size,
+      color: tint,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => Icon(
+        Icons.image_not_supported,
+        size: size,
+        color: tint ?? Colors.grey,
+      ),
+    );
   }
 
+  BoxDecoration _softCard() {
+    return BoxDecoration(
+      color: cardWhite,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.06),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
+        )
+      ],
+    );
+  }
 
+  String _formatDateLabel(DateTime dt) {
+    return DateFormat('MMM d, yyyy').format(dt.toLocal());
+  }
+
+  String _formatTimeLabel(DateTime dt) {
+    return DateFormat('h:mm a').format(dt.toLocal());
+  }
+
+  String _relativeDay(DateTime dt) {
+    final now = DateTime.now();
+    final d = dt.toLocal();
+    final today = DateTime(now.year, now.month, now.day);
+    final dateOnly = DateTime(d.year, d.month, d.day);
+    final diff = dateOnly.difference(today).inDays;
+    if (diff == 0) return "Today";
+    if (diff == -1) return "Yesterday";
+    return DateFormat('MMM d').format(d);
+  }
+
+  void _openProfile() {
+    AppNavigation.push(
+      context,
+      AppRoutes.profile,
+      arguments: {
+        'userName': widget.userName,
+        'phone': widget.phone,
+        'email': widget.email,
+        'ward': widget.ward,
+      },
+    );
+  }
+
+  // -----------------------
+  // Build
+  // -----------------------
   @override
   Widget build(BuildContext context) {
-    print("Dashboard received ward: ${widget.ward}");
     final now = DateTime.now();
-    final currentTime = DateFormat('h:mm a').format(now);
-    final currentDate = DateFormat('MMM d, yyyy').format(now);
+    final currentTime = _formatTimeLabel(now);
+    final currentDate = _formatDateLabel(now);
 
->>>>>>> main
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: bg,
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: primaryBlue,
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Open Book Tanker")),
+          );
+        },
+        child: pngIcon('assets/icons/book.png', size: 26, tint: Colors.white),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: _buildBottomBar(),
+
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-<<<<<<< HEAD
-              // Header - Name & Location
-=======
-              // Header
->>>>>>> main
-              Row(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(18),
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-<<<<<<< HEAD
-                          "Namaste, Aarya 👋",
-                          style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-=======
-                          "Namaste, ${widget.userName} 👋"
-                          ,
-                          style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),
->>>>>>> main
-                        ),
-                        Row(
+                  // ---------------- Header ----------------
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.location_on, size: 16, color: Colors.blue),
-                            const SizedBox(width: 4),
                             Text(
-<<<<<<< HEAD
-                              "Kathmandu, Ward 4",
-=======
-                              widget.ward != null ? "Kathmandu, ${widget.ward}" : "Ward not set",
->>>>>>> main
-                              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700]),
+                              "Namaste, ${widget.userName} 👋",
+                              style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                color: const Color(0xFF60708F),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(Icons.location_on,
+                                    size: 18, color: accentBlue),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    prettyWardText,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700,
+                                      color: textPrimary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-<<<<<<< HEAD
-=======
-                  // Notification Bell
->>>>>>> main
-                  Stack(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.notifications_outlined, size: 28),
-<<<<<<< HEAD
-                        onPressed: () {},
                       ),
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-=======
-                        onPressed: () {
-                          showModalBottomSheet(
-                            context: context,
-                            builder: (_) => NotificationList(notifications),
-                          );
-                        },
-                      ),
-                      if (notifications.isNotEmpty)
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                          ),
-                        ),
-                    ],
-                  ),
-
->>>>>>> main
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-<<<<<<< HEAD
-              // Today's Supply Card
-              Row(
-                children: [
-                  Text(
-                    "Today's Supply",
-                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green[100],
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      "On Schedule",
-                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.green[800]),
-                    ),
-=======
-              // Today's Supply
-              Row(
-                children: [
-                  Text("Today's Supply", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.green[100], borderRadius: BorderRadius.circular(20)),
-                    child: Text("On Schedule", style: GoogleFonts.poppins(fontSize: 12, color: Colors.green[800])),
->>>>>>> main
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // Next Supply Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-<<<<<<< HEAD
-                  gradient: const LinearGradient(
-                    colors: [Colors.blue, Colors.blueAccent],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-=======
-                  gradient: const LinearGradient(colors: [Colors.blue, Colors.blueAccent], begin: Alignment.topLeft, end: Alignment.bottomRight),
->>>>>>> main
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-<<<<<<< HEAD
-                        Text(
-                          "Next Supply",
-                          style: GoogleFonts.poppins(fontSize: 16, color: Colors.white70),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.white24,
-                            shape: BoxShape.circle,
-                          ),
-=======
-                        Text("Next Supply", style: GoogleFonts.poppins(fontSize: 16, color: Colors.white70)),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
->>>>>>> main
-                          child: const Icon(Icons.water_drop, color: Colors.white, size: 24),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-<<<<<<< HEAD
-                    Text(
-                      "4:00 PM",
-                      style: GoogleFonts.poppins(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Text(
-                      "Expected duration: 2 hours",
-                      style: GoogleFonts.poppins(fontSize: 14, color: Colors.white70),
-                    ),
-=======
-                    Text(currentTime, style: GoogleFonts.poppins(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white)),
-                    Text("Expected duration: 2 hours", style: GoogleFonts.poppins(fontSize: 14, color: Colors.white70)),
->>>>>>> main
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today, color: Colors.white70, size: 18),
-                        const SizedBox(width: 8),
-<<<<<<< HEAD
-                        Text(
-                          "Sep 12, 2023",
-                          style: GoogleFonts.poppins(color: Colors.white70),
-                        ),
-                        const SizedBox(width: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            "Normal Flow",
-                            style: GoogleFonts.poppins(fontSize: 12, color: Colors.white),
-                          ),
-=======
-                        Text(currentDate, style: GoogleFonts.poppins(color: Colors.white70)),
-                        const SizedBox(width: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(12)),
-                          child: Text("Normal Flow", style: GoogleFonts.poppins(fontSize: 12, color: Colors.white)),
->>>>>>> main
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Quick Actions
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildQuickActionCard(
-                      icon: Icons.local_shipping_outlined,
-                      label: "Book Tanker",
-<<<<<<< HEAD
-                      onTap: () {},
-=======
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Opening Book Tanker...")),
-                        );
-                      },
->>>>>>> main
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildQuickActionCard(
-                      icon: Icons.warning_amber_outlined,
-                      label: "Report Issue",
-                      color: Colors.orange[100],
-                      iconColor: Colors.orange,
-<<<<<<< HEAD
-                      onTap: () {},
-=======
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Opening Report Issue...")),
-                        );
-                      },
->>>>>>> main
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 32),
-
-<<<<<<< HEAD
-              // Nearby Tankers Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Nearby Tankers",
-                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: Text(
-                      "View All",
-                      style: GoogleFonts.poppins(color: Colors.blue),
-                    ),
-                  ),
-=======
-              // Nearby Tankers
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Nearby Tankers", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-                  TextButton(onPressed: () {}, child: Text("View All", style: GoogleFonts.poppins(color: Colors.blue))),
->>>>>>> main
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-<<<<<<< HEAD
-              // Tanker Cards
-=======
-              // Tanker Cards —
->>>>>>> main
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTankerCard(
-                      name: "Kathmandu Water",
-                      rating: 4.8,
-                      reviews: 120,
-                      capacity: "12,000 Ltr",
-                      price: "Rs. 3,500",
-<<<<<<< HEAD
-=======
-                      onBook: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Booking Kathmandu Water...")),
-                        );
-                      },
->>>>>>> main
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildTankerCard(
-                      name: "Pure Drop",
-                      rating: 4.5,
-                      reviews: 89,
-                      capacity: "7,000 Ltr",
-                      price: "Rs. 2,200",
-                      isFaded: true,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 32),
-
-<<<<<<< HEAD
-              // Your Reports Header
-              Text(
-                "Your Reports",
-                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Report Card
-=======
-              // Your Reports
-              Text("Your Reports", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 16),
->>>>>>> main
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-<<<<<<< HEAD
-                  // Fixed: Removed 'const' from Offset
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-=======
-                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: const Offset(0, 4))],
->>>>>>> main
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-<<<<<<< HEAD
-                      decoration: BoxDecoration(
-                        color: Colors.yellow[100],
-                        shape: BoxShape.circle,
-                      ),
-=======
-                      decoration: BoxDecoration(color: Colors.yellow[100], shape: BoxShape.circle),
->>>>>>> main
-                      child: const Icon(Icons.waves, color: Colors.orange, size: 28),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Stack(
                         children: [
-<<<<<<< HEAD
-                          Text(
-                            "Missed Delivery",
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.06),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                )
+                              ],
+                            ),
+                            child: IconButton(
+                              onPressed: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(18),
+                                    ),
+                                  ),
+                                  builder: (_) => _NotificationSheet(
+                                    notifications: notifications,
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.notifications_none, size: 26),
+                            ),
                           ),
-                          Text(
-                            "Ticket #4521 • Yesterday",
-                            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-                          ),
-=======
-                          Text("Missed Delivery", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                          Text("Ticket #4521 • Yesterday", style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
->>>>>>> main
+                          if (notifications.isNotEmpty)
+                            Positioned(
+                              right: 12,
+                              top: 12,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFF44336),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-<<<<<<< HEAD
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        "In Review",
-                        style: GoogleFonts.poppins(fontSize: 12, color: Colors.blue),
-                      ),
-=======
-                      decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(20)),
-                      child: Text("In Review", style: GoogleFonts.poppins(fontSize: 12, color: Colors.blue)),
->>>>>>> main
-                    ),
-                  ],
-                ),
-              ),
+                    ],
+                  ),
 
-              const SizedBox(height: 100),
-            ],
+                  const SizedBox(height: 18),
+
+                  // Today's Supply row
+                  Row(
+                    children: [
+                      Text(
+                        "Today's Supply",
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: greenTagBg,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: Text(
+                          "On Schedule",
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: greenTagText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Next Supply gradient card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [primaryBlue, primaryBlue2],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Next Supply",
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: Colors.white.withOpacity(0.85),
+                              ),
+                            ),
+                            Container(
+                              height: 42,
+                              width: 42,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.22),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: pngIcon(
+                                  'assets/icons/drop.png',
+                                  size: 18,
+                                  tint: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          currentTime,
+                          style: GoogleFonts.poppins(
+                            fontSize: 38,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "Expected duration: 2 hours",
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.85),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Divider(color: Colors.white.withOpacity(0.25)),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            pngIcon('assets/icons/calendar.png',
+                                size: 18, tint: Colors.white),
+                            const SizedBox(width: 10),
+                            Text(
+                              currentDate,
+                              style: GoogleFonts.poppins(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 13,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: normalFlowBg,
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF4CAF50),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "Normal Flow",
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: normalFlowText,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // Nearby tankers
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Nearby Tankers",
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {},
+                        child: Text(
+                          "View All",
+                          style: GoogleFonts.poppins(
+                            color: accentBlue,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _nearbyTankerCard(
+                          name: "Kathmandu Water",
+                          rating: 4.8,
+                          reviews: 120,
+                          capacityText: "12,000 Ltr",
+                          priceText: "Rs. 3,500",
+                          faded: false,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _nearbyTankerCard(
+                          name: "Pure Drop",
+                          rating: 4.5,
+                          reviews: 89,
+                          capacityText: "7,000 Ltr",
+                          priceText: "Rs. 2,200",
+                          faded: true,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  // Your Reports
+                  Text(
+                    "Your Reports",
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  if (loadingReports)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (myReports.isEmpty)
+                    Container(
+                      decoration: _softCard(),
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        "No reports yet",
+                        style: GoogleFonts.poppins(color: textSecondary),
+                      ),
+                    )
+                  else
+                    _reportCard(myReports.first),
+
+                  const SizedBox(height: 110),
+                ],
+              ),
+            ),
           ),
         ),
       ),
-
-<<<<<<< HEAD
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 10),
-          ],
-        ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey,
-          currentIndex: 0,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-            BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: "Bookings"),
-            BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: "Reports"),
-            BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-          ],
-        ),
-=======
-      // Bottom Navigation Bar
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        currentIndex: 0,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-            // Already on Home
-              break;
-            case 1:
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opening Bookings...")));
-              break;
-            case 2:
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opening Reports...")));
-              break;
-            case 3:
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Opening History...")));
-              break;
-            case 4:
-              AppNavigation.push(
-                context,
-                AppRoutes.profile,
-                arguments: {
-                  'userName': widget.userName,
-                  'phone': widget.phone,
-                  'email': widget.email,
-                  'ward': widget.ward,
-                },
-
-              );
-              break;
-          }
-        },
-
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: "Bookings"),
-          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: "Reports"),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
->>>>>>> main
-      ),
     );
   }
 
-  Widget _buildQuickActionCard({
-    required IconData icon,
-    required String label,
-    Color? color,
-    Color? iconColor,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: color ?? Colors.blue[50],
-          borderRadius: BorderRadius.circular(20),
-<<<<<<< HEAD
-          boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 8, offset: const Offset(0, 4)),
-          ],
-=======
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: const Offset(0, 4))],
->>>>>>> main
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 40, color: iconColor ?? Colors.blue),
-            const SizedBox(height: 12),
-<<<<<<< HEAD
-            Text(
-              label,
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-              textAlign: TextAlign.center,
-            ),
-=======
-            Text(label, style: GoogleFonts.poppins(fontWeight: FontWeight.w600), textAlign: TextAlign.center),
->>>>>>> main
-          ],
-        ),
-      ),
-    );
-  }
+  // ---------------- Nearby tanker card (OVERFLOW SAFE) ----------------
 
-  Widget _buildTankerCard({
+  Widget _nearbyTankerCard({
     required String name,
     required double rating,
     required int reviews,
-    required String capacity,
-    required String price,
-    bool isFaded = false,
-<<<<<<< HEAD
-=======
-    VoidCallback? onBook,
->>>>>>> main
+    required String capacityText,
+    required String priceText,
+    required bool faded,
   }) {
     return Opacity(
-      opacity: isFaded ? 0.6 : 1.0,
+      opacity: faded ? 0.55 : 1,
       child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-<<<<<<< HEAD
-          boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 8, offset: const Offset(0, 4)),
-          ],
-=======
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: const Offset(0, 4))],
->>>>>>> main
-        ),
+        decoration: _softCard(),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // header
             Row(
               children: [
-<<<<<<< HEAD
                 CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.grey[300],
-                  child: Icon(Icons.local_drink, color: Colors.grey[600]),
+                  radius: 18,
+                  backgroundColor: Colors.green[200],
+                  child: const Icon(Icons.water_drop, color: Colors.white),
                 ),
-=======
-                CircleAvatar(radius: 20, backgroundColor: Colors.grey[300], child: Icon(Icons.local_drink, color: Colors.grey[600])),
->>>>>>> main
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-<<<<<<< HEAD
-                      Text(
-                        name,
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                      ),
-                      Row(
-                        children: [
-                          const Icon(Icons.star, size: 16, color: Colors.amber),
-                          Text(
-                            "$rating ($reviews reviews)",
-                            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-=======
-                      Text(name, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                      Row(
-                        children: [
-                          const Icon(Icons.star, size: 16, color: Colors.amber),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              "$rating ($reviews reviews)",
-                              style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
->>>>>>> main
-                          ),
-                        ],
-                      ),
-                    ],
+                  child: Text(
+                    name,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-<<<<<<< HEAD
-            Text(
-              capacity,
-              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold),
+            const SizedBox(height: 6),
+
+            // rating row
+            Row(
+              children: [
+                const Icon(Icons.star, size: 14, color: Colors.amber),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    "$rating ($reviews reviews)",
+                    style: GoogleFonts.poppins(fontSize: 11, color: textSecondary),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              price,
-              style: GoogleFonts.poppins(fontSize: 16, color: Colors.blue, fontWeight: FontWeight.w600),
+
+            const SizedBox(height: 10),
+
+            // ✅ FIX: capacity + price row cannot overflow now
+            Row(
+              children: [
+                Flexible(
+                  flex: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text(
+                      capacityText,
+                      style: GoogleFonts.poppins(fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  flex: 4,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        priceText,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          color: accentBlue,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-=======
-            Text(capacity, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(price, style: GoogleFonts.poppins(fontSize: 16, color: Colors.blue, fontWeight: FontWeight.w600)),
->>>>>>> main
+
             const SizedBox(height: 12),
+
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-<<<<<<< HEAD
-                onPressed: isFaded ? null : () {},
-=======
-                onPressed: isFaded ? null : onBook,
->>>>>>> main
+                onPressed: faded ? null : () {},
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  elevation: 0,
+                  backgroundColor: const Color(0xFFE3F2FD),
+                  foregroundColor: accentBlue,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-<<<<<<< HEAD
-                child: Text(
-                  "Book Now",
-                  style: GoogleFonts.poppins(color: Colors.white),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    "Book Now",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  ),
                 ),
-=======
-                child: Text("Book Now", style: GoogleFonts.poppins(color: Colors.white)),
->>>>>>> main
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------- Report card ----------------
+
+  Widget _reportCard(Map<String, dynamic> r) {
+    final id = r['id'];
+    final title = (r['title'] ?? 'Missed Delivery').toString();
+    final status = (r['status'] ?? 'IN_REVIEW').toString();
+    final createdAt = DateTime.tryParse((r['createdAt'] ?? '').toString());
+
+    final label = status.toUpperCase() == "IN_REVIEW" ? "In Review" : status;
+
+    return Container(
+      decoration: _softCard(),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            height: 44,
+            width: 44,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFF9C4),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text(
+                  "Ticket #$id • ${createdAt != null ? _relativeDay(createdAt) : '-'}",
+                  style: GoogleFonts.poppins(fontSize: 12, color: textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE3F2FD),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: accentBlue,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------- Bottom bar (vertical overflow safe) ----------------
+  Widget _buildBottomBar() {
+    final inactive = Colors.grey[500]!;
+
+    Widget item({
+      required int index,
+      required IconData icon,
+      required String label,
+      required VoidCallback onTap,
+    }) {
+      final isActive = _navIndex == index;
+      final color = isActive ? primaryBlue : inactive;
+
+      return Expanded(
+        child: InkWell(
+          onTap: () {
+            setState(() => _navIndex = index);
+            onTap();
+          },
+          child: Center(
+            // ✅ Hard limit height to avoid Column overflow
+            child: SizedBox(
+              height: 36,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  Icon(icon, color: color, size: 18),
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    height: 12,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        style: GoogleFonts.poppins(fontSize: 10, color: color),
+                      ),
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return BottomAppBar(
+      shape: const CircularNotchedRectangle(),
+      notchMargin: 10,
+      child: SizedBox(
+        height: 78,
+        child: Row(
+          children: [
+            item(index: 0, icon: Icons.home, label: 'Home', onTap: () {}),
+            item(index: 1, icon: Icons.receipt_long, label: 'Bookings', onTap: () {}),
+            const SizedBox(width: 60),
+            item(index: 3, icon: Icons.chat_bubble_outline, label: 'Reports', onTap: () {}),
+            item(index: 4, icon: Icons.person, label: 'Profile', onTap: _openProfile),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------- Notification bottom sheet ----------------
+
+class _NotificationSheet extends StatelessWidget {
+  final List<AppNotification> notifications;
+
+  const _NotificationSheet({required this.notifications});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 420,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        child: Column(
+          children: [
+            Container(
+              height: 4,
+              width: 44,
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(100),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  "Notifications",
+                  style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    "Close",
+                    style: GoogleFonts.poppins(color: const Color(0xFF1976D2)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: notifications.isEmpty
+                  ? Center(child: Text("No notifications", style: GoogleFonts.poppins()))
+                  : ListView.separated(
+                itemCount: notifications.length,
+                separatorBuilder: (_, __) => const Divider(height: 10),
+                itemBuilder: (context, index) {
+                  final n = notifications[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(n.title, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                    subtitle: Text(n.message, style: GoogleFonts.poppins(fontSize: 12)),
+                    trailing: Text(
+                      DateFormat('hh:mm a').format(n.createdAt.toLocal()),
+                      style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey[600]),
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -777,30 +894,4 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
       ),
     );
   }
-<<<<<<< HEAD
-=======
-}
-
-// Notification UI
-Widget NotificationList(List<AppNotification> notifications) {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    height: 400,
-    child: notifications.isEmpty
-        ? const Center(child: Text("No notifications"))
-        : ListView.builder(
-      itemCount: notifications.length,
-      itemBuilder: (context, index) {
-        final n = notifications[index];
-        return ListTile(
-          leading: const Icon(Icons.water_drop, color: Colors.blue),
-          title: Text(n.title),
-          subtitle: Text(n.message),
-          trailing: Text(DateFormat('hh:mm a').format(n.createdAt),
-              style: const TextStyle(fontSize: 12)),
-        );
-      },
-    ),
-  );
->>>>>>> main
 }

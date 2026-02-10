@@ -1,125 +1,165 @@
+// src/notifications/notification.controller.js
 import prisma from "../prisma.js";
 import fcmService from "./fcmservice.js";
 
-const GLOBAL_WARD = "ALL";
-const VENDOR_BUCKET = "ALL_VENDORS";
-
+/*
+  GET /notifications
+  - ERD way: load notifications that were delivered to current user (via NotificationRecipient)
+*/
 export async function getNotifications(req, res) {
-  const userId = req.auth?.sub;
+  const userId = Number(req.auth?.sub);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const user = await prisma.user.findUnique({
-    where: { id: Number(userId) },
-    select: { role: true, ward: true },
-  });
-  if (!user) return res.status(401).json({ error: "User not found" });
+  try {
+    const rows = await prisma.notificationRecipient.findMany({
+      where: { userId },
+      orderBy: { notification: { createdAt: "desc" } },
+      include: {
+        notification: {
+          include: {
+            sender: { select: { id: true, name: true, role: true } },
+          },
+        },
+      },
+    });
 
-  const role = String(user.role || "").toLowerCase().trim();
-  let where = {};
+    // Student comment: return in simple format for flutter
+    const result = rows.map((r) => ({
+      isRead: r.isRead,
+      deliveredAt: r.deliveredAt,
+      notification: r.notification,
+    }));
 
-
-  if (role === "resident") {
-    if (user.ward && user.ward.trim()) {
-      where = { ward: { in: [user.ward.trim(), GLOBAL_WARD] } };
-    } else {
-      where = { ward: GLOBAL_WARD };
-    }
+    return res.json(result);
+  } catch (e) {
+    console.error("getNotifications error:", e);
+    return res.status(500).json({ error: "Failed to fetch notifications" });
   }
-  // Vendor see everything
-  else if (role === "vendor") {
-    where = {};
-  }
-  // Ward Admin  see everything
-  else if (["ward admin", "ward_admin", "wardadmin"].includes(role)) {
-    where = {};
-  }
-
-  const notifications = await prisma.notification.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-  });
-
-  return res.json(notifications);
 }
 
+/*
+  POST /notifications
+  - Only ward admin can create
+  - ERD way: create Notification + NotificationRecipient rows
+  - We still use topic push (easy) but DB records are per token (recipientId = token_id)
+*/
 export async function createNotification(req, res) {
-  const userId = req.auth?.sub;
+  const userId = Number(req.auth?.sub);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const user = await prisma.user.findUnique({
-    where: { id: Number(userId) },
-    select: { role: true },
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, wardId: true },
   });
-  if (!user) return res.status(401).json({ error: "User not found" });
 
-  const role = String(user.role || "").toLowerCase().trim();
-  if (!["ward admin", "ward_admin", "wardadmin"].includes(role)) {
+  if (!me) return res.status(401).json({ error: "User not found" });
+  if (me.role !== "WARD_ADMIN") {
     return res.status(403).json({ error: "Only Ward Admin can create notifications" });
   }
 
   const {
-    ward = GLOBAL_WARD,      // Flutter can send ALL
     title,
     message,
-    recipient = "resident",
+    recipient = "resident",   // resident | vendor | both
+    wardId,                   // optional: ward id
     push = true,
-    highPriority = false,
-    type = "general",
+    type = "GENERAL",
   } = req.body || {};
 
   if (!title || !message) {
     return res.status(400).json({ error: "title and message are required" });
   }
 
-  const normalizedWard = String(ward).trim() || GLOBAL_WARD;
-  const normalizedRecipient = String(recipient).toLowerCase().trim();
+  try {
+    // Student comment: create notification row
+    const notif = await prisma.notification.create({
+      data: {
+        senderId: userId,
+        senderRole: me.role,
+        title,
+        message,
+        type: String(type).toUpperCase(),
+      },
+    });
 
-  // SAVE ONLY ONE DB ROW
+    // Student comment: choose target users
+    const targetWardId = wardId != null ? Number(wardId) : me.wardId;
 
-  const wardForDb = normalizedRecipient === "vendor" ? VENDOR_BUCKET : normalizedWard;
+    const recipientLower = String(recipient).toLowerCase().trim();
+    const roleFilter = [];
 
-  const notif = await prisma.notification.create({
-    data: { ward: wardForDb, title, message },
-  });
+    if (recipientLower === "resident") roleFilter.push("RESIDENT");
+    else if (recipientLower === "vendor") roleFilter.push("VENDOR");
+    else if (recipientLower === "both") roleFilter.push("RESIDENT", "VENDOR");
+    else roleFilter.push("RESIDENT");
 
-  //  vendors should receive everything
+    // Student comment: find users to receive notice
+    const users = await prisma.user.findMany({
+      where: {
+        role: { in: roleFilter },
+        ...(targetWardId ? { wardId: targetWardId } : {}),
+      },
+      select: { id: true },
+    });
 
-  let pushResult = { success: false, message: "push disabled" };
+    // Student comment: get all fcm tokens for those users
+    const userIds = users.map((u) => u.id);
 
-  if (push) {
-    try {
-      const data = {
-        screen: "notifications",
-        ward: wardForDb,
-        type: String(type),
-        highPriority: String(!!highPriority),
-        notificationId: String(notif.id),
-      };
+    const tokens = await prisma.fcmToken.findMany({
+      where: { userId: { in: userIds } },
+      select: { id: true, userId: true, token: true },
+    });
 
-      const tasks = [];
-
-      // Residents push only if recipient is resident or both
-      if (normalizedRecipient === "resident" || normalizedRecipient === "both") {
-        if (normalizedWard === GLOBAL_WARD) {
-          tasks.push(fcmService.sendToTopic("all_residents", title, message, data));
-        } else {
-          tasks.push(fcmService.sendToTopic(fcmService.wardToTopic(normalizedWard), title, message, data));
-        }
-      }
-
-      //  Vendors ALWAYS get it even resident-only
-      tasks.push(fcmService.sendToTopic("all_vendors", title, message, data));
-
-      const results = await Promise.all(tasks);
-      pushResult = { success: true, results };
-    } catch (e) {
-      pushResult = { success: false, error: e.message };
+    // Student comment: create recipient rows (notification_id + token_id)
+    // (If user has no token, they won't get a recipient row. In your app login saves token so OK.)
+    if (tokens.length > 0) {
+      await prisma.notificationRecipient.createMany({
+        data: tokens.map((t) => ({
+          notificationId: notif.id,
+          recipientId: t.id,  // token_id
+          userId: t.userId,
+          deliveredAt: push ? new Date() : null,
+          isRead: false,
+        })),
+        skipDuplicates: true,
+      });
     }
-  }
 
-  return res.status(201).json({
-    message: "Notice created",
-    saved: notif,
-    push: pushResult,
-  });
+    // Student comment: send push notification (simple: topic)
+    // You can improve later by sending directly to tokens list.
+    let pushResult = { success: false, message: "push disabled" };
+
+    if (push) {
+      try {
+        const data = {
+          screen: "notifications",
+          notificationId: String(notif.id),
+          type: String(type),
+        };
+
+        const tasks = [];
+
+        if (roleFilter.includes("RESIDENT")) {
+          tasks.push(fcmService.sendToTopic("all_residents", title, message, data));
+        }
+        if (roleFilter.includes("VENDOR")) {
+          tasks.push(fcmService.sendToTopic("all_vendors", title, message, data));
+        }
+
+        const results = await Promise.all(tasks);
+        pushResult = { success: true, results };
+      } catch (e) {
+        pushResult = { success: false, error: e.message };
+      }
+    }
+
+    return res.status(201).json({
+      message: "Notification created",
+      saved: notif,
+      push: pushResult,
+    });
+  } catch (e) {
+    console.error("createNotification error:", e);
+    return res.status(500).json({ error: "Failed to create notification" });
+  }
 }
