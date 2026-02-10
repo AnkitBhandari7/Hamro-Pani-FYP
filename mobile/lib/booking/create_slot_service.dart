@@ -1,4 +1,4 @@
-
+// lib/booking/create_slot_service.dart
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -10,57 +10,43 @@ class CreateSlotService {
 
   final Dio _dio;
 
-  /// GET /vendors/routes/my
+  // Student note: vendor loads all their routes and slots
   Future<List<Map<String, dynamic>>> fetchMyRoutes() async {
     final response = await _dio.get('/vendors/routes/my');
-
     final list = response.data as List<dynamic>;
-    return list
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+    return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
-  /// POST /vendors/routes
-
+  // Student note: ERD route = vendorId + wardId + routeDate + location
   Future<Map<String, dynamic>> createRoute({
     int? wardId,
-    String? ward,
-    required String name,
-    String? description,
+    String? ward, // optional: backend may create/find ward by name
+    required DateTime routeDate,
+    required String location,
   }) async {
-    if ((ward == null || ward.trim().isEmpty) && wardId == null) {
-      throw ArgumentError('Either ward or wardId must be provided');
-    }
-
     final response = await _dio.post(
       '/vendors/routes',
       data: {
         if (wardId != null) 'wardId': wardId,
         if (ward != null && ward.trim().isNotEmpty) 'ward': ward.trim(),
-        'name': name,
-        if (description != null && description.trim().isNotEmpty)
-          'description': description.trim(),
+        'routeDate': DateFormat('yyyy-MM-dd').format(routeDate),
+        'location': location.trim(),
       },
     );
 
     return Map<String, dynamic>.from(response.data as Map);
   }
 
-  /// POST /vendors/routes/:routeId/slots
+  // Student note: ERD slot = startTime + endTime + capacity + bookedCount
   Future<Map<String, dynamic>> createSlot({
     required int routeId,
-    required DateTime date,
     required DateTime startTime,
     required DateTime endTime,
     required int capacity,
   }) async {
-    // Send date-only so backend parses it cleanly
-    final dateOnly = DateFormat('yyyy-MM-dd').format(date);
-
     final response = await _dio.post(
       '/vendors/routes/$routeId/slots',
       data: {
-        'date': dateOnly,
         'startTime': startTime.toIso8601String(),
         'endTime': endTime.toIso8601String(),
         'capacity': capacity,
@@ -70,6 +56,7 @@ class CreateSlotService {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  // UI helpers
   String buildDateLabel(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -89,19 +76,11 @@ class CreateSlotService {
   }
 }
 
+// ---------------- Providers ----------------
 
-// Providers
-
-
-final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
-  return FirebaseAuth.instance;
-});
-
-/// Base URL provider:
-/// - Android emulator: http://10.0.2.2:3000
+final firebaseAuthProvider = Provider<FirebaseAuth>((ref) => FirebaseAuth.instance);
 
 final apiBaseUrlProvider = Provider<String>((ref) {
-
   const fromEnv = String.fromEnvironment('API_BASE_URL');
   if (fromEnv.isNotEmpty) return fromEnv;
 
@@ -117,21 +96,17 @@ final apiDioProvider = Provider<Dio>((ref) {
 
   final dio = Dio(
     BaseOptions(
-      baseUrl: baseUrl, // <-- THIS MUST MATCH YOUR NODE SERVER
+      baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: {'Content-Type': 'application/json'},
     ),
   );
 
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
-        // Debug: confirm the exact URL being hit
         debugPrint('➡️ [DIO] ${options.method} ${options.uri}');
-
         final user = auth.currentUser;
         if (user != null) {
           final token = await user.getIdToken();
@@ -140,8 +115,8 @@ final apiDioProvider = Provider<Dio>((ref) {
         return handler.next(options);
       },
       onError: (e, handler) {
-        debugPrint(' [DIO] ${e.response?.statusCode} ${e.requestOptions.uri}');
-        debugPrint(' [DIO] ${e.response?.data}');
+        debugPrint('❌ [DIO] ${e.response?.statusCode} ${e.requestOptions.uri}');
+        debugPrint('❌ [DIO] ${e.response?.data}');
         return handler.next(e);
       },
     ),

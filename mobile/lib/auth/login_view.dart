@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+
 import 'package:fyp/auth/auth_controller.dart';
 import 'package:fyp/auth/auth_service.dart';
 import 'package:fyp/notifications/fcm_service.dart';
@@ -10,10 +11,6 @@ import '../../core/routes/routes.dart';
 import 'signup_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-<<<<<<< HEAD
-=======
-
->>>>>>> main
 class LoginView extends StatefulWidget {
   static const String route = '/login';
   const LoginView({super.key});
@@ -33,6 +30,8 @@ class _LoginViewState extends State<LoginView> {
 
   late final AuthController _authController;
 
+  static const String _baseUrl = "http://10.0.2.2:3000";
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +43,37 @@ class _LoginViewState extends State<LoginView> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // Ward helper: backend can return ward as String or Map {id,name}
+  String? _wardNameFrom(dynamic wardRaw) {
+    if (wardRaw == null) return null;
+    if (wardRaw is String) return wardRaw;
+    if (wardRaw is Map) return wardRaw['name']?.toString();
+    return wardRaw.toString();
+  }
+
+  String _selectedRoleToBackendRole(String selected) {
+    final s = selected.toLowerCase().trim();
+    if (s == "resident") return "RESIDENT";
+    if (s == "vendor") return "VENDOR";
+    if (s == "ward admin") return "WARD_ADMIN";
+    return "RESIDENT";
+  }
+
+  bool _isRoleMatch(String actualRole, String selectedRole) {
+    final actual = actualRole.toLowerCase().trim();
+    final selected = selectedRole.toLowerCase().trim();
+
+    if (actual == 'resident' && selected == 'resident') return true;
+    if (actual == 'vendor' && selected == 'vendor') return true;
+
+    if ((actual == 'ward_admin' || actual == 'ward admin' || actual == 'wardadmin') &&
+        (selected == 'ward admin' || selected == 'ward_admin')) {
+      return true;
+    }
+
+    return false;
   }
 
   Future<void> _handleLogin() async {
@@ -58,11 +88,7 @@ class _LoginViewState extends State<LoginView> {
     setState(() => _isLoading = true);
 
     try {
-<<<<<<< HEAD
-      // Firebase Authentication
-=======
-      //  Firebase Authentication
->>>>>>> main
+      // 1) Firebase login
       final user = await _authController.login(
         email: email,
         password: password,
@@ -75,11 +101,7 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-<<<<<<< HEAD
-      // Get Firebase ID Token
-=======
-      //  Get Firebase ID Token
->>>>>>> main
+      // 2) Get Firebase ID token
       final firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser == null) {
         _showError("Firebase user not found");
@@ -88,25 +110,27 @@ class _LoginViewState extends State<LoginView> {
       }
 
       final idToken = await firebaseUser.getIdToken(true);
-      print("=== Firebase ID Token ===");
-      print(idToken);
-      print("=== End Token ===");
 
-      // Register/Get user from backend
+      // 3) Register/ensure user exists in backend
+      // IMPORTANT FIX: DO NOT send name here, it overwrites DB name on every login.
+      final selectedRoleName = roles[selectedRole];
+      final backendRole = _selectedRoleToBackendRole(selectedRoleName);
+
       final registerResponse = await http.post(
-        Uri.parse('http://10.0.2.2:3000/auth/register'),
+        Uri.parse('$_baseUrl/auth/register'),
         headers: {
           'Authorization': 'Bearer $idToken',
           'Content-Type': 'application/json',
         },
         body: json.encode({
-          'name': firebaseUser.displayName ?? email.split('@')[0],
+          'role': backendRole,
+          // DO NOT send 'name' on login
         }),
       );
 
-      print("=== Register Response ===");
-      print("Status: ${registerResponse.statusCode}");
-      print("Body: ${registerResponse.body}");
+      debugPrint("=== Register Response ===");
+      debugPrint("Status: ${registerResponse.statusCode}");
+      debugPrint("Body: ${registerResponse.body}");
 
       if (registerResponse.statusCode != 200) {
         _showError("Failed to register user");
@@ -114,15 +138,15 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-      // Get user profile
+      // 4) Load profile from backend (source of truth)
       final meResponse = await http.get(
-        Uri.parse('http://10.0.2.2:3000/auth/me'),
+        Uri.parse('$_baseUrl/auth/me'),
         headers: {'Authorization': 'Bearer $idToken'},
       );
 
-      print("=== /auth/me Response ===");
-      print("Status: ${meResponse.statusCode}");
-      print("Body: ${meResponse.body}");
+      debugPrint("=== /auth/me Response ===");
+      debugPrint("Status: ${meResponse.statusCode}");
+      debugPrint("Body: ${meResponse.body}");
 
       if (meResponse.statusCode != 200) {
         _showError("Failed to load user profile");
@@ -130,22 +154,23 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-      final userData = json.decode(meResponse.body);
+      final userData = json.decode(meResponse.body) as Map<String, dynamic>;
 
-      final String userRole = userData['role'] ?? 'Resident';
-      final String userName = userData['name'] ?? 'User';
-      final String phone = userData['phone'] ?? '';
-      final String userEmail = userData['email'] ?? '';
-      final String? ward = userData['ward'];
+      final String userRole = (userData['role'] ?? 'RESIDENT').toString();
+      final String userName = (userData['name'] ?? 'User').toString(); // ✅ always DB name
+      final String phone = (userData['phone'] ?? '').toString();
+      final String userEmail = (userData['email'] ?? '').toString();
 
-      print("=== User Data ===");
-      print("Role: $userRole");
-      print("Name: $userName");
-      print("Ward: $ward");
+      final Object? wardRaw = userData['ward']; // can be Map {id,name}
+      final String? wardName = _wardNameFrom(wardRaw);
 
-      // Validate selected role matches user's actual role
-      final String selectedRoleName = roles[selectedRole];
+      debugPrint("=== User Data ===");
+      debugPrint("Role: $userRole");
+      debugPrint("Name: $userName");
+      debugPrint("Ward(raw): $wardRaw");
+      debugPrint("Ward(name): $wardName");
 
+      // 5) Validate selected role vs actual backend role
       if (!_isRoleMatch(userRole, selectedRoleName)) {
         await FirebaseAuth.instance.signOut();
         _showError("You are registered as '$userRole'. Please select the correct role tab.");
@@ -153,127 +178,56 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-<<<<<<< HEAD
-      //FCM Setup
-      // Save FCM token to backend
-=======
-
-      //   FCM Setup
-
-
-      // Save FCM token to backend (in case it wasn't saved before login)
->>>>>>> main
+      // 6) FCM setup (non-fatal)
       try {
         await FCMService().saveTokenAfterLogin();
-        print(" FCM token saved after login");
+        debugPrint("FCM token saved after login");
       } catch (fcmError) {
-        print(" FCM token save error (non-fatal): $fcmError");
+        debugPrint("FCM token save error (non-fatal): $fcmError");
       }
 
-      // Subscribe to appropriate topics based on role
-      await _subscribeToTopics(role: userRole, ward: ward);
-<<<<<<< HEAD
-      // END FCM Setup
+      await _subscribeToTopics(role: userRole, wardName: wardName);
 
       setState(() => _isLoading = false);
 
-      // Navigate to dashboard
-=======
-
-      // END FCM Setup
-
-
-      setState(() => _isLoading = false);
-
-      //  Navigate to dashboard
->>>>>>> main
+      // 7) Navigate to Home
       AppNavigation.pushHomeWithRole(
         context,
         role: userRole,
         userName: userName,
         phone: phone,
         email: userEmail,
-        ward: ward,
+        ward: wardRaw, // pass raw (Map) so dashboard gets id+name
       );
-
     } catch (e) {
-      print("Login error: $e");
+      debugPrint("Login error: $e");
       _showError("Login failed: $e");
       setState(() => _isLoading = false);
     }
   }
 
-
-<<<<<<< HEAD
-  // Subscribe to FCM topics
-=======
-  //  Subscribe to FCM topics
->>>>>>> main
-
-  Future<void> _subscribeToTopics({required String role, String? ward}) async {
+  Future<void> _subscribeToTopics({required String role, String? wardName}) async {
     final fcmService = FCMService();
     final normalizedRole = role.toLowerCase().trim();
 
     try {
       if (normalizedRole == 'resident') {
-<<<<<<< HEAD
-        // Residents subscribe to their ward topic
-=======
-        //global notices for all residents
         await fcmService.subscribeToAllResidents();
-        print(" Resident subscribed to all_residents");
 
-        // ward-specific schedules/alerts
-
->>>>>>> main
-        if (ward != null && ward.isNotEmpty) {
-          await fcmService.subscribeToWard(ward);
-          print(" Resident subscribed to ward: $ward");
-        } else {
-<<<<<<< HEAD
-          print(" Resident has no ward set, skipping topic subscription");
+        if (wardName != null && wardName.trim().isNotEmpty) {
+          await fcmService.subscribeToWard(wardName.trim()); // string only
         }
       } else if (normalizedRole == 'vendor') {
-        // Vendors subscribe to all_vendors topic
-        await fcmService.subscribeToVendorNotifications();
-        print(" Vendor subscribed to all_vendors topic");
-=======
-          print("️ Resident has no ward set, skipping topic subscription");
-        }
-      } else if (normalizedRole == 'vendor') {
-        // Vendors subscribe to all_vendors topic
         await fcmService.subscribeToAllVendors();
-        print(" Vendor subscribed to all_vendors topic");
-
->>>>>>> main
-      } else if (normalizedRole == 'ward admin' || normalizedRole == 'ward_admin') {
-        // Ward Admin doesn't need to subscribe (they send notifications)
-        print(" Ward Admin - no subscription needed");
       }
     } catch (e) {
-      print(" Topic subscription error (non-fatal): $e");
+      debugPrint("Topic subscription error (non-fatal): $e");
     }
-  }
-
-
-  bool _isRoleMatch(String actualRole, String selectedRole) {
-    final actual = actualRole.toLowerCase().trim();
-    final selected = selectedRole.toLowerCase().trim();
-
-    if (actual == 'resident' && selected == 'resident') return true;
-    if (actual == 'vendor' && selected == 'vendor') return true;
-    if ((actual == 'ward admin' || actual == 'ward_admin') &&
-        (selected == 'ward admin' || selected == 'ward_admin')) return true;
-
-    return false;
   }
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
@@ -310,14 +264,23 @@ class _LoginViewState extends State<LoginView> {
 
                 const SizedBox(height: 20),
 
-                Text("Hamro Pani", style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87)),
-                Text("Kathmandu's Smart Water Management", style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey)),
+                Text(
+                  "Hamro Pani",
+                  style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
+                Text(
+                  "Kathmandu's Smart Water Management",
+                  style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey),
+                ),
 
                 const SizedBox(height: 40),
 
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text("Welcome Back", style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    "Welcome Back",
+                    style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold),
+                  ),
                 ),
 
                 const SizedBox(height: 20),
@@ -355,7 +318,7 @@ class _LoginViewState extends State<LoginView> {
 
                 const SizedBox(height: 30),
 
-                // Email Field
+                // Email
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -370,7 +333,7 @@ class _LoginViewState extends State<LoginView> {
 
                 const SizedBox(height: 16),
 
-                // Password Field
+                // Password
                 TextField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -388,12 +351,15 @@ class _LoginViewState extends State<LoginView> {
 
                 Align(
                   alignment: Alignment.centerRight,
-                  child: TextButton(onPressed: () {}, child: Text("Forgot?", style: GoogleFonts.poppins(color: Colors.blue))),
+                  child: TextButton(
+                    onPressed: () {},
+                    child: Text("Forgot?", style: GoogleFonts.poppins(color: Colors.blue)),
+                  ),
                 ),
 
                 const SizedBox(height: 20),
 
-                // Sign In Button
+                // Sign in
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -405,7 +371,10 @@ class _LoginViewState extends State<LoginView> {
                     ),
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : Text("Sign In →", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                        : Text(
+                      "Sign In →",
+                      style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
                   ),
                 ),
 
@@ -425,7 +394,7 @@ class _LoginViewState extends State<LoginView> {
 
                 const SizedBox(height: 20),
 
-                // Google Login
+                // Google login button
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
@@ -443,31 +412,22 @@ class _LoginViewState extends State<LoginView> {
 
                 const SizedBox(height: 40),
 
-                // Sign Up Link
+                // Signup
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text("Don't have an account? ", style: GoogleFonts.poppins()),
                     GestureDetector(
                       onTap: () => Navigator.pushNamed(context, SignUpView.route),
-                      child: Text("Sign up now", style: GoogleFonts.poppins(color: Colors.blue, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        "Sign up now",
+                        style: GoogleFonts.poppins(color: Colors.blue, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),
 
                 const SizedBox(height: 40),
-
-                // Bottom Links
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    TextButton(onPressed: () {}, child: Text("Help", style: GoogleFonts.poppins())),
-                    TextButton(onPressed: () {}, child: Text("Privacy", style: GoogleFonts.poppins())),
-                    TextButton(onPressed: () {}, child: Text("Terms", style: GoogleFonts.poppins())),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
               ],
             ),
           ),

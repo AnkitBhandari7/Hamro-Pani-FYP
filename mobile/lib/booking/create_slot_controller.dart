@@ -1,15 +1,15 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'create_slot_service.dart';
 
-
 class CreateSlotState {
-  final String selectedDateFilter; // "Today" | "Tomorrow" | "Custom"
+  final String selectedDateFilter; // Today | Tomorrow | Custom
   final TimeOfDay? selectedStartTime;
+
   final List<Map<String, dynamic>> routes; // raw backend routes
-  final List<Map<String, dynamic>> slots; // UI-ready slots
+  final List<Map<String, dynamic>> slots;  // UI-ready slots
+
   final bool isLoading;
   final bool isPublishing;
 
@@ -41,7 +41,6 @@ class CreateSlotState {
   }
 }
 
-/// Riverpod 3: use Notifier instead of StateNotifier
 class CreateSlotController extends Notifier<CreateSlotState> {
   late final CreateSlotService _service;
 
@@ -52,7 +51,7 @@ class CreateSlotController extends Notifier<CreateSlotState> {
     return const CreateSlotState();
   }
 
-  /// Load vendor routes + slots on screen start / refresh
+  // Student note: refresh vendor routes + slots
   Future<void> loadInitialData() async {
     state = state.copyWith(isLoading: true);
     try {
@@ -62,60 +61,53 @@ class CreateSlotController extends Notifier<CreateSlotState> {
     } catch (e, st) {
       debugPrint('loadInitialData error: $e');
       debugPrint(st.toString());
-      state = state.copyWith(routes: [], slots: []);
+      state = state.copyWith(routes: const [], slots: const []);
     } finally {
       state = state.copyWith(isLoading: false);
     }
   }
 
-  List<Map<String, dynamic>> _buildSlotsFromRoutes(
-      List<Map<String, dynamic>> routes) {
-    final List<Map<String, dynamic>> uiSlots = [];
+  List<Map<String, dynamic>> _buildSlotsFromRoutes(List<Map<String, dynamic>> routes) {
+    final uiSlots = <Map<String, dynamic>>[];
 
     for (final route in routes) {
-      final routeName = (route['name'] ?? '').toString();
+      final routeLocation = (route['location'] ?? '').toString();
+
       final slotList = (route['slots'] as List<dynamic>? ?? [])
-          .cast<Map<String, dynamic>>();
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
 
       for (final slotJson in slotList) {
-        uiSlots.add(_slotToUiMap(routeName, slotJson));
+        uiSlots.add(_slotToUiMap(routeLocation, slotJson));
       }
     }
 
     return uiSlots;
   }
 
-  Map<String, dynamic> _slotToUiMap(
-      String routeName, Map<String, dynamic> slotJson) {
-    // For safety, handle both capacityLiters/bookedLiters and
-    // capacity/bookedCount depending on  backend response
-    final capacity = (slotJson['capacityLiters'] ??
-        slotJson['capacity'] ??
-        0) as int;
-    final bookedCount = (slotJson['bookedLiters'] ??
-        slotJson['bookedCount'] ??
-        0) as int;
-    final dbStatus = (slotJson['status'] ?? 'OPEN').toString();
+  Map<String, dynamic> _slotToUiMap(String routeLocation, Map<String, dynamic> slotJson) {
+    // ERD fields
+    final capacity = (slotJson['capacity'] ?? 0) as int;
+    final bookedCount = (slotJson['bookedCount'] ?? 0) as int;
 
     final startStr = slotJson['startTime']?.toString() ?? '';
     final endStr = slotJson['endTime']?.toString() ?? '';
-    final dateStr = slotJson['date']?.toString() ?? '';
 
     final start = DateTime.tryParse(startStr) ?? DateTime.now();
     final end = DateTime.tryParse(endStr) ?? start.add(const Duration(hours: 2));
-    final date = DateTime.tryParse(dateStr) ?? start;
 
-    final dateLabel = _service.buildDateLabel(date);
+    final dateLabel = _service.buildDateLabel(start);
     final timeRange = _service.buildTimeRange(start, end);
 
-    final uiStatus = bookedCount >= capacity ? 'FULL' : dbStatus;
+    // Student note: compute status from counts
+    final uiStatus = bookedCount >= capacity ? 'FULL' : 'OPEN';
 
     return {
       'slotId': slotJson['id'],
       'date': dateLabel,
       'time': timeRange,
       'status': uiStatus,
-      'location': routeName,
+      'location': routeLocation,
       'booked': bookedCount,
       'total': capacity,
     };
@@ -134,59 +126,38 @@ class CreateSlotController extends Notifier<CreateSlotState> {
     if (time == null) return 'Select Time';
 
     final now = DateTime.now();
-    final dt = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      time.hour,
-      time.minute,
-    );
-
+    final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
     final range = _service.buildTimeRange(dt, dt);
     return range.split(' - ').first;
   }
 
-  /// Returns null on success; error message on failure
+  // Student note: publish = create route (if needed) then create slot
   Future<String?> publishSlot({
     required String capacityText,
-    required String routeText,
+    required String routeText, // we will use this as "location"
   }) async {
-    if (state.selectedStartTime == null) {
-      return 'Please select a start time';
-    }
+    if (state.selectedStartTime == null) return 'Please select a start time';
 
-    final capacity = int.tryParse(capacityText);
-    if (capacity == null || capacity <= 0) {
-      return 'Please enter a valid capacity';
-    }
+    final capacity = int.tryParse(capacityText.trim());
+    if (capacity == null || capacity <= 0) return 'Please enter a valid capacity';
 
-    final routeName = routeText.trim();
-    if (routeName.isEmpty) {
-      return 'Please enter a delivery route/area';
-    }
+    final location = routeText.trim();
+    if (location.isEmpty) return 'Please enter a delivery route/area';
 
+    // Student note: choose date from chips
     final now = DateTime.now();
-    DateTime date;
-
-    switch (state.selectedDateFilter) {
-      case 'Today':
-        date = DateTime(now.year, now.month, now.day);
-        break;
-      case 'Tomorrow':
-        final tmr = now.add(const Duration(days: 1));
-        date = DateTime(tmr.year, tmr.month, tmr.day);
-        break;
-      case 'Custom':
-        date = DateTime(now.year, now.month, now.day);
-        break;
-      default:
-        date = DateTime(now.year, now.month, now.day);
+    DateTime routeDate;
+    if (state.selectedDateFilter == 'Tomorrow') {
+      final t = now.add(const Duration(days: 1));
+      routeDate = DateTime(t.year, t.month, t.day);
+    } else {
+      routeDate = DateTime(now.year, now.month, now.day);
     }
 
     final startDateTime = DateTime(
-      date.year,
-      date.month,
-      date.day,
+      routeDate.year,
+      routeDate.month,
+      routeDate.day,
       state.selectedStartTime!.hour,
       state.selectedStartTime!.minute,
     );
@@ -195,42 +166,51 @@ class CreateSlotController extends Notifier<CreateSlotState> {
     state = state.copyWith(isPublishing: true);
 
     try {
-      // 1) Find existing route with same name (case-insensitive)
+      // Student note: try to reuse route for same day + same location
       Map<String, dynamic>? route;
       for (final r in state.routes) {
-        final rName = (r['name'] ?? '').toString().toLowerCase();
-        if (rName == routeName.toLowerCase()) {
+        final rLocation = (r['location'] ?? '').toString().toLowerCase();
+        final rDateStr = (r['routeDate'] ?? '').toString();
+        final rDate = DateTime.tryParse(rDateStr);
+
+        final sameDay = rDate != null &&
+            rDate.year == routeDate.year &&
+            rDate.month == routeDate.month &&
+            rDate.day == routeDate.day;
+
+        if (sameDay && rLocation == location.toLowerCase()) {
           route = r;
           break;
         }
       }
 
-      // 2) If not found, create new route
+      // Student note: if route not found, create new one
       if (route == null) {
-        const defaultWardId = 16; // TODO: use vendor's actual ward/area
+        // TODO: best is to use vendor's real wardId from /auth/me
+        const defaultWardId = 1;
+
         final newRoute = await _service.createRoute(
           wardId: defaultWardId,
-          name: routeName,
+          routeDate: routeDate,
+          location: location,
         );
-        final newRoutes = [...state.routes, newRoute];
-        state = state.copyWith(routes: newRoutes);
+
+        state = state.copyWith(routes: [...state.routes, newRoute]);
         route = newRoute;
       }
 
-      final routeId = route!['id'] as int;
+      final routeId = route['id'] as int;
 
-      // 3) Create slot
+      // Student note: create slot under that route
       final createdSlot = await _service.createSlot(
         routeId: routeId,
-        date: date,
         startTime: startDateTime,
         endTime: endDateTime,
         capacity: capacity,
       );
 
-      final uiSlot = _slotToUiMap(routeName, createdSlot);
-      final updatedSlots = [uiSlot, ...state.slots];
-      state = state.copyWith(slots: updatedSlots);
+      final uiSlot = _slotToUiMap(location, createdSlot);
+      state = state.copyWith(slots: [uiSlot, ...state.slots]);
 
       return null;
     } catch (e, st) {
@@ -243,8 +223,5 @@ class CreateSlotController extends Notifier<CreateSlotState> {
   }
 }
 
-/// Riverpod 3 provider using NotifierProvider
 final createSlotControllerProvider =
-NotifierProvider<CreateSlotController, CreateSlotState>(
-      () => CreateSlotController(),
-);
+NotifierProvider<CreateSlotController, CreateSlotState>(() => CreateSlotController());

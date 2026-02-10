@@ -1,21 +1,21 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
+// src/bookings/tankerBooking.routes.js
+import { Router } from "express";
+import { authenticateFirebase } from "../auth/auth.middleware.js";
+import {
+  createBooking,
+  getMyBookings,
+  updateBookingStatus,
+} from "./tankerbooking.controller.js";
 
-import authRoutes from "./auth/auth.routes.js";
-import vendorRoutes from "./vendors/vendor.routes.js";
-import bookingRoutes from "./bookings/tankerBooking.routes.js";
+const router = Router();
 
-import express from "express";
+// Student note: resident creates booking (ERD: just slotId)
+router.post("/", authenticateFirebase, createBooking);
 
-const app = express();
+// Student note: resident sees their bookings
+router.get("/my", authenticateFirebase, getMyBookings);
 
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
+// Student note: update booking status (also creates status history in ERD)
+router.patch("/:id/status", authenticateFirebase, updateBookingStatus);
 
-app.use("/api/auth", authRoutes);
-app.use("/api/vendors", vendorRoutes);
-app.use("/api/bookings", bookingRoutes);
-
-export default app;
+export default router;

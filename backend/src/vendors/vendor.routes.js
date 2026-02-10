@@ -1,28 +1,29 @@
+// src/vendors/vendor.routes.js
 import { Router } from "express";
 import { authenticateFirebase } from "../auth/auth.middleware.js";
 import {
   getVendorDashboard,
-  createTankerRoute,
-  getMyTankerRoutes,
-  createTankerSlot,
+  createRoute,
+  getMyRoutes,
+  createSlot,
   listSlotsByWardAndDate,
 } from "./vendor.controller.js";
 
 const router = Router();
 
-// Existing vendor dashboard
+// Student note: vendor dashboard summary
 router.get("/dashboard", authenticateFirebase, getVendorDashboard);
 
-// Tanker booking: vendor route + slot management
-router.post("/routes", authenticateFirebase, createTankerRoute);
-router.get("/routes/my", authenticateFirebase, getMyTankerRoutes);
-router.post(
-  "/routes/:routeId/slots",
-  authenticateFirebase,
-  createTankerSlot
-);
+// Student note: create route (ERD: Route table)
+router.post("/routes", authenticateFirebase, createRoute);
 
-// Resident-side listing of open slots by ward
+// Student note: get routes created by current vendor
+router.get("/routes/my", authenticateFirebase, getMyRoutes);
+
+// Student note: create slot inside a route (ERD: Slot table)
+router.post("/routes/:routeId/slots", authenticateFirebase, createSlot);
+
+// Student note: resident can browse slots by ward
 router.get("/slots/ward/:ward", listSlotsByWardAndDate);
 
 export default router;

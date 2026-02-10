@@ -7,144 +7,289 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Enums (recommended). If you want pure string fields, tell me and I will convert them.
+enum UserRole {
+  RESIDENT
+  VENDOR
+  WARD_ADMIN
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum NotificationType {
+  GENERAL
+  SCHEDULE
+  BOOKING
+  ALERT
+}
+
+model Ward {
+  id        Int      @id @default(autoincrement()) @map("ward_id")
+  wardName  String   @map("ward_name")
+  location  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users     User[]
+  schedules Schedule[]
+  routes    Route[]
+
+  @@map("wards")
+}
 model User {
-  id           Int      @id @default(autoincrement())
-  firebaseUid  String   @unique
-  email        String?  @unique
-  phone        String?
+  id           Int      @id @default(autoincrement()) @map("user_id")
+
+  // ✅ add this for Firebase login mapping
+  firebaseUid  String   @unique @map("firebase_uid")
+
   name         String?
-  role         String   @default("Resident")
-  ward         String?
-  fcmToken     String?
+  email        String?  @unique
+  phoneNumber  String?  @map("phone_number")
+  role         UserRole @default(RESIDENT)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  passwordHash String?  @map("password_hash")
 
-  // schedules created by ward admin
-  schedules        WaterSchedule[] @relation("UserSchedules")
+  wardId       Int?     @map("ward_id")
+  ward         Ward?    @relation(fields: [wardId], references: [id], onDelete: SetNull)
 
-  savedLocations   SavedLocation[]
-  residentBookings Booking[]       @relation("ResidentBookings")
-  vendorBookings   Booking[]       @relation("VendorBookings")
-  issues           Issue[]
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  // Inverse relation for TankerRoute.vendor
-  tankerRoutes     TankerRoute[]
+  fcmTokens       FcmToken[]
+  vendorProfile   Vendor?
+
+  bookings        Booking[]
+  complaints      Complaint[]
+
+  sentNotifications      Notification[]          @relation("NotificationSender")
+  notificationRecipients NotificationRecipient[] @relation("NotificationRecipientUser")
 
   @@map("users")
 }
 
-model WaterSchedule {
-  id              Int      @id @default(autoincrement())
-  ward            String
-  affectedAreas   String?        // optional (recommended)
-  supplyDate      DateTime
-  startTime       String
-  endTime         String
-  notifyResidents Boolean @default(false)
+model FcmToken {
+  id         Int      @id @default(autoincrement()) @map("token_id")
+  userId     Int      @map("user_id")
+  token      String   @unique
+  deviceInfo String?  @map("device_info")
 
-  createdBy       Int
-  createdAt       DateTime @default(now())
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  admin           User     @relation("UserSchedules", fields: [createdBy], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("water_schedules")
+  deliveries NotificationRecipient[] @relation("RecipientToken")
+
+  @@map("fcm_tokens")
 }
 
-model Notification {
-  id        Int      @id @default(autoincrement())
-  ward      String
-  title     String
-  message   String
-  createdAt DateTime @default(now())
+model Vendor {
+  id          Int     @id @default(autoincrement()) @map("vendor_id")
+  userId      Int     @unique @map("user_id")
+  companyName String? @map("company_name")
+  phone       String?
 
-  @@map("notifications")
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routes      Route[]
+
+  @@map("vendors")
 }
 
-model SavedLocation {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  title     String
-  address   String
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Schedule {
+  id           Int      @id @default(autoincrement()) @map("schedule_id")
+  wardId       Int      @map("ward_id")
+  scheduleDate DateTime @map("schedule_date")
+  startTime    DateTime @map("start_time")
+  endTime      DateTime @map("end_time")
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@map("saved_locations")
+  ward         Ward     @relation(fields: [wardId], references: [id], onDelete: Cascade)
+
+  @@map("schedules")
+}
+
+model Route {
+  id        Int      @id @default(autoincrement()) @map("route_id")
+  vendorId  Int      @map("vendor_id")
+  wardId    Int      @map("ward_id")
+
+  routeDate DateTime @map("route_date")
+  location  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  ward      Ward     @relation(fields: [wardId], references: [id], onDelete: Cascade)
+
+  slots     Slot[]
+
+  @@index([vendorId])
+  @@index([wardId])
+  @@map("routes")
+}
+
+model Slot {
+  id          Int      @id @default(autoincrement()) @map("slot_id")
+  routeId     Int      @map("route_id")
+
+  startTime   DateTime @map("start_time")
+  endTime     DateTime @map("end_time")
+
+  capacity    Int
+  bookedCount Int      @default(0) @map("booked_count")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  route       Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  bookings    Booking[]
+
+  @@index([routeId])
+  @@map("slots")
 }
 
 model Booking {
-  id         Int      @id @default(autoincrement())
-  residentId Int
-  vendorId   Int?
-  ward       String?
-  liters     Int?
-  price      Float?
-  status     String   @default("PENDING")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @default(now()) @updatedAt
+  id        Int           @id @default(autoincrement()) @map("booking_id")
+  userId    Int           @map("user_id")
+  slotId    Int           @map("slot_id")
+  status    BookingStatus @default(PENDING)
 
-  // Link to tanker slot (optional)
-  slotId     Int?
-  slot       TankerSlot? @relation(fields: [slotId], references: [id])
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
 
-  resident   User     @relation("ResidentBookings", fields: [residentId], references: [id], onDelete: Cascade)
-  vendor     User?    @relation("VendorBookings", fields: [vendorId], references: [id])
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot      Slot          @relation(fields: [slotId], references: [id], onDelete: Cascade)
 
+  payment        Payment?
+  statusHistory  StatusHistory[]
+  complaints     Complaint[]
+
+  @@index([userId])
+  @@index([slotId])
   @@map("bookings")
 }
 
-model TankerRoute {
-  id          Int          @id @default(autoincrement())
-  vendorId    Int
-  vendor      User         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+model Payment {
+  id            Int           @id @default(autoincrement()) @map("payment_id")
+  bookingId     Int           @unique @map("booking_id")
 
-  ward        String?
-  name        String
-  description String?
+  method        String
+  amount        Decimal       @db.Decimal(10, 2)
+  status        PaymentStatus @default(PENDING)
 
-  slots       TankerSlot[]
+  paidAt        DateTime?     @map("paid_at")
+  transactionId String?       @map("transaction_id")
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  @@map("tanker_routes")
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
 }
 
-model TankerSlot {
-  id             Int          @id @default(autoincrement())
-  routeId        Int
-  route          TankerRoute  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+model StatusHistory {
+  id        Int           @id @default(autoincrement()) @map("history_id")
+  bookingId Int           @map("booking_id")
 
-  date           DateTime
-  startTime      DateTime
-  endTime        DateTime
+  oldStatus BookingStatus @map("old_status")
+  newStatus BookingStatus @map("new_status")
+  changedAt DateTime      @default(now()) @map("changed_at")
 
-  capacityLiters Int
-  bookedLiters   Int          @default(0)
-  status         String       @default("OPEN") // OPEN | CLOSED | CANCELLED
+  booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
-  bookings       Booking[]
-
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  @@map("tanker_slots")
+  @@index([bookingId])
+  @@map("status_history")
 }
 
-model Issue {
-  id          Int      @id @default(autoincrement())
-  residentId  Int
-  ward        String?
-  title       String
-  description String?
-  status      String   @default("OPEN")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Complaint {
+  id        Int             @id @default(autoincrement()) @map("complaint_id")
+  userId    Int             @map("user_id")
+  bookingId Int             @map("booking_id")
 
-  resident    User     @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  message   String
+  status    ComplaintStatus @default(OPEN)
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
 
-  @@map("issues")
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking   Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  photos    ComplaintPhoto[]
+
+  @@index([userId])
+  @@index([bookingId])
+  @@map("complaints")
+}
+
+model ComplaintPhoto {
+  id          Int       @id @default(autoincrement()) @map("photo_id")
+  complaintId Int       @map("complaint_id")
+  photoUrl    String    @map("photo_url")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@map("complaint_photos")
+}
+
+model Notification {
+  id         Int              @id @default(autoincrement()) @map("notification_id")
+  senderId   Int              @map("sender_id")
+  senderRole UserRole         @map("sender_role")
+
+  title      String
+  message    String
+  type       NotificationType @default(GENERAL)
+
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  sender     User             @relation("NotificationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipients NotificationRecipient[]
+
+  @@index([senderId])
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  notificationId Int          @map("notification_id")
+  recipientId    Int          @map("recipient_id")
+  userId         Int          @map("user_id")
+
+  isRead         Boolean      @default(false) @map("is_read")
+  deliveredAt    DateTime?    @map("delivered_at")
+
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  token          FcmToken     @relation("RecipientToken", fields: [recipientId], references: [id], onDelete: Cascade)
+  user           User         @relation("NotificationRecipientUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([notificationId, recipientId])
+  @@index([userId])
+  @@map("notification_recipients")
 }

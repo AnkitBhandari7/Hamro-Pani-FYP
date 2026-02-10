@@ -11,13 +11,18 @@ import 'package:fyp/notifications/notifications_screen.dart';
 
 import 'package:fyp/booking/orders_screen.dart';
 import 'package:fyp/booking/new_schedule.dart';
-
-// NEW: import your manage-slots screen
 import 'package:fyp/booking/create_slot.dart';
 
 import 'package:fyp/admin/send_notice.dart';
 
 class AppNavigation {
+  static String? wardNameFrom(Object? ward) {
+    if (ward == null) return null;
+    if (ward is String) return ward;
+    if (ward is Map) return ward['name']?.toString();
+    return ward.toString();
+  }
+
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case AppRoutes.login:
@@ -29,19 +34,13 @@ class AppNavigation {
       case AppRoutes.home:
         final args = settings.arguments as Map<String, dynamic>?;
 
-        // DEBUG
-        print('=== generateRoute: AppRoutes.home ===');
-        print('args: $args');
-        print('args[ward]: ${args?['ward']}');
-        print('=== End generateRoute ===');
+        final String role = (args?['role'] ?? 'RESIDENT').toString();
+        final String userName = (args?['userName'] ?? 'User').toString();
+        final String phone = (args?['phone'] ?? '').toString();
+        final String email = (args?['email'] ?? '').toString();
 
-        final String role = args?['role'] ?? 'Resident';
-        final String userName = args?['userName'] ?? 'User';
-        final String phone = args?['phone'] ?? '';
-        final String email = args?['email'] ?? '';
-        final String? ward = args?['ward'];
-
-        print('=== Extracted ward: $ward ===');
+        // ✅ ward can be Map now
+        final Object? ward = args?['ward'];
 
         return MaterialPageRoute(
           builder: (_) => HomeWrapper(
@@ -59,16 +58,15 @@ class AppNavigation {
       case AppRoutes.profile:
         final args = settings.arguments as Map<String, dynamic>?;
 
-        print('=== generateRoute: AppRoutes.profile ===');
-        print('profile args: $args');
-        print('=== End ===');
+        final Object? wardRaw = args?['ward'];
+        final String? wardName = wardNameFrom(wardRaw);
 
         return MaterialPageRoute(
           builder: (_) => ProfileScreen(
-            userName: args?['userName'] ?? 'User',
-            phone: args?['phone'] ?? '',
-            email: args?['email'] ?? '',
-            ward: args?['ward'],
+            userName: (args?['userName'] ?? 'User').toString(),
+            phone: (args?['phone'] ?? '').toString(),
+            email: (args?['email'] ?? '').toString(),
+            ward: wardName, // ProfileScreen uses String?
           ),
         );
 
@@ -81,11 +79,8 @@ class AppNavigation {
       case AppRoutes.sendNotice:
         return MaterialPageRoute(builder: (_) => const SendNoticeScreen());
 
-    // NEW: Vendor Manage Slots screen
       case AppRoutes.manageSlots:
-        return MaterialPageRoute(
-          builder: (_) => const ManageSlotsScreen(),
-        );
+        return MaterialPageRoute(builder: (_) => const ManageSlotsScreen());
 
       default:
         return MaterialPageRoute(
@@ -121,24 +116,15 @@ class AppNavigation {
 
   static void pop(BuildContext context) => Navigator.pop(context);
 
-  // Updated: Now accepts phone and email
+  // ✅ ward is Object? now
   static Future<T?> pushHomeWithRole<T extends Object?>(
       BuildContext context, {
         required String role,
         required String userName,
         required String phone,
         required String email,
-        String? ward,
+        Object? ward,
       }) {
-    // DEBUG
-    print('=== pushHomeWithRole called ===');
-    print('role: $role');
-    print('userName: $userName');
-    print('phone: $phone');
-    print('email: $email');
-    print('ward: $ward');
-    print('=== End pushHomeWithRole ===');
-
     return offAll(
       context,
       AppRoutes.home,
@@ -147,7 +133,7 @@ class AppNavigation {
         'userName': userName,
         'phone': phone,
         'email': email,
-        'ward': ward,
+        'ward': ward, // keep map
       },
     );
   }
