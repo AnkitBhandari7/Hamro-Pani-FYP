@@ -1,16 +1,16 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-
+import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_options.dart';
 import 'app/config/app_config.dart';
-import 'core/routes/routes.dart';
 import 'core/routes/app_navigation.dart';
+import 'core/routes/routes.dart';
 import 'package:fyp/notifications/fcm_service.dart';
 
 /// Global navigator key to navigate from notification taps
@@ -18,9 +18,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// Background message handler
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(
-    RemoteMessage message,
-    ) async {
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -36,53 +34,39 @@ Future<void> _firebaseMessagingBackgroundHandler(
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
+  // Firebase init
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Set up FCM background handler
-  FirebaseMessaging.onBackgroundMessage(
-    _firebaseMessagingBackgroundHandler,
-  );
+  // Background messages
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  // Initialize FCM Service with onTap callback
+  // FCM init
   try {
     await FCMService().initialize(
       onTap: (data) {
-        debugPrint("Tapped notification data: $data");
-
         final screen = data['screen']?.toString();
-
-        // Routing based on payload
         if (screen == 'notifications') {
           navigatorKey.currentState?.pushNamed(AppRoutes.notifications);
-        } else if (screen == 'schedule') {
-          navigatorKey.currentState?.pushNamed(AppRoutes.notifications);
         } else {
-          // Default fallback
           navigatorKey.currentState?.pushNamed(AppRoutes.notifications);
         }
       },
     );
-
     debugPrint('FCM Service initialized in main');
   } catch (e) {
     debugPrint('FCM initialization error (non-fatal): $e');
   }
 
-  // Debug: Print API URL & health check
+  // Debug health check
   if (kDebugMode) {
     debugPrint('API Base URL => $kApiBaseUrl');
     await _testHealth();
   }
 
-  // IMPORTANT: Wrap your app with ProviderScope for Riverpod
-  runApp(
-    const ProviderScope(
-      child: TankerTapApp(),
-    ),
-  );
+  // Riverpod root
+  runApp(const ProviderScope(child: TankerTapApp()));
 }
 
 class TankerTapApp extends StatelessWidget {
@@ -100,12 +84,14 @@ class TankerTapApp extends StatelessWidget {
           title: 'Hamro Pani',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
-            primarySwatch: Colors.blue,
-            fontFamily: 'Poppins',
             useMaterial3: true,
-            textTheme: TextTheme(
-              bodyMedium: TextStyle(fontSize: 14.sp),
-            ),
+            primarySwatch: Colors.blue,
+
+            // IMPORTANT: do not use fontFamily unless you actually bundled fonts
+            textTheme: GoogleFonts.poppinsTextTheme(),
+
+            // optional: keep your ScreenUtil sizes consistent
+            scaffoldBackgroundColor: Colors.white,
           ),
           initialRoute: AppRoutes.initial,
           onGenerateRoute: AppNavigation.generateRoute,
