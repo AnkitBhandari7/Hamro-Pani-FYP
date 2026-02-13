@@ -1,10 +1,10 @@
-// src/notifications/notification.controller.js
 import prisma from "../prisma.js";
 import fcmService from "./fcmservice.js";
 
 /*
   GET /notifications
-  - ERD way: load notifications that were delivered to current user (via NotificationRecipient)
+  return a flat list for Flutter NotificationScreen
+
 */
 export async function getNotifications(req, res) {
   const userId = Number(req.auth?.sub);
@@ -15,20 +15,28 @@ export async function getNotifications(req, res) {
       where: { userId },
       orderBy: { notification: { createdAt: "desc" } },
       include: {
-        notification: {
-          include: {
-            sender: { select: { id: true, name: true, role: true } },
-          },
-        },
+        notification: true,
       },
     });
 
-    // Student comment: return in simple format for flutter
-    const result = rows.map((r) => ({
-      isRead: r.isRead,
-      deliveredAt: r.deliveredAt,
-      notification: r.notification,
-    }));
+    // data deduplication by notificationId
+    const seen = new Set();
+    const result = [];
+
+    for (const r of rows) {
+      if (seen.has(r.notificationId)) continue;
+      seen.add(r.notificationId);
+
+      result.push({
+        id: r.notification.id,
+        title: r.notification.title,
+        message: r.notification.message,
+        type: r.notification.type,
+        createdAt: r.notification.createdAt,
+        isRead: r.isRead,
+        deliveredAt: r.deliveredAt,
+      });
+    }
 
     return res.json(result);
   } catch (e) {
@@ -40,8 +48,8 @@ export async function getNotifications(req, res) {
 /*
   POST /notifications
   - Only ward admin can create
-  - ERD way: create Notification + NotificationRecipient rows
-  - We still use topic push (easy) but DB records are per token (recipientId = token_id)
+  - create Notification + NotificationRecipient rows
+  - use topic push  but DB records are per token (recipientId = token_id)
 */
 export async function createNotification(req, res) {
   const userId = Number(req.auth?.sub);
@@ -61,7 +69,7 @@ export async function createNotification(req, res) {
     title,
     message,
     recipient = "resident",   // resident | vendor | both
-    wardId,                   // optional: ward id
+    wardId,
     push = true,
     type = "GENERAL",
   } = req.body || {};
@@ -71,7 +79,6 @@ export async function createNotification(req, res) {
   }
 
   try {
-    // Student comment: create notification row
     const notif = await prisma.notification.create({
       data: {
         senderId: userId,
@@ -82,7 +89,6 @@ export async function createNotification(req, res) {
       },
     });
 
-    // Student comment: choose target users
     const targetWardId = wardId != null ? Number(wardId) : me.wardId;
 
     const recipientLower = String(recipient).toLowerCase().trim();
@@ -93,7 +99,6 @@ export async function createNotification(req, res) {
     else if (recipientLower === "both") roleFilter.push("RESIDENT", "VENDOR");
     else roleFilter.push("RESIDENT");
 
-    // Student comment: find users to receive notice
     const users = await prisma.user.findMany({
       where: {
         role: { in: roleFilter },
@@ -102,7 +107,6 @@ export async function createNotification(req, res) {
       select: { id: true },
     });
 
-    // Student comment: get all fcm tokens for those users
     const userIds = users.map((u) => u.id);
 
     const tokens = await prisma.fcmToken.findMany({
@@ -110,13 +114,11 @@ export async function createNotification(req, res) {
       select: { id: true, userId: true, token: true },
     });
 
-    // Student comment: create recipient rows (notification_id + token_id)
-    // (If user has no token, they won't get a recipient row. In your app login saves token so OK.)
     if (tokens.length > 0) {
       await prisma.notificationRecipient.createMany({
         data: tokens.map((t) => ({
           notificationId: notif.id,
-          recipientId: t.id,  // token_id
+          recipientId: t.id,
           userId: t.userId,
           deliveredAt: push ? new Date() : null,
           isRead: false,
@@ -125,8 +127,6 @@ export async function createNotification(req, res) {
       });
     }
 
-    // Student comment: send push notification (simple: topic)
-    // You can improve later by sending directly to tokens list.
     let pushResult = { success: false, message: "push disabled" };
 
     if (push) {

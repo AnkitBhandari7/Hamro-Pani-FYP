@@ -1,15 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:dotted_border/dotted_border.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:file_picker/file_picker.dart';
 
 
-
+// This screen posts schedules to backend: POST http://10.0.2.2:3000/schedules
 
 
 class NewScheduleScreen extends StatefulWidget {
@@ -46,7 +47,9 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
     super.dispose();
   }
 
-  //Manual Entry Helpers
+
+  // Manual Entry Helpers
+
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -70,11 +73,7 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
     }
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return "mm/dd/yyyy";
-    return "${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}/${date.year}";
-  }
-
+  //  UI format for preview only (12-hour AM/PM).
   String _formatTime(TimeOfDay? time) {
     if (time == null) return "-- : -- --";
     final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
@@ -83,7 +82,30 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
     return "$hour:$minute $period";
   }
 
-  // File Upload
+  // UI format for preview only.
+  String _formatDate(DateTime? date) {
+    if (date == null) return "mm/dd/yyyy";
+    return "${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}/${date.year}";
+  }
+
+  // Backend expects supplyDate as YYYY-MM-DD to avoid timezone issues.
+  String _formatDateForApi(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return "$y-$m-$d";
+  }
+
+  // Backend expects time as HH:mm (24-hour), NOT "9:00 AM".
+  String _formatTimeForApi(TimeOfDay time) {
+    final hh = time.hour.toString().padLeft(2, '0');
+    final mm = time.minute.toString().padLeft(2, '0');
+    return "$hh:$mm";
+  }
+
+
+  // File Upload (not implemented yet)
+
   Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -98,7 +120,9 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
     }
   }
 
-  // Publish Manual Schedule
+
+  // Publish Manual Schedule (POST /schedules)
+
   Future<void> _publishManualSchedule() async {
     if (selectedWard == null ||
         selectedDate == null ||
@@ -111,12 +135,15 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
       return;
     }
 
+
+    // send wardName + API-friendly date/time.
+    // ward admin can post to any ward, so we include wardName in the request.
     final scheduleData = {
-      "ward": selectedWard,
+      "wardName": selectedWard, // e.g. "Kathmandu Ward 1"
       "affectedAreas": _affectedAreasController.text.trim(),
-      "supplyDate": selectedDate!.toIso8601String(),
-      "startTime": _formatTime(startTime),
-      "endTime": _formatTime(endTime),
+      "supplyDate": _formatDateForApi(selectedDate!), // YYYY-MM-DD
+      "startTime": _formatTimeForApi(startTime!), // HH:mm
+      "endTime": _formatTimeForApi(endTime!), // HH:mm
       "notifyResidents": notifyResidents,
     };
 
@@ -131,6 +158,7 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
 
       final idToken = await user.getIdToken();
 
+      //  10.0.2.2 is Android emulator -> host machine localhost.
       final response = await http.post(
         Uri.parse('http://10.0.2.2:3000/schedules'),
         headers: {
@@ -139,6 +167,14 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
         },
         body: json.encode(scheduleData),
       );
+
+      //  Helpful debug print during development.
+      // ignore: avoid_print
+      print("=== POST /schedules ===");
+      // ignore: avoid_print
+      print("Status: ${response.statusCode}");
+      // ignore: avoid_print
+      print("Body: ${response.body}");
 
       if (response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -152,12 +188,14 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Network error")),
+        SnackBar(content: Text("Network error: $e")),
       );
     }
   }
 
+
   // PREVIEW MODAL
+
   void _showPreview() {
     bool isUploadMode = selectedTab == 1;
 
@@ -173,7 +211,6 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
         ),
         child: Column(
           children: [
-            // Drag handle
             Container(
               margin: EdgeInsets.only(top: 12.h),
               width: 60.w,
@@ -184,8 +221,6 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
               ),
             ),
             SizedBox(height: 16.h),
-
-            // Title Row
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: Row(
@@ -203,7 +238,6 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                 ],
               ),
             ),
-
             SizedBox(height: 8.h),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -214,7 +248,6 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
               ),
             ),
             SizedBox(height: 24.h),
-
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -242,7 +275,6 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                         ],
                       ),
                       SizedBox(height: 24.h),
-
                       if (isUploadMode) ...[
                         _previewRow("File Uploaded", fileName ?? "No file selected", Icons.description),
                         SizedBox(height: 16.h),
@@ -250,7 +282,11 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                       ] else ...[
                         _previewRow("Ward", selectedWard ?? "Not selected", Icons.location_on),
                         SizedBox(height: 16.h),
-                        _previewRow("Affected Areas", _affectedAreasController.text.isEmpty ? "Not specified" : _affectedAreasController.text, Icons.map),
+                        _previewRow(
+                          "Affected Areas",
+                          _affectedAreasController.text.isEmpty ? "Not specified" : _affectedAreasController.text,
+                          Icons.map,
+                        ),
                         SizedBox(height: 16.h),
                         _previewRow("Supply Date", _formatDate(selectedDate), Icons.calendar_today),
                         SizedBox(height: 16.h),
@@ -262,11 +298,9 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                           ],
                         ),
                       ],
-
                       SizedBox(height: 24.h),
                       Divider(color: Colors.grey[400]),
                       SizedBox(height: 16.h),
-
                       Row(
                         children: [
                           Icon(Icons.notifications_active, color: notifyResidents ? Colors.blue : Colors.grey, size: 28.w),
@@ -289,7 +323,6 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                 ),
               ),
             ),
-
             Padding(
               padding: EdgeInsets.all(24.w),
               child: ElevatedButton(
@@ -322,7 +355,8 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600], fontWeight: FontWeight.w600)),
+              Text(label,
+                  style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600], fontWeight: FontWeight.w600)),
               SizedBox(height: 4.h),
               Text(
                 value,
@@ -336,7 +370,6 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
       ],
     );
   }
-
 
   Widget _buildToggleButton(String title, IconData icon, bool isSelected) {
     return GestureDetector(
@@ -439,9 +472,7 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                 ],
               ),
             ),
-
             SizedBox(height: 24.h),
-
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
@@ -466,14 +497,17 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                               children: [
                                 Icon(Icons.cloud_upload_outlined, size: 64.w, color: Colors.blue[300]),
                                 SizedBox(height: 16.h),
-                                Text("Drag and drop or tap to upload", style: GoogleFonts.poppins(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                                Text("Drag and drop or tap to upload",
+                                    style: GoogleFonts.poppins(fontSize: 16.sp, fontWeight: FontWeight.w600)),
                                 SizedBox(height: 8.h),
-                                Text("Select your schedule file to begin", style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.grey[600])),
+                                Text("Select your schedule file to begin",
+                                    style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.grey[600])),
                                 SizedBox(height: 24.h),
                                 if (fileName != null)
                                   Padding(
                                     padding: EdgeInsets.symmetric(horizontal: 20.w),
-                                    child: Text("Selected: $fileName", style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.blue)),
+                                    child: Text("Selected: $fileName",
+                                        style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.blue)),
                                   )
                                 else
                                   Row(
@@ -489,7 +523,6 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                           ),
                         ),
                       ),
-
                     if (!isUploadMode) ...[
                       _buildManualCard(
                         icon: Icons.location_on,
@@ -543,7 +576,6 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                           ],
                         ),
                       ),
-
                       _buildManualCard(
                         icon: Icons.access_time,
                         iconColor: Colors.orange,
@@ -578,9 +610,7 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                         ),
                       ),
                     ],
-
                     SizedBox(height: 32.h),
-
                     Container(
                       padding: EdgeInsets.all(20.w),
                       decoration: BoxDecoration(
@@ -600,10 +630,8 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                           ),
                           SizedBox(height: 20.h),
                           if (selectedWard != null || fileName != null)
-                            Text(
-                              isUploadMode ? "File: $fileName" : "Ward: $selectedWard",
-                              style: GoogleFonts.poppins(fontSize: 14.sp),
-                            ),
+                            Text(isUploadMode ? "File: $fileName" : "Ward: $selectedWard",
+                                style: GoogleFonts.poppins(fontSize: 14.sp)),
                           SizedBox(height: 24.h),
                           Row(
                             children: [
@@ -613,8 +641,10 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text("Notify Residents", style: GoogleFonts.poppins(fontSize: 16.sp, fontWeight: FontWeight.w600)),
-                                    Text("Alert affected users", style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey)),
+                                    Text("Notify Residents",
+                                        style: GoogleFonts.poppins(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                                    Text("Alert affected users",
+                                        style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey)),
                                   ],
                                 ),
                               ),
@@ -628,9 +658,7 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
                         ],
                       ),
                     ),
-
                     SizedBox(height: 40.h),
-
                     Row(
                       children: [
                         Expanded(
@@ -714,7 +742,12 @@ class _NewScheduleScreenState extends State<NewScheduleScreen> {
     );
   }
 
-  Widget _buildManualCard({required IconData icon, Color iconColor = Colors.blue, required String title, required Widget child}) {
+  Widget _buildManualCard({
+    required IconData icon,
+    Color iconColor = Colors.blue,
+    required String title,
+    required Widget child,
+  }) {
     return Container(
       padding: EdgeInsets.all(20.w),
       margin: EdgeInsets.only(bottom: 24.h),

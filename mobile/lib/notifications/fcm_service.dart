@@ -7,12 +7,21 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 
+///
+/// This service handles:
+/// 1) FCM permission + token generation
+/// 2) saving token to backend (/auth/save-fcm-token)
+/// 3) subscribing user to correct TOPICS based on backend profile (/auth/me)
+/// Backend sends schedule notifications to a ward topic like:
+///   ward_kathmandu_ward_4
+/// so RESIDENT must subscribe to that exact topic.
+
 class FCMService {
   static final FCMService _instance = FCMService._internal();
   factory FCMService() => _instance;
   FCMService._internal();
 
-  // Student note: change base url if you deploy backend
+  // change base url if you deploy backend
   static const String _baseUrl = 'http://10.0.2.2:3000';
 
   static const String _androidChannelId = 'high_importance_channel';
@@ -31,9 +40,9 @@ class FCMService {
 
   void Function(Map<String, dynamic> data)? onNotificationTap;
 
-  // ---------------------------
+
   // Init
-  // ---------------------------
+
   Future<void> initialize({void Function(Map<String, dynamic> data)? onTap}) async {
     if (_isInitialized) {
       debugPrint('FCM already initialized');
@@ -52,7 +61,9 @@ class FCMService {
         sound: true,
       );
 
+      //  get token -> save to backend -> sync subscriptions
       await _getTokenAndSave();
+      await _syncTopicSubscriptionsFromBackendProfile();
 
       _messaging.onTokenRefresh.listen(_onTokenRefresh);
 
@@ -72,9 +83,9 @@ class FCMService {
     }
   }
 
-  // ---------------------------
+
   // Permissions
-  // ---------------------------
+
   Future<void> _requestPermissions() async {
     final settings = await _messaging.requestPermission(
       alert: true,
@@ -83,6 +94,7 @@ class FCMService {
     );
     debugPrint('FCM Permission: ${settings.authorizationStatus}');
 
+    //  Android 13+ runtime notification permission
     if (!kIsWeb && Platform.isAndroid) {
       final androidImpl = _local.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
@@ -90,9 +102,9 @@ class FCMService {
     }
   }
 
-  // ---------------------------
+
   // Local notifications
-  // ---------------------------
+
   Future<void> _initLocalNotifications() async {
     const androidSettings =
     AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -149,9 +161,9 @@ class FCMService {
     );
   }
 
-  // ---------------------------
+
   // Token + backend save
-  // ---------------------------
+
   Future<void> _getTokenAndSave() async {
     _fcmToken = await _messaging.getToken();
     debugPrint('FCM Token: $_fcmToken');
@@ -164,15 +176,21 @@ class FCMService {
   Future<void> _onTokenRefresh(String token) async {
     debugPrint('FCM Token Refreshed: $token');
     _fcmToken = token;
+
     await _saveTokenToBackend(token);
+    await _syncTopicSubscriptionsFromBackendProfile();
   }
 
+
+  /// Call this after login/register in Flutter.
+  /// It saves FCM token then subscribes topics using backend /auth/me.
   Future<void> saveTokenAfterLogin() async {
     if (_fcmToken != null) {
       await _saveTokenToBackend(_fcmToken!);
     } else {
       await _getTokenAndSave();
     }
+    await _syncTopicSubscriptionsFromBackendProfile();
   }
 
   Future<void> _saveTokenToBackend(String token) async {
@@ -185,7 +203,7 @@ class FCMService {
 
       final idToken = await user.getIdToken();
 
-      // Student note: optional device info for ERD
+      //  optional device info for ERD
       final deviceInfo = kIsWeb
           ? 'web'
           : Platform.isAndroid
@@ -217,15 +235,64 @@ class FCMService {
     }
   }
 
-  // ---------------------------
+
+  // Topic sync (role + ward)
+
+
+  /// Backend is source of truth for user role + ward.
+  /// We fetch /auth/me and subscribe accordingly.
+  Future<void> _syncTopicSubscriptionsFromBackendProfile() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        debugPrint('No logged-in user; skipping topic subscription sync');
+        return;
+      }
+
+      final idToken = await user.getIdToken();
+
+      final resp = await http.get(
+        Uri.parse('$_baseUrl/auth/me'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+
+      if (resp.statusCode != 200) {
+        debugPrint('Failed /auth/me for topic sync: ${resp.statusCode} ${resp.body}');
+        return;
+      }
+
+      final me = jsonDecode(resp.body) as Map<String, dynamic>;
+      final role = (me['role'] ?? '').toString().toUpperCase();
+      final ward = me['ward']; // null or {id,name}
+
+      debugPrint('=== Topic Sync (/auth/me) ===');
+      debugPrint('Role: $role');
+      debugPrint('Ward: $ward');
+
+      if (role == 'RESIDENT') {
+        await subscribeToAllResidents();
+        if (ward != null) {
+          await subscribeToWardDynamic(ward);
+        } else {
+          debugPrint('Resident ward is null; cannot subscribe to ward topic');
+        }
+      } else if (role == 'VENDOR') {
+        await subscribeToAllVendors();
+      } else {
+        debugPrint('No resident/vendor subscription needed for role=$role');
+      }
+    } catch (e) {
+      debugPrint('Topic sync error: $e');
+    }
+  }
+
+
   // Message handlers
-  // ---------------------------
   void _handleForegroundMessage(RemoteMessage message) {
     debugPrint('=== Foreground Message ===');
     debugPrint('Title: ${message.notification?.title}');
     debugPrint('Body: ${message.notification?.body}');
     debugPrint('Data: ${message.data}');
-
     _showLocalNotification(message);
   }
 
@@ -233,9 +300,8 @@ class FCMService {
     final title = message.notification?.title ??
         message.data['title']?.toString() ??
         "New notification";
-    final body = message.notification?.body ??
-        message.data['message']?.toString() ??
-        "";
+    final body =
+        message.notification?.body ?? message.data['message']?.toString() ?? "";
 
     final payload = message.data.isNotEmpty ? jsonEncode(message.data) : null;
 
@@ -261,9 +327,8 @@ class FCMService {
     }
   }
 
-  // ---------------------------
-  // Topic subscriptions (FIXED)
-  // ---------------------------
+
+  // Topic subscriptions
 
   Future<void> subscribeToAllResidents() async {
     await _messaging.subscribeToTopic("all_residents");
@@ -275,17 +340,16 @@ class FCMService {
     debugPrint('Subscribed to topic: all_vendors');
   }
 
-  /// Student note:
+
   /// ward can be:
-  ///  - "Kathmandu Ward 4"
   ///  - Map {id:1, name:"Kathmandu Ward 4"}
+  ///  - or string "Kathmandu Ward 4"
   Future<void> subscribeToWardDynamic(Object? ward) async {
     final topic = _wardToTopicDynamic(ward);
     if (topic == null) {
       debugPrint('Ward topic is null, skipping subscription');
       return;
     }
-
     await _messaging.subscribeToTopic(topic);
     debugPrint('Subscribed to topic: $topic');
   }
@@ -293,76 +357,55 @@ class FCMService {
   Future<void> unsubscribeFromWardDynamic(Object? ward) async {
     final topic = _wardToTopicDynamic(ward);
     if (topic == null) return;
-
     await _messaging.unsubscribeFromTopic(topic);
     debugPrint('Unsubscribed from topic: $topic');
   }
 
-  /// Keep old API (string ward) but now sanitized properly
-  Future<void> subscribeToWard(String ward) async {
-    final topic = _wardToTopicFromName(ward);
-    if (topic == null) return;
+
+
+  Future<void> subscribeToWard(String wardName) async {
+    final topic = _wardToTopicFromName(wardName);
+    if (topic == null) {
+      debugPrint('subscribeToWard: invalid wardName="$wardName"');
+      return;
+    }
     await _messaging.subscribeToTopic(topic);
     debugPrint('Subscribed to topic: $topic');
   }
 
-  Future<void> unsubscribeFromWard(String ward) async {
-    final topic = _wardToTopicFromName(ward);
-    if (topic == null) return;
+  Future<void> unsubscribeFromWard(String wardName) async {
+    final topic = _wardToTopicFromName(wardName);
+    if (topic == null) {
+      debugPrint('unsubscribeFromWard: invalid wardName="$wardName"');
+      return;
+    }
     await _messaging.unsubscribeFromTopic(topic);
     debugPrint('Unsubscribed from topic: $topic');
   }
 
-  Future<void> unsubscribeFromAll({Object? ward}) async {
-    try {
-      await unsubscribeFromWardDynamic(ward);
-      await _messaging.unsubscribeFromTopic("all_residents");
-      await _messaging.unsubscribeFromTopic("all_vendors");
-      debugPrint('Unsubscribed from all topics');
-    } catch (e) {
-      debugPrint('Error unsubscribing from all: $e');
-    }
-  }
 
-  // ---------------------------
-  // Topic builders (VERY IMPORTANT)
-  // ---------------------------
+  // Topic builders
 
   String? _wardToTopicDynamic(Object? ward) {
     if (ward == null) return null;
 
-    // If ERD ward map exists, prefer ward_<id> (always safe and short)
+    //  backend returns ward as {id, name}
     if (ward is Map) {
-      final id = ward['id'];
-      final idInt = int.tryParse(id?.toString() ?? '');
-      if (idInt != null) return 'ward_$idInt';
-
       final name = ward['name']?.toString();
       return _wardToTopicFromName(name);
     }
 
-    // else treat it as string
     return _wardToTopicFromName(ward.toString());
   }
 
+
+
+  ///   return `ward_${String(ward).toLowerCase().trim().replaceAll(" ", "_")}`;
   String? _wardToTopicFromName(String? wardName) {
     final name = (wardName ?? '').trim();
     if (name.isEmpty) return null;
 
-    // Firebase topic allowed chars: [a-zA-Z0-9-_.~%]
-    // We replace everything else with underscore
-    final cleaned = name
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9\-\_\.\~%]'), '_')
-        .replaceAll(RegExp(r'_+'), '_');
-
-    final topic = 'ward_$cleaned';
-
-    // Safety: topic length must be <= 900
-    if (topic.length > 900) {
-      return topic.substring(0, 900);
-    }
-
-    return topic;
+    final cleaned = name.toLowerCase().replaceAll(' ', '_');
+    return 'ward_$cleaned';
   }
 }
