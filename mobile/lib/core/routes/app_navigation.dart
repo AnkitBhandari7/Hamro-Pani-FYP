@@ -39,7 +39,7 @@ class AppNavigation {
         final String phone = (args?['phone'] ?? '').toString();
         final String email = (args?['email'] ?? '').toString();
 
-        // ✅ ward can be Map now
+        //  ward can be Map now
         final Object? ward = args?['ward'];
 
         return MaterialPageRoute(
@@ -66,7 +66,7 @@ class AppNavigation {
             userName: (args?['userName'] ?? 'User').toString(),
             phone: (args?['phone'] ?? '').toString(),
             email: (args?['email'] ?? '').toString(),
-            ward: wardName, // ProfileScreen uses String?
+            ward: wardName,
           ),
         );
 
@@ -116,7 +116,7 @@ class AppNavigation {
 
   static void pop(BuildContext context) => Navigator.pop(context);
 
-  // ✅ ward is Object? now
+  //  ward is Object now
   static Future<T?> pushHomeWithRole<T extends Object?>(
       BuildContext context, {
         required String role,
@@ -133,7 +133,7 @@ class AppNavigation {
         'userName': userName,
         'phone': phone,
         'email': email,
-        'ward': ward, // keep map
+        'ward': ward,
       },
     );
   }
