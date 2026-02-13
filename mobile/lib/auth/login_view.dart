@@ -112,7 +112,7 @@ class _LoginViewState extends State<LoginView> {
       final idToken = await firebaseUser.getIdToken(true);
 
       // 3) Register/ensure user exists in backend
-      // IMPORTANT FIX: DO NOT send name here, it overwrites DB name on every login.
+
       final selectedRoleName = roles[selectedRole];
       final backendRole = _selectedRoleToBackendRole(selectedRoleName);
 
@@ -124,7 +124,7 @@ class _LoginViewState extends State<LoginView> {
         },
         body: json.encode({
           'role': backendRole,
-          // DO NOT send 'name' on login
+
         }),
       );
 
@@ -138,7 +138,7 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-      // 4) Load profile from backend (source of truth)
+      // 4) Load profile from backend
       final meResponse = await http.get(
         Uri.parse('$_baseUrl/auth/me'),
         headers: {'Authorization': 'Bearer $idToken'},
@@ -157,7 +157,7 @@ class _LoginViewState extends State<LoginView> {
       final userData = json.decode(meResponse.body) as Map<String, dynamic>;
 
       final String userRole = (userData['role'] ?? 'RESIDENT').toString();
-      final String userName = (userData['name'] ?? 'User').toString(); // ✅ always DB name
+      final String userName = (userData['name'] ?? 'User').toString();
       final String phone = (userData['phone'] ?? '').toString();
       final String userEmail = (userData['email'] ?? '').toString();
 
@@ -178,7 +178,7 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-      // 6) FCM setup (non-fatal)
+      // 6) FCM setup
       try {
         await FCMService().saveTokenAfterLogin();
         debugPrint("FCM token saved after login");
@@ -215,7 +215,7 @@ class _LoginViewState extends State<LoginView> {
         await fcmService.subscribeToAllResidents();
 
         if (wardName != null && wardName.trim().isNotEmpty) {
-          await fcmService.subscribeToWard(wardName.trim()); // string only
+          await fcmService.subscribeToWard(wardName.trim());
         }
       } else if (normalizedRole == 'vendor') {
         await fcmService.subscribeToAllVendors();

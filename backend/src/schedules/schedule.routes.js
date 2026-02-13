@@ -1,4 +1,4 @@
-// backend/schedules/schedule.routes.js
+
 
 import express from "express";
 import { authenticateFirebase } from "../auth/auth.middleware.js";
