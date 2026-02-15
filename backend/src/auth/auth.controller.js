@@ -2,7 +2,9 @@
 import prisma from "../prisma.js";
 import { admin } from "../firebaseAdmin.js";
 
-// Student note: convert role string from Flutter into enum used in ERD schema
+// -----------------------------
+// Role normalization
+// -----------------------------
 function normalizeRole(role) {
   const r = String(role || "").toLowerCase().trim();
 
@@ -14,95 +16,211 @@ function normalizeRole(role) {
   return "RESIDENT";
 }
 
-// Student note: Flutter sometimes sends ward name, but ERD uses wardId.
-// This helper finds ward by name, and creates it if not exists.
-async function getOrCreateWardByName(wardName) {
-  const name = String(wardName || "").trim();
-  if (!name) return null;
+// -----------------------------
+// Ward name normalization helpers
+// -----------------------------
+function extractWardNumber(s) {
+  const m = String(s || "").match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
 
-  let ward = await prisma.ward.findFirst({ where: { wardName: name } });
-  if (!ward) {
-    ward = await prisma.ward.create({ data: { wardName: name } });
+function extractCity(s) {
+  const lower = String(s || "").toLowerCase();
+  if (lower.includes("kathmandu")) return "Kathmandu";
+  if (lower.includes("lalitpur")) return "Lalitpur";
+  if (lower.includes("bhaktapur")) return "Bhaktapur";
+  return null;
+}
+
+function canonicalWardName(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+
+  const n = extractWardNumber(raw);
+  const city = extractCity(raw) ?? "Kathmandu";
+
+  if (n != null && Number.isFinite(n)) return `${city} Ward ${n}`;
+  return raw;
+}
+
+async function getOrCreateWardByNameTx(tx, wardName) {
+  const canonical = canonicalWardName(wardName);
+  if (!canonical) return null;
+
+  let ward = await tx.ward.findFirst({ where: { wardName: canonical } });
+  if (ward) return ward;
+
+  // optional fuzzy match
+  const n = extractWardNumber(canonical);
+  const city = extractCity(canonical);
+
+  if (n != null && city) {
+    const candidates = await tx.ward.findMany({
+      where: { wardName: { contains: String(n) } },
+      select: { id: true, wardName: true },
+    });
+
+    const found = candidates.find((w) => {
+      const wn = w.wardName.toLowerCase();
+      return wn.includes(city.toLowerCase()) && wn.includes("ward") && wn.includes(String(n));
+    });
+
+    if (found) return tx.ward.findUnique({ where: { id: found.id } });
   }
+
+  ward = await tx.ward.create({ data: { wardName: canonical } });
   return ward;
 }
 
+function hasNonEmptyString(x) {
+  return typeof x === "string" && x.trim().length > 0;
+}
+
+function isProvided(x) {
+  return x !== undefined && x !== null && String(x).trim() !== "";
+}
+
+// -----------------------------
+// POST /auth/register
+// -----------------------------
 export async function register(req, res) {
   const authHeader = req.headers.authorization;
 
-  // Student note: Flutter must send Authorization: Bearer <firebaseIdToken>
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "No authorization header" });
   }
 
   const idToken = authHeader.split("Bearer ")[1];
 
-  // Student note: extra fields from Flutter UI
   const { phone, name, role, ward, wardId, companyName } = req.body || {};
 
   try {
-    // Student note: verify firebase token
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const uid = decodedToken.uid;
     const email = decodedToken.email || null;
 
     const roleEnum = normalizeRole(role);
 
-    // Student note: ward can be wardId or ward name
-    let finalWardId = null;
-    if (wardId != null) {
-      finalWardId = Number(wardId);
-    } else if (ward) {
-      const w = await getOrCreateWardByName(ward);
-      finalWardId = w?.id ?? null;
-    }
+    const user = await prisma.$transaction(async (tx) => {
+      // -------------------------------------------------------
+      // UPDATED RULE:
+      // - RESIDENT: ward is OPTIONAL at registration (can set later in profile)
+      // - WARD_ADMIN: ward MUST be NULL always
+      // - other roles: ward NULL
+      //
+      // Also: If user already has ward in DB and register is called again
+      // without ward info, we DO NOT overwrite their ward with null.
+      // -------------------------------------------------------
+      let finalWardId = null;
+      let wardInputProvided = false;
 
-    // IMPORTANT: This requires User.firebaseUid in schema
-    let user = await prisma.user.findUnique({
-      where: { firebaseUid: uid },
-    });
+      if (roleEnum === "RESIDENT") {
+        if (isProvided(wardId)) {
+          wardInputProvided = true;
 
-    if (!user) {
-      // Student note: create new user record
-      user = await prisma.user.create({
-        data: {
-          firebaseUid: uid,
-          email,
-          phoneNumber: typeof phone === "string" && phone.trim() ? phone.trim() : null,
-          name: typeof name === "string" && name.trim() ? name.trim() : null,
-          role: roleEnum,
-          wardId: finalWardId,
-        },
-      });
-    } else {
-      // Student note: update basic fields (don’t overwrite with empty)
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          email: user.email ?? email,
-          phoneNumber: typeof phone === "string" && phone.trim() ? phone.trim() : user.phoneNumber,
-          name: typeof name === "string" && name.trim() ? name.trim() : user.name,
-          role: roleEnum,
-          wardId: finalWardId ?? user.wardId,
-        },
-      });
-    }
+          const n = Number(wardId);
+          if (!Number.isFinite(n)) {
+            const err = new Error("wardId must be a number");
+            err.statusCode = 400;
+            throw err;
+          }
 
-    // Student note: if role is VENDOR we must ensure vendor profile row exists
-    if (user.role === "VENDOR") {
-      const vendor = await prisma.vendor.findUnique({ where: { userId: user.id } });
-      if (!vendor) {
-        await prisma.vendor.create({
+          const exists = await tx.ward.findUnique({ where: { id: n } });
+          if (!exists) {
+            const err = new Error("Invalid wardId");
+            err.statusCode = 400;
+            throw err;
+          }
+
+          finalWardId = n;
+        } else if (hasNonEmptyString(ward)) {
+          wardInputProvided = true;
+          const w = await getOrCreateWardByNameTx(tx, ward);
+          finalWardId = w?.id ?? null;
+        } else {
+          // resident can register with no ward
+          finalWardId = null;
+          wardInputProvided = false;
+        }
+      } else if (roleEnum === "WARD_ADMIN") {
+        // ward admin never has ward in user table
+        finalWardId = null;
+        wardInputProvided = true; // we will force clear on update
+      } else {
+        // vendor/admin etc -> keep null
+        finalWardId = null;
+        wardInputProvided = true; // force clear
+      }
+
+      // -----------------------------
+      // Find user by firebaseUid, else by email
+      // -----------------------------
+      let u = await tx.user.findUnique({ where: { firebaseUid: uid } });
+
+      if (!u && email) {
+        u = await tx.user.findUnique({ where: { email } });
+        if (u) {
+          u = await tx.user.update({
+            where: { id: u.id },
+            data: { firebaseUid: uid },
+          });
+        }
+      }
+
+      // -----------------------------
+      // Create or update
+      // -----------------------------
+      if (!u) {
+        u = await tx.user.create({
           data: {
-            userId: user.id,
-            companyName: typeof companyName === "string" && companyName.trim() ? companyName.trim() : null,
-            phone: user.phoneNumber ?? null,
+            firebaseUid: uid,
+            email,
+            phoneNumber: hasNonEmptyString(phone) ? phone.trim() : null,
+            name: hasNonEmptyString(name) ? name.trim() : null,
+            role: roleEnum,
+            wardId: roleEnum === "RESIDENT" ? finalWardId : null,
+          },
+        });
+      } else {
+        // ward update behavior:
+        // - WARD_ADMIN / VENDOR / ADMIN: force wardId NULL
+        // - RESIDENT:
+        //    - if ward provided -> update wardId
+        //    - else -> keep existing wardId (do not overwrite with null)
+        const wardIdUpdate =
+          roleEnum === "RESIDENT"
+            ? (wardInputProvided ? finalWardId : undefined)
+            : null;
+
+        u = await tx.user.update({
+          where: { id: u.id },
+          data: {
+            email: u.email ?? email,
+            phoneNumber: hasNonEmptyString(phone) ? phone.trim() : u.phoneNumber,
+            name: hasNonEmptyString(name) ? name.trim() : u.name,
+            role: roleEnum,
+            wardId: wardIdUpdate,
           },
         });
       }
-    }
 
-    // Student note: return user with ward + vendor info
+      // Vendor profile
+      if (u.role === "VENDOR") {
+        const vendor = await tx.vendor.findUnique({ where: { userId: u.id } });
+        if (!vendor) {
+          await tx.vendor.create({
+            data: {
+              userId: u.id,
+              companyName: hasNonEmptyString(companyName) ? companyName.trim() : null,
+              phone: u.phoneNumber ?? null,
+            },
+          });
+        }
+      }
+
+      return u;
+    });
+
     const userWithWard = await prisma.user.findUnique({
       where: { id: user.id },
       include: { ward: true, vendorProfile: true },
@@ -126,10 +244,13 @@ export async function register(req, res) {
   } catch (e) {
     console.error("register error:", e);
 
-    // Student note: If token invalid, verifyIdToken throws (401).
-    // If prisma errors happen, that is server error (500).
-    const msg = String(e?.message || "");
+    if (e?.statusCode === 400) return res.status(400).json({ error: e.message });
 
+    if (e?.code === "P2002") {
+      return res.status(409).json({ error: "Unique constraint failed", detail: e?.meta });
+    }
+
+    const msg = String(e?.message || "");
     if (msg.toLowerCase().includes("firebase") || msg.toLowerCase().includes("id token")) {
       return res.status(401).json({ error: "Invalid Firebase token" });
     }
@@ -138,6 +259,9 @@ export async function register(req, res) {
   }
 }
 
+// -----------------------------
+// GET /auth/me
+// -----------------------------
 export async function me(req, res) {
   const userId = Number(req.auth?.sub);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -166,6 +290,9 @@ export async function me(req, res) {
   }
 }
 
+// -----------------------------
+// PATCH /auth/update-profile
+// -----------------------------
 export async function updateProfile(req, res) {
   const userId = Number(req.auth?.sub);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -173,20 +300,42 @@ export async function updateProfile(req, res) {
   const { name, phone, ward, wardId } = req.body || {};
 
   try {
-    let finalWardId;
+    const me = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (!me) return res.status(401).json({ error: "Unauthorized" });
 
-    if (wardId != null) finalWardId = Number(wardId);
-    else if (ward) {
-      const w = await getOrCreateWardByName(ward);
-      finalWardId = w?.id;
+    let wardIdUpdate = undefined;
+
+    if (me.role === "RESIDENT") {
+      // Resident can set ward later (optional)
+      if (isProvided(wardId)) {
+        const n = Number(wardId);
+        if (!Number.isFinite(n)) return res.status(400).json({ error: "wardId must be a number" });
+
+        const exists = await prisma.ward.findUnique({ where: { id: n } });
+        if (!exists) return res.status(400).json({ error: "Invalid wardId" });
+
+        wardIdUpdate = n;
+      } else if (hasNonEmptyString(ward)) {
+        const w = await prisma.$transaction((tx) => getOrCreateWardByNameTx(tx, ward));
+        wardIdUpdate = w?.id;
+      } else {
+        // no ward provided => do not change wardId
+        wardIdUpdate = undefined;
+      }
+    } else {
+      // WARD_ADMIN / others: always null
+      wardIdUpdate = null;
     }
 
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
-        name: typeof name === "string" && name.trim() ? name.trim() : undefined,
-        phoneNumber: typeof phone === "string" && phone.trim() ? phone.trim() : undefined,
-        wardId: finalWardId ?? undefined,
+        name: hasNonEmptyString(name) ? name.trim() : undefined,
+        phoneNumber: hasNonEmptyString(phone) ? phone.trim() : undefined,
+        wardId: wardIdUpdate,
       },
       include: { ward: true },
     });
@@ -209,11 +358,14 @@ export async function updateProfile(req, res) {
   }
 }
 
-// Student note: keep this endpoint for old Flutter calls
+// keep for old Flutter calls
 export async function updateWard(req, res) {
   return updateProfile(req, res);
 }
 
+// -----------------------------
+// POST /auth/save-fcm-token
+// -----------------------------
 export async function saveFcmToken(req, res) {
   const userId = Number(req.auth?.sub);
   const { fcmToken, deviceInfo } = req.body || {};
@@ -224,7 +376,6 @@ export async function saveFcmToken(req, res) {
   }
 
   try {
-    // Student note: ERD stores multiple tokens per user
     await prisma.fcmToken.upsert({
       where: { token: fcmToken },
       update: {
