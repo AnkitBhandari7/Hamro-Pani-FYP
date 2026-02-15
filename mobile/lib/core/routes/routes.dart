@@ -16,8 +16,11 @@ class AppRoutes {
   static const String bookingDetails = '/booking-details';
   static const String locationPicker = '/location-picker';
 
-  // Vendor: manage tanker slots
+  //manage tanker slots
   static const String manageSlots = '/vendor/manage-slots';
+
+  //  Ward Admin profile
+  static const String wardAdminProfile = '/ward-admin/profile';
 
   // Initial route
   static const String initial = login;

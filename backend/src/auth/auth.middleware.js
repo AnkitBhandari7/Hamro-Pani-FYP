@@ -15,6 +15,7 @@ export async function authenticateFirebase(req, res, next) {
 
     const user = await prisma.user.findUnique({
       where: { firebaseUid: decodedToken.uid },
+      include: { ward: true }, // IMPORTANT
     });
 
     if (!user) {
@@ -26,6 +27,7 @@ export async function authenticateFirebase(req, res, next) {
       uid: decodedToken.uid,
       email: user.email,
       role: user.role,
+      wardId: user.wardId,
       ward: user.ward,
     };
 

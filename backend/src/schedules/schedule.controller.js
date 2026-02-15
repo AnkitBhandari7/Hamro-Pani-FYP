@@ -1,5 +1,4 @@
-
-//  Schedule APIs + push + in-app notifications
+// Schedule APIs + push + in-app notifications
 
 import prisma from "../prisma.js";
 import fcmService from "../notifications/fcmservice.js";
@@ -25,7 +24,7 @@ async function getOrCreateWardByName(wardName) {
   return ward;
 }
 
-//  supplyDate = "YYYY-MM-DD", time = "HH:mm" (24h)
+// supplyDate = "YYYY-MM-DD", time = "HH:mm" (24h)
 function combineDateAndTime(supplyDate, timeStr) {
   const base = new Date(supplyDate);
   if (isNaN(base.getTime())) return null;
@@ -43,9 +42,7 @@ function combineDateAndTime(supplyDate, timeStr) {
   return base;
 }
 
-
-//helpers for notification page (in-app recipients)
-// helper - get user's real token if exists, otherwise create a dummy in-app token
+// helpers for notification page (in-app recipients)
 async function getLatestTokenOrCreateInAppToken(userId) {
   const existing = await prisma.fcmToken.findFirst({
     where: { userId },
@@ -56,7 +53,6 @@ async function getLatestTokenOrCreateInAppToken(userId) {
 
   const dummyToken = `inapp_user_${userId}`;
 
-  // token is unique, so upsert keeps it safe
   const tok = await prisma.fcmToken.upsert({
     where: { token: dummyToken },
     update: { userId, deviceInfo: "inapp" },
@@ -67,7 +63,6 @@ async function getLatestTokenOrCreateInAppToken(userId) {
   return tok;
 }
 
-// create NotificationRecipient rows for a list of userIds
 async function createRecipientsForUsers(notificationId, userIds) {
   const deliveredAt = new Date();
   const rows = [];
@@ -118,7 +113,6 @@ export async function createSchedule(req, res) {
       return res.status(400).json({ error: "supplyDate, startTime, endTime are required" });
     }
 
-    // resolve ward by NAME so topic matches Flutter subscription
     const wardRow = await getOrCreateWardByName(wardName ?? ward);
     if (!wardRow) return res.status(400).json({ error: "Invalid wardName" });
 
@@ -134,12 +128,18 @@ export async function createSchedule(req, res) {
       return res.status(400).json({ error: "Invalid startTime/endTime. Use HH:mm (24-hour)." });
     }
 
+    // IMPORTANT: save which ward admin created it
     const schedule = await prisma.schedule.create({
       data: {
         wardId: wardRow.id,
+        createdById: me.id,
         scheduleDate,
         startTime: startDT,
         endTime: endDT,
+      },
+      include: {
+        ward: true,
+        createdBy: { select: { id: true, name: true, email: true, role: true } },
       },
     });
 
@@ -165,7 +165,7 @@ export async function createSchedule(req, res) {
       });
       notificationResults.inApp = notif;
 
-      // 2) Create recipients for in-app screen (by user, not by token)
+      // 2) Create recipients for in-app screen
       const residentUsers = await prisma.user.findMany({
         where: { role: "RESIDENT", wardId: wardRow.id },
         select: { id: true },
@@ -212,7 +212,10 @@ export async function getSchedules(req, res) {
   try {
     const schedules = await prisma.schedule.findMany({
       orderBy: { scheduleDate: "desc" },
-      include: { ward: true },
+      include: {
+        ward: true,
+        createdBy: { select: { id: true, name: true, email: true, role: true } }, // IMPORTANT
+      },
     });
     return res.json(schedules);
   } catch (e) {
@@ -227,7 +230,10 @@ export async function getSchedule(req, res) {
   try {
     const schedule = await prisma.schedule.findUnique({
       where: { id: Number(id) },
-      include: { ward: true },
+      include: {
+        ward: true,
+        createdBy: { select: { id: true, name: true, email: true, role: true } }, // IMPORTANT
+      },
     });
     if (!schedule) return res.status(404).json({ error: "Schedule not found" });
     return res.json(schedule);

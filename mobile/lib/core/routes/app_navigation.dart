@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:fyp/core/routes/routes.dart';
 import 'package:fyp/screens/home_wrapper.dart';
-
+import 'package:fyp/admin/profile/ward_admin_profile_screen.dart';
 import 'package:fyp/auth/login_view.dart';
 import 'package:fyp/auth/signup_view.dart';
 
@@ -39,7 +39,7 @@ class AppNavigation {
         final String phone = (args?['phone'] ?? '').toString();
         final String email = (args?['email'] ?? '').toString();
 
-        // ✅ ward can be Map now
+        //  ward can be Map now
         final Object? ward = args?['ward'];
 
         return MaterialPageRoute(
@@ -66,7 +66,7 @@ class AppNavigation {
             userName: (args?['userName'] ?? 'User').toString(),
             phone: (args?['phone'] ?? '').toString(),
             email: (args?['email'] ?? '').toString(),
-            ward: wardName, // ProfileScreen uses String?
+            ward: wardName,
           ),
         );
 
@@ -75,6 +75,10 @@ class AppNavigation {
 
       case AppRoutes.notifications:
         return MaterialPageRoute(builder: (_) => const NotificationScreen());
+
+
+     case AppRoutes.wardAdminProfile:
+       return MaterialPageRoute(builder: (_) => const WardAdminProfileScreen());
 
       case AppRoutes.sendNotice:
         return MaterialPageRoute(builder: (_) => const SendNoticeScreen());
@@ -116,7 +120,7 @@ class AppNavigation {
 
   static void pop(BuildContext context) => Navigator.pop(context);
 
-  // ✅ ward is Object? now
+  //  ward is Object? now
   static Future<T?> pushHomeWithRole<T extends Object?>(
       BuildContext context, {
         required String role,

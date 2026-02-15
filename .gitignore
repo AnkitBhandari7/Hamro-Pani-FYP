@@ -107,3 +107,20 @@ jspm_packages/
 .history
 .svn
 .migrate_working_dir
+
+
+
+
+# Backend uploads
+backend/uploads/
+
+# Node
+node_modules/
+backend/node_modules/
+
+# Flutter build/cache
+mobile/build/
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
