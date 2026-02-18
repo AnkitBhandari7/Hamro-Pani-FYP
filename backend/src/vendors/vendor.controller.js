@@ -1,21 +1,37 @@
 // src/vendors/vendor.controller.js
+// Student note: Vendor logic for routes, slots, dashboard, and confirm/decline booking.
+
 import prisma from "../prisma.js";
 
-/*
-  Small helper:
-  - get current logged-in user id from req.auth.sub
-  - in your project, authenticateFirebase is setting req.auth.sub = DB userId
-*/
 function getUserId(req) {
   const id = Number(req.auth?.sub);
   return Number.isFinite(id) ? id : null;
 }
 
-/*
-  Small helper:
-  - check current user is VENDOR
-  - also load vendor profile row
-*/
+function startOfToday() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function isActiveRoute(routeDate) {
+  // Student note: simple rule = route is Active if routeDate is today
+  const d = new Date(routeDate);
+  const t = startOfToday();
+  const tomorrow = new Date(t.getTime() + 24 * 60 * 60 * 1000);
+  return d >= t && d < tomorrow;
+}
+
+function toTimeLabel(dt) {
+  if (!dt) return null;
+  const d = new Date(dt);
+  let h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${m} ${ampm}`;
+}
+
 async function getVendorByUserId(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -40,7 +56,9 @@ async function getVendorByUserId(userId) {
 
 /*
   GET /vendors/dashboard
-  - show vendor routes summary + last pending bookings
+  Student note:
+  - returns vendor routes in UI-friendly format (Active/Scheduled + progress)
+  - returns last 10 bookings (requests) for this vendor
 */
 export async function getVendorDashboard(req, res) {
   const userId = getUserId(req);
@@ -50,28 +68,65 @@ export async function getVendorDashboard(req, res) {
   if (error) return res.status(error.status).json({ error: error.message });
 
   try {
-    // Load routes with ward + slots and booking counts
-    const routes = await prisma.route.findMany({
+    const vendorUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+
+    // -------------------------
+    // Routes (with slot progress)
+    // -------------------------
+    const rawRoutes = await prisma.route.findMany({
       where: { vendorId: vendor.id },
-      orderBy: { createdAt: "desc" },
+      orderBy: { routeDate: "desc" },
+      take: 10,
       include: {
         ward: true,
-        slots: {
-          orderBy: { startTime: "asc" },
-          include: {
-            _count: { select: { bookings: true } },
-          },
-        },
+        slots: { orderBy: { startTime: "asc" } },
       },
     });
 
-    // Load last 10 pending bookings for this vendor
-    const requests = await prisma.booking.findMany({
+    const routes = rawRoutes.map((r) => {
+      const slotsTotal = r.slots.reduce((sum, s) => sum + (s.capacity ?? 0), 0);
+      const slotsUsed = r.slots.reduce((sum, s) => sum + (s.bookedCount ?? 0), 0);
+
+      const percentBooked = slotsTotal > 0 ? Math.round((slotsUsed / slotsTotal) * 100) : 0;
+
+      const first = r.slots.length > 0 ? r.slots[0] : null;
+      const last = r.slots.length > 0 ? r.slots[r.slots.length - 1] : null;
+
+      return {
+        routeId: r.id,
+        wardName: r.ward?.wardName ?? "-",
+        location: r.location ?? "-",
+        routeDate: r.routeDate,
+
+        // Student note: status for UI chip
+        status: isActiveRoute(r.routeDate) ? "Active" : "Scheduled",
+
+        // Student note: start/end for UI
+        startTime: first?.startTime ?? null,
+        endTime: last?.endTime ?? null,
+        startTimeLabel: toTimeLabel(first?.startTime),
+        endTimeLabel: toTimeLabel(last?.endTime),
+
+        // Student note: progress bar
+        slotsTotal,
+        slotsUsed,
+        percentBooked,
+      };
+    });
+
+    // -------------------------
+    // Requests (real bookings)
+    // -------------------------
+    const rawBookings = await prisma.booking.findMany({
       where: {
         slot: {
           route: { vendorId: vendor.id },
         },
-        status: "PENDING",
+        // Student note: show both pending and confirmed in recent list (exclude cancelled if you want)
+        NOT: { status: "CANCELLED" },
       },
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -85,7 +140,45 @@ export async function getVendorDashboard(req, res) {
       },
     });
 
-    return res.json({ routes, requests });
+    const requests = rawBookings.map((b) => ({
+      bookingId: b.id,
+      status: b.status,
+      createdAt: b.createdAt,
+
+      residentName: b.user?.name ?? "Resident",
+      residentPhone: b.user?.phoneNumber ?? "",
+
+      wardName: b.slot?.route?.ward?.wardName ?? "-",
+      location: b.slot?.route?.location ?? "-",
+      slotStartTime: b.slot?.startTime ?? null,
+      slotEndTime: b.slot?.endTime ?? null,
+    }));
+
+    // -------------------------
+    // Stats
+    // -------------------------
+    const today = startOfToday();
+    const todaysJobs = await prisma.booking.count({
+      where: {
+        createdAt: { gte: today },
+        slot: { route: { vendorId: vendor.id } },
+        NOT: { status: "CANCELLED" },
+      },
+    });
+
+    return res.json({
+      vendor: {
+        id: vendor.id,
+        name: vendorUser?.name ?? "Vendor",
+      },
+      stats: {
+        todaysJobs,
+        successPercent: 0, // Student note: calculate later if you want
+        rating: 0,         // Student note: rating not in DB now
+      },
+      routes,
+      requests,
+    });
   } catch (e) {
     console.error("getVendorDashboard error:", e);
     return res.status(500).json({ error: "Failed to load vendor dashboard" });
@@ -94,8 +187,6 @@ export async function getVendorDashboard(req, res) {
 
 /*
   POST /vendors/routes
-  ERD Route fields: { vendorId, wardId, routeDate, location }
-  Flutter might send: wardId OR ward (string), routeDate?, location?
 */
 export async function createRoute(req, res) {
   const userId = getUserId(req);
@@ -107,18 +198,14 @@ export async function createRoute(req, res) {
   const { wardId, ward, routeDate, location } = req.body || {};
 
   try {
-    // 1) Find ward (by wardId OR by ward name)
     let wardRow = null;
 
     if (wardId != null) {
       wardRow = await prisma.ward.findUnique({ where: { id: Number(wardId) } });
     } else if (typeof ward === "string" && ward.trim()) {
-      // find by name, if not exists create (simple approach)
       wardRow = await prisma.ward.findFirst({ where: { wardName: ward.trim() } });
       if (!wardRow) {
-        wardRow = await prisma.ward.create({
-          data: { wardName: ward.trim() },
-        });
+        wardRow = await prisma.ward.create({ data: { wardName: ward.trim() } });
       }
     }
 
@@ -126,11 +213,9 @@ export async function createRoute(req, res) {
       return res.status(400).json({ error: "wardId or ward name is required" });
     }
 
-    // 2) routeDate default = today (00:00)
     const d = routeDate ? new Date(routeDate) : new Date();
     const routeDateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-    // 3) create route
     const created = await prisma.route.create({
       data: {
         vendorId: vendor.id,
@@ -150,7 +235,6 @@ export async function createRoute(req, res) {
 
 /*
   GET /vendors/routes/my
-  - vendor can see their routes + slots
 */
 export async function getMyRoutes(req, res) {
   const userId = getUserId(req);
@@ -178,8 +262,6 @@ export async function getMyRoutes(req, res) {
 
 /*
   POST /vendors/routes/:routeId/slots
-  Body: { startTime, endTime, capacity }
-  - ERD Slot has startTime/endTime, capacity, bookedCount
 */
 export async function createSlot(req, res) {
   const userId = getUserId(req);
@@ -196,7 +278,6 @@ export async function createSlot(req, res) {
   }
 
   try {
-    // make sure route belongs to current vendor
     const route = await prisma.route.findFirst({
       where: { id: routeId, vendorId: vendor.id },
     });
@@ -223,15 +304,13 @@ export async function createSlot(req, res) {
 
 /*
   GET /vendors/slots/ward/:ward
-  Residents browse slots by ward name or ward id
-  Query: ?date=YYYY-MM-DD (optional)
+  (Kept, but your main "Nearby vendors" should use /tankers/nearby)
 */
 export async function listSlotsByWardAndDate(req, res) {
   const wardParam = String(req.params.ward || "").trim();
   const { date } = req.query;
 
   try {
-    // wardParam can be "5" or "Ward 5"
     const wardIdMaybe = Number(wardParam);
     const wardRow = Number.isFinite(wardIdMaybe)
       ? await prisma.ward.findUnique({ where: { id: wardIdMaybe } })
@@ -239,7 +318,6 @@ export async function listSlotsByWardAndDate(req, res) {
 
     if (!wardRow) return res.json([]);
 
-    // date filter uses Route.routeDate in ERD
     let routeDateFilter = {};
     if (date) {
       const start = new Date(`${date}T00:00:00.000Z`);
@@ -265,12 +343,104 @@ export async function listSlotsByWardAndDate(req, res) {
       orderBy: { startTime: "asc" },
     });
 
-    // In ERD there is no "status", so we treat slot as available if bookedCount < capacity
-    const openSlots = slots.filter((s) => s.bookedCount < s.capacity);
-
-    return res.json(openSlots);
+    return res.json(slots);
   } catch (e) {
     console.error("listSlotsByWardAndDate error:", e);
     return res.status(500).json({ error: "Could not fetch slots" });
+  }
+}
+
+/*
+  ✅ PATCH /vendors/requests/:bookingId
+  Body: { status: "CONFIRMED" | "CANCELLED" }
+*/
+export async function updateBookingStatus(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { vendor, error } = await getVendorByUserId(userId);
+  if (error) return res.status(error.status).json({ error: error.message });
+
+  const bookingId = Number(req.params.bookingId);
+  const statusRaw = String(req.body?.status || "").trim().toUpperCase();
+
+  if (!Number.isFinite(bookingId)) {
+    return res.status(400).json({ error: "bookingId must be a number" });
+  }
+
+  if (!["CONFIRMED", "CANCELLED"].includes(statusRaw)) {
+    return res.status(400).json({ error: "status must be CONFIRMED or CANCELLED" });
+  }
+
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          slot: { include: { route: true } },
+        },
+      });
+
+      if (!booking) {
+        const err = new Error("Booking not found");
+        err.statusCode = 404;
+        throw err;
+      }
+
+      // Student note: security check (booking must belong to this vendor)
+      if (booking.slot?.route?.vendorId !== vendor.id) {
+        const err = new Error("Forbidden (not your booking)");
+        err.statusCode = 403;
+        throw err;
+      }
+
+      // Student note: only allow changes from PENDING or CONFIRMED (simple rule)
+      if (booking.status === "CANCELLED") {
+        const err = new Error("Booking already cancelled");
+        err.statusCode = 409;
+        throw err;
+      }
+
+      // If cancelling, free slot capacity (decrement bookedCount)
+      if (statusRaw === "CANCELLED" && booking.slotId) {
+        const slot = await tx.slot.findUnique({ where: { id: booking.slotId } });
+        if (slot) {
+          const newCount = Math.max(0, (slot.bookedCount ?? 0) - 1);
+          await tx.slot.update({
+            where: { id: slot.id },
+            data: { bookedCount: newCount },
+          });
+        }
+      }
+
+      const b2 = await tx.booking.update({
+        where: { id: bookingId },
+        data: { status: statusRaw },
+        include: {
+          user: { select: { id: true, name: true, phoneNumber: true } },
+          slot: { include: { route: { include: { ward: true } } } },
+        },
+      });
+
+      return b2;
+    });
+
+    return res.json({
+      success: true,
+      booking: {
+        bookingId: updated.id,
+        status: updated.status,
+        createdAt: updated.createdAt,
+        residentName: updated.user?.name ?? "Resident",
+        residentPhone: updated.user?.phoneNumber ?? "",
+        wardName: updated.slot?.route?.ward?.wardName ?? "-",
+        location: updated.slot?.route?.location ?? "-",
+        slotStartTime: updated.slot?.startTime ?? null,
+        slotEndTime: updated.slot?.endTime ?? null,
+      },
+    });
+  } catch (e) {
+    const code = e?.statusCode || 500;
+    return res.status(code).json({ error: e.message || "Failed to update booking" });
   }
 }

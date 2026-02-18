@@ -1,4 +1,6 @@
 // src/vendors/vendor.routes.js
+// Student note: Vendor APIs (FR5 booking + vendor dashboard)
+
 import { Router } from "express";
 import { authenticateFirebase } from "../auth/auth.middleware.js";
 import {
@@ -7,6 +9,7 @@ import {
   getMyRoutes,
   createSlot,
   listSlotsByWardAndDate,
+  updateBookingStatus, // ✅ NEW
 } from "./vendor.controller.js";
 
 const router = Router();
@@ -23,7 +26,11 @@ router.get("/routes/my", authenticateFirebase, getMyRoutes);
 // Student note: create slot inside a route (ERD: Slot table)
 router.post("/routes/:routeId/slots", authenticateFirebase, createSlot);
 
-// Student note: resident can browse slots by ward
+// Student note: resident can browse slots by ward (kept for compatibility)
 router.get("/slots/ward/:ward", listSlotsByWardAndDate);
+
+// ✅ NEW: confirm/decline booking request
+// Body: { status: "CONFIRMED" | "CANCELLED" }
+router.patch("/requests/:bookingId", authenticateFirebase, updateBookingStatus);
 
 export default router;
