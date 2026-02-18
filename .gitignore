@@ -106,4 +106,5 @@ jspm_packages/
 *.iws
 .history
 .svn
-.migrate_working_dir
+.migrate_working_dirbackend/uploads/
+backend/uploads

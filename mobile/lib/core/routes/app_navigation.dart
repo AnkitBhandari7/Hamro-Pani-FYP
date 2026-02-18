@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-
 import 'package:fyp/core/routes/routes.dart';
 import 'package:fyp/screens/home_wrapper.dart';
-
+import 'package:fyp/booking/find_tankers_screen.dart';
 import 'package:fyp/auth/login_view.dart';
 import 'package:fyp/auth/signup_view.dart';
 
@@ -54,6 +53,9 @@ class AppNavigation {
 
       case AppRoutes.newSchedule:
         return MaterialPageRoute(builder: (_) => const NewScheduleScreen());
+
+      case AppRoutes.findTankers:
+        return MaterialPageRoute(builder: (_) => const FindTankersScreen());
 
       case AppRoutes.profile:
         final args = settings.arguments as Map<String, dynamic>?;

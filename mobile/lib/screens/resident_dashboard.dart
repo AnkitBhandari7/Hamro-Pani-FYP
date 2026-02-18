@@ -16,7 +16,7 @@ class ResidentDashboardScreen extends StatefulWidget {
   final String phone;
   final String email;
 
-  /// ERD: ward can be String OR Map {id, name}
+
   final dynamic ward;
 
   const ResidentDashboardScreen({
@@ -34,11 +34,11 @@ class ResidentDashboardScreen extends StatefulWidget {
 class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
   static const String _baseUrl = "http://10.0.2.2:3000";
 
-  // --- Colors from your screenshot ---
-  static const Color bg = Color(0xFFF5F5F5); // screen background
-  static const Color primaryBlue = Color(0xFF2196F3); // gradient start, FAB
-  static const Color primaryBlue2 = Color(0xFF42A5F5); // gradient end
-  static const Color accentBlue = Color(0xFF1976D2); // buttons/selected text
+
+  static const Color bg = Color(0xFFF5F5F5);
+  static const Color primaryBlue = Color(0xFF2196F3);
+  static const Color primaryBlue2 = Color(0xFF42A5F5);
+  static const Color accentBlue = Color(0xFF1976D2);
 
   static const Color greenTagBg = Color(0xFFE8F5E9);
   static const Color greenTagText = Color(0xFF2E7D32);
@@ -56,9 +56,9 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
   bool loadingReports = true;
   List<Map<String, dynamic>> myReports = [];
 
-  // -----------------------
-  // Ward helpers (FIX)
-  // -----------------------
+
+  // Ward helpers
+
   String? _extractWardName(dynamic w) {
     if (w == null) return null;
 
@@ -66,12 +66,8 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
 
     if (w is String) {
       final s = w.trim();
-
-      // If it looks like "{id: 3, name: Kathmandu Ward 6}"
-      final matchName =
-      RegExp(r'name:\s*([^}]+)', caseSensitive: false).firstMatch(s);
+      final matchName = RegExp(r'name:\s*([^}]+)', caseSensitive: false).firstMatch(s);
       if (matchName != null) return matchName.group(1)?.trim();
-
       return s;
     }
 
@@ -84,8 +80,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     final name = wardName.trim();
     if (name.isEmpty) return "Ward not set";
 
-    final match =
-    RegExp(r'^(.*)\s+Ward\s*(\d+)$', caseSensitive: false).firstMatch(name);
+    final match = RegExp(r'^(.*)\s+Ward\s*(\d+)$', caseSensitive: false).firstMatch(name);
     if (match != null) {
       final city = match.group(1)!.trim();
       final number = match.group(2)!.trim();
@@ -94,9 +89,9 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     return name;
   }
 
-  // -----------------------
+
   // API
-  // -----------------------
+
   Future<void> fetchNotifications() async {
     try {
       final data = await NotificationService.getNotifications();
@@ -123,8 +118,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final issues = (data['issues'] as List? ?? []).cast<dynamic>();
-      final mapped =
-      issues.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final mapped = issues.map((e) => Map<String, dynamic>.from(e as Map)).toList();
 
       if (!mounted) return;
       setState(() {
@@ -144,9 +138,9 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     fetchMyReports();
   }
 
-  // -----------------------
+
   // UI helpers
-  // -----------------------
+
   Widget pngIcon(
       String asset, {
         double size = 22,
@@ -212,9 +206,21 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     );
   }
 
-  // -----------------------
+  void _openBookings() {
+
+    AppNavigation.push(context, AppRoutes.findTankers);
+  }
+
+  void _openReportIssue() {
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Open Report Issue")),
+    );
+  }
+
+
   // Build
-  // -----------------------
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -225,16 +231,11 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
       backgroundColor: bg,
       floatingActionButton: FloatingActionButton(
         backgroundColor: primaryBlue,
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Open Book Tanker")),
-          );
-        },
-        child: pngIcon('assets/icons/book.png', size: 26, tint: Colors.white),
+        onPressed: _openBookings,
+        child: Icon(Icons.local_shipping, color: Colors.white, size: 26),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: _buildBottomBar(),
-
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -249,7 +250,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ---------------- Header ----------------
+                  // Header
                   Row(
                     children: [
                       Expanded(
@@ -257,7 +258,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Namaste, ${widget.userName} 👋",
+                              "Namaste, ${widget.userName}",
                               style: GoogleFonts.poppins(
                                 fontSize: 15,
                                 color: const Color(0xFF60708F),
@@ -268,8 +269,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                Icon(Icons.location_on,
-                                    size: 18, color: accentBlue),
+                                Icon(Icons.location_on, size: 18, color: accentBlue),
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
@@ -307,13 +307,9 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                                   context: context,
                                   isScrollControlled: true,
                                   shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(18),
-                                    ),
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
                                   ),
-                                  builder: (_) => _NotificationSheet(
-                                    notifications: notifications,
-                                  ),
+                                  builder: (_) => _NotificationSheet(notifications: notifications),
                                 );
                               },
                               icon: const Icon(Icons.notifications_none, size: 26),
@@ -352,8 +348,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                       ),
                       const SizedBox(width: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                         decoration: BoxDecoration(
                           color: greenTagBg,
                           borderRadius: BorderRadius.circular(22),
@@ -436,8 +431,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            pngIcon('assets/icons/calendar.png',
-                                size: 18, tint: Colors.white),
+                            pngIcon('assets/icons/calendar.png', size: 18, tint: Colors.white),
                             const SizedBox(width: 10),
                             Text(
                               currentDate,
@@ -448,8 +442,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                             ),
                             const Spacer(),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
                                 color: normalFlowBg,
                                 borderRadius: BorderRadius.circular(22),
@@ -484,6 +477,30 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
 
                   const SizedBox(height: 18),
 
+                  // Quick Actions: Book Tanker + Report Issue
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _actionCard(
+                          icon: Icons.local_shipping,
+                          title: "Book Tanker",
+                          onTap: _openBookings,
+                        ),
+                      ),
+
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _actionCard(
+                          icon: Icons.report_gmailerrorred,
+                          title: "Report Issue",
+                          onTap: _openReportIssue,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 22),
+
                   // Nearby tankers
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -516,22 +533,18 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                       Expanded(
                         child: _nearbyTankerCard(
                           name: "Kathmandu Water",
-                          rating: 4.8,
-                          reviews: 120,
                           capacityText: "12,000 Ltr",
                           priceText: "Rs. 3,500",
-                          faded: false,
+                          slotsText: "5/10",
                         ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: _nearbyTankerCard(
                           name: "Pure Drop",
-                          rating: 4.5,
-                          reviews: 89,
                           capacityText: "7,000 Ltr",
                           priceText: "Rs. 2,200",
-                          faded: true,
+                          slotsText: "3/10",
                         ),
                       ),
                     ],
@@ -579,122 +592,33 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     );
   }
 
-  // ---------------- Nearby tanker card (OVERFLOW SAFE) ----------------
-
-  Widget _nearbyTankerCard({
-    required String name,
-    required double rating,
-    required int reviews,
-    required String capacityText,
-    required String priceText,
-    required bool faded,
+  // Quick action card
+  Widget _actionCard({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
   }) {
-    return Opacity(
-      opacity: faded ? 0.55 : 1,
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
       child: Container(
         decoration: _softCard(),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // header
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.green[200],
-                  child: const Icon(Icons.water_drop, color: Colors.white),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    name,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-
-            // rating row
-            Row(
-              children: [
-                const Icon(Icons.star, size: 14, color: Colors.amber),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    "$rating ($reviews reviews)",
-                    style: GoogleFonts.poppins(fontSize: 11, color: textSecondary),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            // ✅ FIX: capacity + price row cannot overflow now
-            Row(
-              children: [
-                Flexible(
-                  flex: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Text(
-                      capacityText,
-                      style: GoogleFonts.poppins(fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  flex: 4,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        priceText,
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w700,
-                          color: accentBlue,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: faded ? null : () {},
-                style: ElevatedButton.styleFrom(
-                  elevation: 0,
-                  backgroundColor: const Color(0xFFE3F2FD),
-                  foregroundColor: accentBlue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    "Book Now",
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-                  ),
-                ),
+            Container(
+              height: 46,
+              width: 46,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
               ),
+              child: Icon(icon, color: accentBlue),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
             )
           ],
         ),
@@ -702,11 +626,129 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     );
   }
 
-  // ---------------- Report card ----------------
+  //Nearby tanker card
+  Widget _nearbyTankerCard({
+    required String name,
+    required String capacityText,
+    required String priceText,
+    required String slotsText,
+  }) {
+    return Container(
+      decoration: _softCard(),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // header
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.green[200],
+                child: const Icon(Icons.water_drop, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  name,
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ],
+          ),
 
+          const SizedBox(height: 8),
+
+          //  Slots info
+          Row(
+            children: [
+              Icon(Icons.event_seat, size: 14, color: Colors.grey[700]),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  "$slotsText Slots",
+                  style: GoogleFonts.poppins(fontSize: 12, color: textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // capacity + price row
+          Row(
+            children: [
+              Flexible(
+                flex: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Text(
+                    capacityText,
+                    style: GoogleFonts.poppins(fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                flex: 4,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      priceText,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        color: accentBlue,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _openBookings,
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                backgroundColor: const Color(0xFFE3F2FD),
+                foregroundColor: accentBlue,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  "Book Now",
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  // Report card
   Widget _reportCard(Map<String, dynamic> r) {
     final id = r['id'];
-    final title = (r['title'] ?? 'Missed Delivery').toString();
+    final title = (r['title'] ?? 'Issue').toString();
     final status = (r['status'] ?? 'IN_REVIEW').toString();
     final createdAt = DateTime.tryParse((r['createdAt'] ?? '').toString());
 
@@ -730,9 +772,11 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 2),
                 Text(
                   "Ticket #$id • ${createdAt != null ? _relativeDay(createdAt) : '-'}",
@@ -762,7 +806,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     );
   }
 
-  // ---------------- Bottom bar (vertical overflow safe) ----------------
+  // Bottom bar
   Widget _buildBottomBar() {
     final inactive = Colors.grey[500]!;
 
@@ -782,12 +826,10 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
             onTap();
           },
           child: Center(
-            // ✅ Hard limit height to avoid Column overflow
             child: SizedBox(
               height: 36,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.max,
                 children: [
                   Icon(icon, color: color, size: 18),
                   const SizedBox(height: 2),
@@ -817,9 +859,9 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
         child: Row(
           children: [
             item(index: 0, icon: Icons.home, label: 'Home', onTap: () {}),
-            item(index: 1, icon: Icons.receipt_long, label: 'Bookings', onTap: () {}),
+            item(index: 1, icon: Icons.receipt_long, label: 'Bookings', onTap: _openBookings),
             const SizedBox(width: 60),
-            item(index: 3, icon: Icons.chat_bubble_outline, label: 'Reports', onTap: () {}),
+            item(index: 3, icon: Icons.chat_bubble_outline, label: 'Reports', onTap: _openReportIssue),
             item(index: 4, icon: Icons.person, label: 'Profile', onTap: _openProfile),
           ],
         ),
@@ -828,8 +870,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
   }
 }
 
-// ---------------- Notification bottom sheet ----------------
-
+//Notification bottom sheet
 class _NotificationSheet extends StatelessWidget {
   final List<AppNotification> notifications;
 
