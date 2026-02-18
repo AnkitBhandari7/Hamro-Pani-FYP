@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Enums (recommended). If you want pure string fields, tell me and I will convert them.
 enum UserRole {
   RESIDENT
   VENDOR
@@ -57,10 +56,9 @@ model Ward {
 
   @@map("wards")
 }
+
 model User {
   id           Int      @id @default(autoincrement()) @map("user_id")
-
-  // ✅ add this for Firebase login mapping
   firebaseUid  String   @unique @map("firebase_uid")
 
   name         String?
@@ -70,11 +68,18 @@ model User {
 
   passwordHash String?  @map("password_hash")
 
+  // RESIDENT => must have wardId (enforced in backend)
+  // WARD_ADMIN => must be NULL
   wardId       Int?     @map("ward_id")
   ward         Ward?    @relation(fields: [wardId], references: [id], onDelete: SetNull)
 
+  profileImageUrl String? @map("profile_image_url")
+
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // schedules posted by this user (WARD_ADMIN)
+  schedulesCreated Schedule[] @relation("ScheduleCreator")
 
   fcmTokens       FcmToken[]
   vendorProfile   Vendor?
@@ -119,6 +124,11 @@ model Vendor {
 model Schedule {
   id           Int      @id @default(autoincrement()) @map("schedule_id")
   wardId       Int      @map("ward_id")
+
+  // REQUIRED: who posted the schedule (WARD_ADMIN user_id)
+  createdById  Int      @map("created_by")
+  createdBy    User     @relation("ScheduleCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
   scheduleDate DateTime @map("schedule_date")
   startTime    DateTime @map("start_time")
   endTime      DateTime @map("end_time")
@@ -128,6 +138,8 @@ model Schedule {
 
   ward         Ward     @relation(fields: [wardId], references: [id], onDelete: Cascade)
 
+  @@index([wardId])
+  @@index([createdById])
   @@map("schedules")
 }
 
@@ -278,16 +290,16 @@ model Notification {
 }
 
 model NotificationRecipient {
-  notificationId Int          @map("notification_id")
-  recipientId    Int          @map("recipient_id")
-  userId         Int          @map("user_id")
+  notificationId Int       @map("notification_id")
+  recipientId    Int       @map("recipient_id")
+  userId         Int       @map("user_id")
 
-  isRead         Boolean      @default(false) @map("is_read")
-  deliveredAt    DateTime?    @map("delivered_at")
+  isRead         Boolean   @default(false) @map("is_read")
+  deliveredAt    DateTime? @map("delivered_at")
 
   notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  token          FcmToken     @relation("RecipientToken", fields: [recipientId], references: [id], onDelete: Cascade)
-  user           User         @relation("NotificationRecipientUser", fields: [userId], references: [id], onDelete: Cascade)
+  token          FcmToken      @relation("RecipientToken", fields: [recipientId], references: [id], onDelete: Cascade)
+  user           User          @relation("NotificationRecipientUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([notificationId, recipientId])
   @@index([userId])

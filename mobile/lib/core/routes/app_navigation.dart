@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:fyp/core/routes/routes.dart';
 import 'package:fyp/screens/home_wrapper.dart';
+
 import 'package:fyp/booking/find_tankers_screen.dart';
+
+import 'package:fyp/admin/profile/ward_admin_profile_screen.dart';
+
 import 'package:fyp/auth/login_view.dart';
 import 'package:fyp/auth/signup_view.dart';
 
@@ -78,6 +82,10 @@ class AppNavigation {
       case AppRoutes.notifications:
         return MaterialPageRoute(builder: (_) => const NotificationScreen());
 
+
+     case AppRoutes.wardAdminProfile:
+       return MaterialPageRoute(builder: (_) => const WardAdminProfileScreen());
+
       case AppRoutes.sendNotice:
         return MaterialPageRoute(builder: (_) => const SendNoticeScreen());
 
@@ -118,7 +126,11 @@ class AppNavigation {
 
   static void pop(BuildContext context) => Navigator.pop(context);
 
+
   //  ward is Object now
+
+  //  ward is Object? now
+
   static Future<T?> pushHomeWithRole<T extends Object?>(
       BuildContext context, {
         required String role,

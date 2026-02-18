@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/routes/app_navigation.dart';
 import '../../core/routes/routes.dart';
@@ -103,6 +104,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isSaving = false;
   bool _loadingProfile = true;
 
+  // Profile photo
+  String _profileImageUrl = "";
+  bool _uploadingPhoto = false;
+  final ImagePicker _picker = ImagePicker();
+
   String? selectedWard;
   String? _originalWard;
 
@@ -191,6 +197,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return "Resident";
   }
 
+  String _absPhotoUrl(String url) {
+    final u = url.trim();
+    if (u.isEmpty) return "";
+    if (u.startsWith("http://") || u.startsWith("https://")) return u;
+    if (!u.startsWith("/")) return "$_baseUrl/$u";
+    return "$_baseUrl$u";
+  }
+
+  Future<void> _pickAndUploadPhoto() async {
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      final idToken = await _getFirebaseToken();
+      if (idToken == null) throw Exception("Not authenticated. Please login again.");
+
+      setState(() => _uploadingPhoto = true);
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse("$_baseUrl/profile/me/photo"),
+      );
+
+      request.headers['Authorization'] = 'Bearer $idToken';
+      request.files.add(await http.MultipartFile.fromPath('photo', picked.path));
+
+      final streamed = await request.send();
+      final res = await http.Response.fromStream(streamed);
+
+      if (res.statusCode != 200) {
+        throw Exception("Upload failed: ${res.statusCode} - ${res.body}");
+      }
+
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final newUrl = (data['profileImageUrl'] ?? '').toString();
+
+      // cache-bust so updated image shows immediately
+      final refreshedUrl = newUrl.contains("?")
+          ? newUrl
+          : "$newUrl?t=${DateTime.now().millisecondsSinceEpoch}";
+
+      setState(() => _profileImageUrl = refreshedUrl);
+
+      _showSnackBar("Profile photo updated!", isError: false);
+    } catch (e) {
+      debugPrint("Photo upload error: $e");
+      _showSnackBar("Photo upload failed: $e", isError: true);
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
+  Future<void> _deletePhoto() async {
+    if (_profileImageUrl.trim().isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Remove Photo", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+        content: Text("Do you want to remove your profile photo?", style: GoogleFonts.poppins()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text("Cancel", style: GoogleFonts.poppins(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text("Remove", style: GoogleFonts.poppins(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final idToken = await _getFirebaseToken();
+      if (idToken == null) throw Exception("Not authenticated. Please login again.");
+
+      setState(() => _uploadingPhoto = true);
+
+      final res = await http.delete(
+        Uri.parse("$_baseUrl/profile/me/photo"),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+
+      if (res.statusCode != 200) {
+        throw Exception("Delete failed: ${res.statusCode} - ${res.body}");
+      }
+
+      setState(() => _profileImageUrl = "");
+      _showSnackBar("Profile photo removed!", isError: false);
+    } catch (e) {
+      debugPrint("Delete photo error: $e");
+      _showSnackBar("Remove photo failed: $e", isError: true);
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
   Future<void> _loadProfile() async {
     setState(() => _loadingProfile = true);
 
@@ -212,6 +321,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final newWard = _wardNameFrom(user['ward']);
       final role = (user['role'] ?? 'RESIDENT').toString();
+      final photoUrl = (user['profileImageUrl'] ?? '').toString();
 
       setState(() {
         _nameController.text = (user['name'] ?? '').toString();
@@ -222,6 +332,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         selectedWard = newWard;
         _originalWard = newWard;
+
+        _profileImageUrl = photoUrl;
 
         _bookings = ((data['bookings'] ?? []) as List)
             .map((e) => BookingModel.fromJson(e as Map<String, dynamic>))
@@ -285,23 +397,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       final decoded = jsonDecode(updateResponse.body);
-      final userData =
-      (decoded is Map && decoded['user'] != null) ? decoded['user'] : decoded;
+      final userData = (decoded is Map && decoded['user'] != null) ? decoded['user'] : decoded;
 
       final wardRaw = userData['ward'];
-      final newWardName =
-          _wardNameFrom(wardRaw) ?? (selectedWard ?? '');
+      final newWardName = _wardNameFrom(wardRaw) ?? (selectedWard ?? '');
 
-      // Update Firebase display name (optional, but good)
+      // Update Firebase display name
       await FirebaseAuth.instance.currentUser?.updateDisplayName(name);
 
-      // Update FCM subscription if ward changed (string name only)
+      // Update FCM subscription if ward changed
       try {
         final fcmService = FCMService();
 
-        if (oldWardName != null &&
-            oldWardName.isNotEmpty &&
-            oldWardName != newWardName) {
+        if (oldWardName != null && oldWardName.isNotEmpty && oldWardName != newWardName) {
           await fcmService.unsubscribeFromWard(oldWardName);
         }
         if (newWardName.isNotEmpty && oldWardName != newWardName) {
@@ -326,7 +434,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'userName': userData['name'] ?? name,
           'phone': userData['phone'] ?? phone,
           'email': userData['email'] ?? _emailController.text.trim(),
-          // pass raw ward if backend sends object, else ward name
           'ward': wardRaw ?? newWardName,
         },
       );
@@ -395,6 +502,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final displayName =
     _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : widget.userName;
 
+    final photoUrl = _absPhotoUrl(_profileImageUrl);
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -432,17 +541,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Header
               Column(
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.blue[100],
-                    child: Text(
-                      displayName.isNotEmpty ? displayName[0].toUpperCase() : "U",
-                      style: GoogleFonts.poppins(
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.blue[100],
+                        backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                        child: photoUrl.isEmpty
+                            ? Text(
+                          displayName.isNotEmpty ? displayName[0].toUpperCase() : "U",
+                          style: GoogleFonts.poppins(
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        )
+                            : null,
                       ),
-                    ),
+
+                      // Change photo
+                      Positioned(
+                        right: 2,
+                        bottom: 2,
+                        child: InkWell(
+                          onTap: _uploadingPhoto ? null : _pickAndUploadPhoto,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: _uploadingPhoto
+                                ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                                : const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                          ),
+                        ),
+                      ),
+
+                      // Delete photo (only if exists)
+                      if (photoUrl.isNotEmpty)
+                        Positioned(
+                          left: 2,
+                          bottom: 2,
+                          child: InkWell(
+                            onTap: _uploadingPhoto ? null : _deletePhoto,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Icon(Icons.delete, color: Colors.white, size: 18),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Text(displayName, style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold)),
@@ -568,7 +727,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ---- UI helpers ----
+  // UI helpers
 
   Widget _emptyCard(String text) {
     return Container(

@@ -2,16 +2,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+
 import 'package:fyp/auth/auth_controller.dart';
 import 'package:fyp/auth/auth_service.dart';
 import '../../core/routes/app_navigation.dart';
 import '../../core/routes/routes.dart';
 import 'login_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-
-
-
 
 class SignUpView extends StatefulWidget {
   static const String route = '/signup';
@@ -55,6 +52,23 @@ class _SignUpViewState extends State<SignUpView> {
     super.dispose();
   }
 
+  // Student note: backend expects enum role values
+  String _selectedRoleToBackendRole(String selected) {
+    final s = selected.toLowerCase().trim();
+    if (s == "resident") return "RESIDENT";
+    if (s == "vendor") return "VENDOR";
+    if (s == "ward admin") return "WARD_ADMIN";
+    return "RESIDENT";
+  }
+
+  // Student note: backend now returns ward as Map {id,name} OR null OR string
+  String? wardNameFrom(dynamic wardRaw) {
+    if (wardRaw == null) return null;
+    if (wardRaw is String) return wardRaw;
+    if (wardRaw is Map) return wardRaw['name']?.toString();
+    return wardRaw.toString();
+  }
+
   Future<void> _handleSignUp() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
@@ -67,27 +81,35 @@ class _SignUpViewState extends State<SignUpView> {
     }
 
     if (name.isEmpty || email.isEmpty || phone.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please fill all fields")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill all fields")),
+      );
       return;
     }
 
     if (!isValidEmail(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter a valid email address")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a valid email address")),
+      );
       return;
     }
 
     if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Passwords do not match")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Passwords do not match")),
+      );
       return;
     }
 
     if (!_agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please agree to Terms & Conditions")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please agree to Terms & Conditions")),
+      );
       return;
     }
 
     try {
-      //  Create Firebase user
+      // 1) Create Firebase user
       final user = await _authController.register(
         email: email,
         password: password,
@@ -100,16 +122,27 @@ class _SignUpViewState extends State<SignUpView> {
 
       if (user == null) return;
 
-      //  Get Firebase token
+      // 2) Get Firebase token
       final firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Signup failed: Firebase user is null")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Signup failed: Firebase user is null")),
+        );
         return;
       }
 
       final idToken = await firebaseUser.getIdToken(true);
+      if (idToken == null || idToken.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Signup failed: Firebase token is null")),
+        );
+        return;
+      }
 
-      // call backend /auth/register to create user in DB
+      // 3) Call backend /auth/register to create user in DB
+      final selectedRoleName = roles[selectedRole];
+      final backendRole = _selectedRoleToBackendRole(selectedRoleName);
+
       final registerRes = await http.post(
         Uri.parse('$_baseUrl/auth/register'),
         headers: {
@@ -119,12 +152,12 @@ class _SignUpViewState extends State<SignUpView> {
         body: jsonEncode({
           'name': name,
           'phone': phone,
-          'role': roles[selectedRole],
+          'role': backendRole, // ✅ send enum string
         }),
       );
 
-      print("POST /auth/register => ${registerRes.statusCode}");
-      print(registerRes.body);
+      debugPrint("POST /auth/register => ${registerRes.statusCode}");
+      debugPrint(registerRes.body);
 
       if (registerRes.statusCode != 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -133,43 +166,47 @@ class _SignUpViewState extends State<SignUpView> {
         return;
       }
 
-      final registerData = jsonDecode(registerRes.body);
-      final dbUser = registerData['user'] ?? {};
+      final registerData = jsonDecode(registerRes.body) as Map<String, dynamic>;
+      final dbUser = (registerData['user'] is Map<String, dynamic>)
+          ? (registerData['user'] as Map<String, dynamic>)
+          : <String, dynamic>{};
 
-      // safely call /auth/me (
+      // 4) Call /auth/me for source-of-truth profile (ward may be Map)
       final meRes = await http.get(
         Uri.parse('$_baseUrl/auth/me'),
         headers: {'Authorization': 'Bearer $idToken'},
       );
 
-      print("GET /auth/me => ${meRes.statusCode}");
-      print(meRes.body);
+      debugPrint("GET /auth/me => ${meRes.statusCode}");
+      debugPrint(meRes.body);
 
       Map<String, dynamic> userData;
       if (meRes.statusCode == 200) {
-        userData = jsonDecode(meRes.body);
+        userData = jsonDecode(meRes.body) as Map<String, dynamic>;
       } else {
-        // fallback to register response
-        userData = dbUser is Map<String, dynamic> ? dbUser : {};
+        userData = dbUser;
       }
 
-      final String role = (userData['role'] ?? roles[selectedRole]).toString();
+      final String role = (userData['role'] ?? backendRole).toString();
       final String userName = (userData['name'] ?? name).toString();
       final String userPhone = (userData['phone'] ?? phone).toString();
       final String userEmail = (userData['email'] ?? email).toString();
-      final String? ward = userData['ward'];
 
+      // ✅ ward can be Map or String
+      final dynamic wardRaw = userData['ward'];
+      final String? wardName = wardNameFrom(wardRaw);
+
+      // Student note: pass wardRaw if you want future screens to use id+name
       AppNavigation.pushHomeWithRole(
         context,
         role: role,
         userName: userName,
         phone: userPhone,
         email: userEmail,
-        ward: ward,
+        ward: wardRaw ?? wardName, // ✅ safe
       );
     } catch (e) {
-      print('Signup failed: $e');
-      // Errors handled by AuthController usually
+      debugPrint('Signup failed: $e');
     }
   }
 
@@ -211,15 +248,24 @@ class _SignUpViewState extends State<SignUpView> {
             ),
             const SizedBox(height: 20),
             Center(
-              child: Text("Hamro Pani", style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87)),
+              child: Text(
+                "Hamro Pani",
+                style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87),
+              ),
             ),
             Center(
-              child: Text("Kathmandu's Smart Water Management", style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey)),
+              child: Text(
+                "Kathmandu's Smart Water Management",
+                style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey),
+              ),
             ),
             const SizedBox(height: 40),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text("Create Account", style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold)),
+              child: Text(
+                "Create Account",
+                style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold),
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -356,9 +402,21 @@ class _SignUpViewState extends State<SignUpView> {
                       text: "I agree to the ",
                       style: GoogleFonts.poppins(color: Colors.black87),
                       children: [
-                        TextSpan(text: "Terms & Conditions", style: GoogleFonts.poppins(color: Colors.blue, decoration: TextDecoration.underline)),
+                        TextSpan(
+                          text: "Terms & Conditions",
+                          style: GoogleFonts.poppins(
+                            color: Colors.blue,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
                         TextSpan(text: " and ", style: GoogleFonts.poppins(color: Colors.black87)),
-                        TextSpan(text: "Privacy Policy", style: GoogleFonts.poppins(color: Colors.blue, decoration: TextDecoration.underline)),
+                        TextSpan(
+                          text: "Privacy Policy",
+                          style: GoogleFonts.poppins(
+                            color: Colors.blue,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -378,7 +436,10 @@ class _SignUpViewState extends State<SignUpView> {
                   disabledBackgroundColor: Colors.grey[300],
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                 ),
-                child: Text("Sign Up", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                child: Text(
+                  "Sign Up",
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
               ),
             ),
 
@@ -392,7 +453,10 @@ class _SignUpViewState extends State<SignUpView> {
                     text: "Already have an account? ",
                     style: GoogleFonts.poppins(color: Colors.black87),
                     children: [
-                      TextSpan(text: "Log In", style: GoogleFonts.poppins(color: Colors.blue, fontWeight: FontWeight.bold)),
+                      TextSpan(
+                        text: "Log In",
+                        style: GoogleFonts.poppins(color: Colors.blue, fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 ),

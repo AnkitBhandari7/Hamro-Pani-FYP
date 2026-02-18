@@ -1,25 +1,61 @@
-// src/profile/profile.controller.js
-import prisma from "../prisma.js";
 
-// Student note: helper to safely read user id from token middleware
+import prisma from "../prisma.js";
+import fs from "fs";
+import path from "path";
+
+// helper to safely read user id from token middleware
 function getUserId(req) {
   const id = Number(req.auth?.sub);
   return Number.isFinite(id) ? id : null;
 }
 
+// convert stored path (/uploads/...) to absolute URL for Flutter
+function toAbsoluteUrl(req, storedPath) {
+  if (!storedPath) return "";
+  const s = String(storedPath);
+
+  // already absolute
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+
+  const base = `${req.protocol}://${req.get("host")}`;
+  const p = s.startsWith("/") ? s : `/${s}`;
+  return `${base}${p}`;
+}
+
+// handle deleting old photo whether stored as absolute URL or /uploads/...
+function getUploadAbsolutePathFromStoredUrl(stored) {
+  if (!stored) return null;
+
+  const s = String(stored);
+  const idx = s.indexOf("/uploads/");
+  if (idx === -1) return null;
+
+  const publicPath = s.substring(idx); // "/uploads/profile/..."
+  return path.resolve(publicPath.replace(/^\//, "")); // "uploads/profile/..."
+}
+
+function tryDeleteOldUpload(stored) {
+  const abs = getUploadAbsolutePathFromStoredUrl(stored);
+  if (!abs) return;
+
+  try {
+    if (fs.existsSync(abs)) fs.unlinkSync(abs);
+  } catch (e) {
+    console.warn("Failed to delete old profile image:", e.message);
+  }
+}
+
 /*
   GET /profile/me
-  Student note:
-  - In ERD, user has phoneNumber and ward relation (not string ward)
-  - ERD does not have SavedLocation and Issue, so we return empty locations
-    and we map Complaint as issues.
+  - returns bookings + complaints (issues)
+  - now also returns profileImageUrl (absolute)
 */
 export async function meDetails(req, res) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    // Student note: load basic user with ward relation
+    // load basic user with ward relation
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { ward: true },
@@ -27,7 +63,6 @@ export async function meDetails(req, res) {
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Student note: last 10 bookings (ERD Booking has no liters/price)
     const bookings = await prisma.booking.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -46,7 +81,6 @@ export async function meDetails(req, res) {
       },
     });
 
-    // Student note: ERD uses Complaint instead of Issue
     const complaints = await prisma.complaint.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -59,26 +93,21 @@ export async function meDetails(req, res) {
       },
     });
 
-    // Student note: Return same structure old Flutter expects
     return res.json({
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-
-        // old flutter expects "phone", ERD field is phoneNumber
         phone: user.phoneNumber,
-
         role: user.role,
-
-        // old flutter expects ward string
         ward: user.ward ? user.ward.wardName : null,
+
+
+        profileImageUrl: user.profileImageUrl ? toAbsoluteUrl(req, user.profileImageUrl) : "",
       },
 
-      // ERD does not have SavedLocation -> return empty list so Flutter doesn't crash
       locations: [],
 
-      // old flutter expects liters/price -> not in ERD, so return null
       bookings: bookings.map((b) => ({
         id: b.id,
         status: b.status,
@@ -86,7 +115,6 @@ export async function meDetails(req, res) {
         price: null,
         createdAt: b.createdAt,
 
-        // extra useful info for UI
         slotId: b.slotId,
         slotStartTime: b.slot?.startTime,
         slotEndTime: b.slot?.endTime,
@@ -95,7 +123,6 @@ export async function meDetails(req, res) {
         vendorName: b.slot?.route?.vendor?.user?.name ?? null,
       })),
 
-      // map complaints into "issues" so existing UI can show something
       issues: complaints.map((c) => ({
         id: c.id,
         title: "Complaint",
@@ -110,14 +137,70 @@ export async function meDetails(req, res) {
   }
 }
 
-/*
-  The following location endpoints existed in your old schema (SavedLocation).
-  ERD schema does not contain SavedLocation, so we return 501 (Not implemented).
+// POST /profile/me/photo
+export async function uploadMyPhoto(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  if (!req.file) return res.status(400).json({ error: "photo file is required" });
 
-  Student note:
-  - This prevents backend crash
-  - You should remove/disable these calls in Flutter OR add SavedLocation to schema if you need it.
-*/
+  try {
+    const me = await prisma.user.findUnique({ where: { id: userId } });
+    if (!me) return res.status(404).json({ error: "User not found" });
+
+    // optional: only resident uses this endpoint
+    if (me.role !== "RESIDENT") {
+      return res.status(403).json({ error: "Only RESIDENT can upload photo here" });
+    }
+
+    // delete old photo if any
+    tryDeleteOldUpload(me.profileImageUrl);
+
+    // store PUBLIC path in DB (not /Users/... path)
+    const publicPath = `/uploads/profile/${req.file.filename}`;
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { profileImageUrl: publicPath },
+      select: { profileImageUrl: true },
+    });
+
+    return res.json({
+      message: "Photo uploaded",
+      profileImageUrl: toAbsoluteUrl(req, updated.profileImageUrl),
+    });
+  } catch (e) {
+    console.error("uploadMyPhoto error:", e);
+    return res.status(500).json({ error: "Failed to upload photo" });
+  }
+}
+
+// DELETE /profile/me/photo
+export async function deleteMyPhoto(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const me = await prisma.user.findUnique({ where: { id: userId } });
+    if (!me) return res.status(404).json({ error: "User not found" });
+
+    if (me.role !== "RESIDENT") {
+      return res.status(403).json({ error: "Only RESIDENT can delete photo here" });
+    }
+
+    tryDeleteOldUpload(me.profileImageUrl);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { profileImageUrl: null },
+    });
+
+    return res.json({ message: "Photo deleted" });
+  } catch (e) {
+    console.error("deleteMyPhoto error:", e);
+    return res.status(500).json({ error: "Failed to delete photo" });
+  }
+}
+
 
 export async function createLocation(_req, res) {
   return res.status(501).json({ error: "Saved locations are not available in ERD schema" });
