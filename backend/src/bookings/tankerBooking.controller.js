@@ -1,10 +1,9 @@
-// src/bookings/tankerbooking.controller.js
+
 import prisma from "../prisma.js";
 
 /*
   POST /bookings
-  ERD booking: { userId, slotId, status }
-  - Your old body had liters/price; now we only need slotId
+
 */
 export async function createBooking(req, res) {
   const userId = Number(req.auth?.sub);
@@ -24,18 +23,18 @@ export async function createBooking(req, res) {
 
       if (!slot) throw new Error("SLOT_NOT_FOUND");
 
-      // Student comment: slot is available if bookedCount < capacity
+      // slot is available if bookedCount < capacity
       if (slot.bookedCount >= slot.capacity) {
         throw new Error("SLOT_FULL");
       }
 
-      // Student comment: increase bookedCount by 1
+      // increase bookedCount by 1
       await tx.slot.update({
         where: { id: slot.id },
         data: { bookedCount: { increment: 1 } },
       });
 
-      // Student comment: create booking for this user and this slot
+      //  create booking for this user and this slot
       const booking = await tx.booking.create({
         data: {
           userId,
@@ -110,7 +109,7 @@ export async function getMyBookings(req, res) {
   PATCH /bookings/:id/status
   - resident can cancel their own booking
   - vendor can update booking if booking belongs to their route
-  - also writes StatusHistory in ERD
+
 */
 export async function updateBookingStatus(req, res) {
   const userId = Number(req.auth?.sub);
@@ -142,7 +141,7 @@ export async function updateBookingStatus(req, res) {
 
     const myRole = String(me?.role || "");
 
-    // Student comment: permission checks
+    //  permission checks
     if (myRole === "RESIDENT") {
       if (booking.userId !== userId) return res.status(403).json({ error: "Not allowed" });
       if (status !== "CANCELLED") {
@@ -160,7 +159,7 @@ export async function updateBookingStatus(req, res) {
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      // Student comment: if cancelled, free one seat (decrement bookedCount by 1)
+      //  if cancelled, free one seat (decrement bookedCount by 1)
       if (status === "CANCELLED" && booking.status !== "CANCELLED") {
         await tx.slot.update({
           where: { id: booking.slotId },
@@ -168,7 +167,7 @@ export async function updateBookingStatus(req, res) {
         });
       }
 
-      // Student comment: save status history (ERD requirement)
+      // save status history
       await tx.statusHistory.create({
         data: {
           bookingId: bookingId,
@@ -177,7 +176,7 @@ export async function updateBookingStatus(req, res) {
         },
       });
 
-      // Student comment: update booking
+      // update booking
       return tx.booking.update({
         where: { id: bookingId },
         data: { status },

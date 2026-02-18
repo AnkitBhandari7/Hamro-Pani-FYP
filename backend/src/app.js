@@ -2,11 +2,12 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+
 import path from "path";
 import multer from "multer";
 
-import config from "./config/config.js";
 
+import config from "./config/config.js";
 import authRoutes from "./auth/auth.routes.js";
 import profileRoutes from "./profile/profile.routes.js";
 import wardAdminProfileRoutes from "./admin/ward_admin_profile.routes.js";
@@ -14,6 +15,7 @@ import notificationRoutes from "./notifications/notification.routes.js";
 import scheduleRoutes from "./schedules/schedule.routes.js";
 import vendorRoutes from "./vendors/vendor.routes.js";
 import bookingRoutes from "./bookings/tankerBooking.routes.js";
+import tankerRoutes from "./bookings/tanker/tanker.routes.js";
 
 const app = express();
 
@@ -46,6 +48,7 @@ app.use("/schedules", scheduleRoutes);
 app.use("/vendors", vendorRoutes);
 app.use("/bookings", bookingRoutes);
 
+app.use("/tankers", tankerRoutes);
 
 // with /api
 
@@ -59,6 +62,8 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/schedules", scheduleRoutes);
 app.use("/api/vendors", vendorRoutes);
 app.use("/api/bookings", bookingRoutes);
+
+app.use("/api/tankers", tankerRoutes);
 
 app.use((req, res) => res.status(404).json({ error: "Route not found" }));
 
