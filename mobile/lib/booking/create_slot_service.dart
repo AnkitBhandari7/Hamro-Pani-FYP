@@ -1,3 +1,4 @@
+
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ class CreateSlotService {
   const CreateSlotService(this._dio);
   final Dio _dio;
 
+
   Map<String, dynamic> _unwrapSlot(dynamic data) {
     if (data is Map) {
       final map = Map<String, dynamic>.from(data);
@@ -16,24 +18,20 @@ class CreateSlotService {
         return Map<String, dynamic>.from(map['slot'] as Map);
       }
 
-
       if (map['data'] is Map) {
         return Map<String, dynamic>.from(map['data'] as Map);
       }
 
       return map;
     }
-
     throw Exception('Unexpected response format (expected Map)');
   }
 
-  // vendor loads all their routes and slots
   Future<List<Map<String, dynamic>>> fetchMyRoutes() async {
     final response = await _dio.get('/vendors/routes/my');
     final list = response.data as List<dynamic>;
     return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
-
 
   Future<Map<String, dynamic>> createRoute({
     int? wardId,
@@ -54,63 +52,56 @@ class CreateSlotService {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
-  // create slot with capacity + price
-
+  //  create slot (booking slots + price + tanker liters)
   Future<Map<String, dynamic>> createSlot({
     required int routeId,
     required DateTime startTime,
     required DateTime endTime,
-    required int capacity,
+    required int bookingSlots,
     required int price,
+    required int tankerCapacityLiters,
   }) async {
-    // Always send UTC ISO to backend to avoid timezone shifting in DB
-    final startUtc = startTime.toUtc().toIso8601String();
-    final endUtc = endTime.toUtc().toIso8601String();
-
     final response = await _dio.post(
       '/vendors/routes/$routeId/slots',
       data: {
-        'startTime': startUtc,
-        'endTime': endUtc,
-        'capacity': capacity,
+        'startTime': startTime.toUtc().toIso8601String(),
+        'endTime': endTime.toUtc().toIso8601String(),
+        'capacity': bookingSlots, // backend uses "capacity" for booking slots
         'price': price,
+        'tankerCapacityLiters': tankerCapacityLiters,
       },
     );
 
     return _unwrapSlot(response.data);
   }
 
-  //  update slot
-
+  // update slot
   Future<Map<String, dynamic>> updateSlot({
     required int slotId,
     DateTime? startTime,
     DateTime? endTime,
-    int? capacity,
+    int? bookingSlots,
     int? price,
+    int? tankerCapacityLiters,
   }) async {
-    //  Send UTC ISO when updating times too
     final response = await _dio.patch(
       '/vendors/slots/$slotId',
       data: {
         if (startTime != null) 'startTime': startTime.toUtc().toIso8601String(),
         if (endTime != null) 'endTime': endTime.toUtc().toIso8601String(),
-        if (capacity != null) 'capacity': capacity,
+        if (bookingSlots != null) 'capacity': bookingSlots,
         if (price != null) 'price': price,
+        if (tankerCapacityLiters != null) 'tankerCapacityLiters': tankerCapacityLiters,
       },
     );
 
     return _unwrapSlot(response.data);
   }
 
-  // mark slot full
-
   Future<Map<String, dynamic>> markSlotFull(int slotId) async {
     final response = await _dio.patch('/vendors/slots/$slotId/mark-full');
     return _unwrapSlot(response.data);
   }
-
-  // delete/cancel slot
 
   Future<void> deleteSlot(int slotId) async {
     await _dio.delete('/vendors/slots/$slotId');
@@ -129,17 +120,13 @@ class CreateSlotService {
     return DateFormat('MMM dd').format(date).toUpperCase();
   }
 
-  // format as LOCAL time for display consistency
-  // (If the DateTime passed in is UTC, this prevents showing shifted time)
   String buildTimeRange(DateTime start, DateTime end) {
     final fmt = DateFormat('hh:mm a');
-    final s = start.toLocal();
-    final e = end.toLocal();
-    return '${fmt.format(s)} - ${fmt.format(e)}';
+    return '${fmt.format(start.toLocal())} - ${fmt.format(end.toLocal())}';
   }
 }
 
-// Providers
+//Providers
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) => FirebaseAuth.instance);
 

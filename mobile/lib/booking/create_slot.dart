@@ -14,21 +14,20 @@ class ManageSlotsScreen extends ConsumerStatefulWidget {
 }
 
 class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
-  final TextEditingController _capacityController =
-  TextEditingController(text: '10');
-  final TextEditingController _priceController =
-  TextEditingController(text: '2500');
+  final TextEditingController _bookingSlotsController = TextEditingController();
+  final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _tankerLitersController = TextEditingController(); // ✅ NEW
   final TextEditingController _routeController = TextEditingController();
 
   @override
   void dispose() {
-    _capacityController.dispose();
+    _bookingSlotsController.dispose();
     _priceController.dispose();
+    _tankerLitersController.dispose();
     _routeController.dispose();
     super.dispose();
   }
 
-  // ✅ Convert whatever comes from controller/API into LOCAL DateTime for UI
   DateTime? _asLocalDateTime(dynamic raw) {
     if (raw == null) return null;
     if (raw is DateTime) return raw.toLocal();
@@ -66,12 +65,21 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
     final controller = ref.read(createSlotControllerProvider.notifier);
 
     final error = await controller.publishSlot(
-      capacityText: _capacityController.text,
+      bookingSlotsText: _bookingSlotsController.text,
       priceText: _priceController.text,
       routeText: _routeController.text,
+      tankerCapacityLitersText: _tankerLitersController.text,
     );
 
     if (!mounted) return;
+
+    if (error == null) {
+      _bookingSlotsController.clear();
+      _priceController.clear();
+      _tankerLitersController.clear();
+      _routeController.clear();
+      controller.resetForm(); // clears selected time
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -81,7 +89,6 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
     );
   }
 
-  /// End-time preview uses selected date filter (Today/Tomorrow), not always DateTime.now()
   String _formattedEndTime(CreateSlotState state) {
     final time = state.selectedStartTime;
     if (time == null) return 'End time';
@@ -96,10 +103,10 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
   Future<void> _showEditDialog(Map<String, dynamic> slot) async {
     final controller = ref.read(createSlotControllerProvider.notifier);
 
-    final capCtrl = TextEditingController(text: (slot['total'] ?? '').toString());
+    final slotsCtrl = TextEditingController(text: (slot['total'] ?? '').toString());
     final priceCtrl = TextEditingController(text: (slot['price'] ?? '').toString());
+    final litersCtrl = TextEditingController(text: (slot['tankerCapacityLiters'] ?? '12000').toString()); // ✅ NEW
 
-    // Ensure we use LOCAL time for edit UI
     final startDt = _asLocalDateTime(slot['startDt'] ?? slot['startTime']);
     TimeOfDay pickedTime =
     startDt != null ? TimeOfDay.fromDateTime(startDt) : TimeOfDay.now();
@@ -112,36 +119,34 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // time
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      'Start: ${pickedTime.format(context)}',
-                      style: GoogleFonts.poppins(),
-                    ),
+                    child: Text('Start: ${pickedTime.format(context)}', style: GoogleFonts.poppins()),
                   ),
                   TextButton(
                     onPressed: () async {
-                      final t = await showTimePicker(
-                        context: context,
-                        initialTime: pickedTime,
-                      );
+                      final t = await showTimePicker(context: context, initialTime: pickedTime);
                       if (t != null) {
                         pickedTime = t;
-                        // rebuild dialog
                         (context as Element).markNeedsBuild();
                       }
                     },
                     child: Text('Change', style: GoogleFonts.poppins()),
-                  ),
+                  )
                 ],
               ),
               const SizedBox(height: 8),
+
               TextField(
-                controller: capCtrl,
+                controller: litersCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Capacity'),
+                decoration: const InputDecoration(labelText: 'Tanker Capacity (Liters)'),
+              ),
+              TextField(
+                controller: slotsCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Booking Slots'),
               ),
               TextField(
                 controller: priceCtrl,
@@ -151,14 +156,8 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
           ],
         );
       },
@@ -166,17 +165,17 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
 
     if (ok != true) return;
 
-    final newCapacity = int.tryParse(capCtrl.text.trim());
+    final newSlots = int.tryParse(slotsCtrl.text.trim());
     final newPrice = int.tryParse(priceCtrl.text.trim());
+    final newLiters = int.tryParse(litersCtrl.text.trim());
 
-    if (newCapacity == null || newCapacity <= 0 || newPrice == null || newPrice <= 0) {
+    if (newSlots == null || newSlots <= 0 || newPrice == null || newPrice <= 0 || newLiters == null || newLiters <= 0) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid capacity/price'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('Invalid inputs'), backgroundColor: Colors.red),
       );
       return;
     }
-
 
     final base = (startDt ?? DateTime.now()).toLocal();
     final newStart = DateTime(base.year, base.month, base.day, pickedTime.hour, pickedTime.minute);
@@ -187,8 +186,9 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
       location: (slot['location'] ?? '').toString(),
       startTime: newStart,
       endTime: newEnd,
-      capacity: newCapacity,
+      bookingSlots: newSlots,
       price: newPrice,
+      tankerCapacityLiters: newLiters,
     );
 
     if (!mounted) return;
@@ -212,11 +212,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
         elevation: 0,
         title: Text(
           'Manage Slots',
-          style: GoogleFonts.poppins(
-            fontSize: 20.sp,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
+          style: GoogleFonts.poppins(fontSize: 20.sp, fontWeight: FontWeight.w600, color: Colors.black),
         ),
         centerTitle: true,
         actions: [
@@ -231,7 +227,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildOpenNewSlotCard(state, controller),
+            _buildOpenNewSlotCard(state),
             SizedBox(height: 24.h),
             _buildActiveSlotsSection(state, controller),
           ],
@@ -240,19 +236,15 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
     );
   }
 
-  Widget _buildOpenNewSlotCard(CreateSlotState state, CreateSlotController controller) {
+  Widget _buildOpenNewSlotCard(CreateSlotState state) {
+    final controller = ref.read(createSlotControllerProvider.notifier);
+
     return Container(
       padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: Offset(0, 4.h),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: Offset(0, 4.h))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,10 +257,8 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
           Wrap(
             spacing: 8.w,
             children: [
-              _buildDateChip('Today', state.selectedDateFilter == 'Today',
-                      () => controller.setDateFilter('Today')),
-              _buildDateChip('Tomorrow', state.selectedDateFilter == 'Tomorrow',
-                      () => controller.setDateFilter('Tomorrow')),
+              _buildDateChip('Today', state.selectedDateFilter == 'Today', () => controller.setDateFilter('Today')),
+              _buildDateChip('Tomorrow', state.selectedDateFilter == 'Tomorrow', () => controller.setDateFilter('Tomorrow')),
             ],
           ),
           SizedBox(height: 16.h),
@@ -299,10 +289,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        _formattedEndTime(state),
-                        style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.grey[800]),
-                      ),
+                      Text(_formattedEndTime(state), style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.grey[800])),
                       Icon(Icons.access_time, size: 20.w, color: Colors.grey[400]),
                     ],
                   ),
@@ -310,12 +297,28 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
               ),
             ],
           ),
+
           SizedBox(height: 16.h),
 
-          Text('TOTAL TANKER SLOTS', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600])),
+          // ✅ NEW liters
+          Text('TANKER CAPACITY (LITERS)', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600])),
           SizedBox(height: 8.h),
           TextField(
-            controller: _capacityController,
+            controller: _tankerLitersController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.grey[100],
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r), borderSide: BorderSide.none),
+            ),
+          ),
+          SizedBox(height: 12.h),
+
+          // booking slots
+          Text('TOTAL BOOKING SLOTS', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600])),
+          SizedBox(height: 8.h),
+          TextField(
+            controller: _bookingSlotsController,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               filled: true,
@@ -368,11 +371,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
               )
                   : Text(
                 'Publish Slot →',
-                style: GoogleFonts.poppins(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
+                style: GoogleFonts.poppins(fontSize: 16.sp, fontWeight: FontWeight.w600, color: Colors.white),
               ),
             ),
           ),
@@ -387,17 +386,16 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
       children: [
         Text('Active Slots', style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
         SizedBox(height: 16.h),
+
         if (state.isLoading)
           const Center(child: CircularProgressIndicator())
         else if (state.slots.isEmpty)
           Text('No active slots', style: GoogleFonts.poppins(color: Colors.grey[600]))
         else
-          ...state.slots.map(
-                (slot) => Padding(
-              padding: EdgeInsets.only(bottom: 16.h),
-              child: _buildSlotCard(slot, controller),
-            ),
-          ),
+          ...state.slots.map((slot) => Padding(
+            padding: EdgeInsets.only(bottom: 16.h),
+            child: _buildSlotCard(slot, controller),
+          )),
       ],
     );
   }
@@ -426,8 +424,11 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
   Widget _buildSlotCard(Map<String, dynamic> slot, CreateSlotController controller) {
     final int slotId = (slot['slotId'] ?? 0) as int;
     final int booked = (slot['booked'] ?? 0) as int;
-    final int total = (slot['total'] ?? 0) as int;
-    final double progress = total == 0 ? 0 : booked / total;
+    final int totalSlots = (slot['total'] ?? 0) as int;
+
+    final liters = (slot['tankerCapacityLiters'] ?? 12000);
+
+    final double progress = totalSlots == 0 ? 0 : booked / totalSlots;
 
     final bool isFull = slot['status'] == 'FULL';
     final bool isOpen = slot['status'] == 'OPEN';
@@ -436,7 +437,6 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
     final priceText = price == null ? '—' : 'NPR $price';
     final location = (slot['location'] ?? '').toString();
 
-    //  Prefer real DateTimes (converted to local) for correct display across UTC storage
     final startDt = _asLocalDateTime(slot['startDt'] ?? slot['startTime']);
     final endDt = _asLocalDateTime(slot['endDt'] ?? slot['endTime']);
 
@@ -487,21 +487,24 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
           Text("Location: $location", style: GoogleFonts.poppins(color: Colors.grey[700])),
           SizedBox(height: 8.h),
 
+          // Separate slots + tanker liters
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Capacity: $total", style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
-              Text("Price: $priceText", style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
+              Text("Slots: $totalSlots", style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
+              Text("Tanker: ${liters}L", style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
             ],
           ),
+          SizedBox(height: 6.h),
+          Text("Price: $priceText", style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
           SizedBox(height: 8.h),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('$booked/$total booked', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
+              Text('$booked/$totalSlots booked', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
               Text(
-                '${total == 0 ? 0 : (((total - booked) / total) * 100).round()}% available',
+                '${totalSlots == 0 ? 0 : (((totalSlots - booked) / totalSlots) * 100).round()}% available',
                 style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700]),
               ),
             ],

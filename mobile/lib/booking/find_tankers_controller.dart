@@ -62,8 +62,7 @@ class FindTankersController extends ChangeNotifier {
         searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
         filter: _filterToApi(_selectedFilter),
       );
-    } catch (e) {
-      // keep empty list on error
+    } catch (_) {
       _tankers = [];
     }
 
@@ -77,10 +76,17 @@ class FindTankersController extends ChangeNotifier {
     fetchTankers();
   }
 
-  Future<void> bookSlot(int slotId) async {
+  // accept payment method
+  Future<void> bookSlot(int slotId, {required String paymentMethod}) async {
     final token = await _requireToken();
-    await TankerService.bookTankerSlot(token: token, slotId: slotId);
-    await fetchTankers(); // refresh usage after booking
+
+    await TankerService.bookTankerSlot(
+      token: token,
+      slotId: slotId,
+      paymentMethod: paymentMethod,
+    );
+
+    await fetchTankers();
   }
 
   String getDemandMessage() {

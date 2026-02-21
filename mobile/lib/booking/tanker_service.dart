@@ -8,7 +8,7 @@ class TankerService {
   static Future<List<Map<String, dynamic>>> getNearbyTankers({
     required String token,
     String? searchQuery,
-    String? filter, // all, available_now, busy, low_stock
+    String? filter,
   }) async {
     final qp = <String, String>{};
     if (searchQuery != null && searchQuery.trim().isNotEmpty) qp["search"] = searchQuery.trim();
@@ -32,14 +32,15 @@ class TankerService {
 
       throw Exception('Failed to load tankers: ${response.statusCode} - ${response.body}');
     } on SocketException {
-      // offline fallback
       return [];
     }
   }
 
+  // send paymentMethod
   static Future<Map<String, dynamic>> bookTankerSlot({
     required String token,
     required int slotId,
+    required String paymentMethod,
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/tankers/book'),
@@ -48,7 +49,10 @@ class TankerService {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: jsonEncode({"slotId": slotId}),
+      body: jsonEncode({
+        "slotId": slotId,
+        "paymentMethod": paymentMethod,
+      }),
     );
 
     if (res.statusCode == 201 || res.statusCode == 200) {

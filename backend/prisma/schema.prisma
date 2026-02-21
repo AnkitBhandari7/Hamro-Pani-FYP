@@ -175,6 +175,7 @@ model Slot {
   capacity    Int
   bookedCount Int      @default(0) @map("booked_count")
   price Int? @map("price")
+  tankerCapacityLiters Int @default(12000) @map("tanker_capacity_liters")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
