@@ -8,6 +8,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String newSchedule = '/new-schedule';
   static const String findTankers = '/find-tankers';
+  static const String vendorProfile = '/vendor/profile';
   static const String orders = '/orders';
   static const String profile = '/profile';
   static const String sendNotice = '/send-notice';

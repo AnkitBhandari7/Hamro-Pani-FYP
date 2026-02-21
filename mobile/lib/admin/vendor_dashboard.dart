@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:fyp/core/routes/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -18,22 +19,34 @@ class VendorDashboardScreen extends StatefulWidget {
   State<VendorDashboardScreen> createState() => _VendorDashboardScreenState();
 }
 
-class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
+class _VendorDashboardScreenState extends State<VendorDashboardScreen>
+    with WidgetsBindingObserver {
   // Notifications
   List<AppNotification> notifications = [];
   bool loadingNotifications = true;
 
-  // Routes + Requests from DB via backend
+  // Dashboard data
   bool loadingRoutes = true;
   bool loadingRequests = true;
+
   List<Map<String, dynamic>> routes = [];
   List<Map<String, dynamic>> requests = [];
 
+  // Header info
+  String companyName = "Vendor Company";
+  String contactName = "Vendor";
+  String logoUrl = "";
+
+  int todaysJobs = 0;
+
+  final Set<int> _updatingBookingIds = {};
   StreamSubscription<RemoteMessage>? _onMessageSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     _initVendorFCM();
     _loadVendorDashboard();
     fetchNotifications();
@@ -41,22 +54,30 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _onMessageSub?.cancel();
     super.dispose();
   }
 
+  // Auto refresh when app resumes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadVendorDashboard();
+      fetchNotifications();
+    }
+  }
 
-  // FCM
-
+  // FCM for vendors
   Future<void> _initVendorFCM() async {
     try {
       await FirebaseMessaging.instance.requestPermission();
       await FirebaseMessaging.instance.subscribeToTopic("all_vendors");
-      debugPrint(" Vendor subscribed: all_vendors");
 
       _onMessageSub = FirebaseMessaging.onMessage.listen((RemoteMessage msg) async {
-        // When app is OPEN (foreground), refresh DB notifications and show snackbar
         await fetchNotifications();
+        await _loadVendorDashboard();
+
         if (!mounted) return;
 
         final title = msg.notification?.title ?? "New notification";
@@ -69,14 +90,67 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
         );
       });
     } catch (e) {
-      debugPrint(" Vendor FCM init error: $e");
+      debugPrint("Vendor FCM init error: $e");
     }
   }
 
+  DateTime? _parseDateTime(dynamic raw) {
+    if (raw == null) return null;
+    try {
+      return DateTime.parse(raw.toString());
+    } catch (_) {
+      return null;
+    }
+  }
 
-  // DB fetch routes + requests
+  // Sort so latest slot routes show first
+  List<Map<String, dynamic>> _sortRoutesForUi(List<Map<String, dynamic>> input) {
+    final list = [...input];
 
+    int statusRank(String s) {
+      final v = s.toLowerCase().trim();
+      if (v == "active") return 0;
+      return 1; // scheduled/others after
+    }
+
+    list.sort((a, b) {
+      final aStatus = (a['status'] ?? '').toString();
+      final bStatus = (b['status'] ?? '').toString();
+      final sr = statusRank(aStatus).compareTo(statusRank(bStatus));
+      if (sr != 0) return sr;
+
+      // Prefer endTime (latest slot ends later), fallback startTime, fallback routeDate
+      final aEnd = _parseDateTime(a['endTime']);
+      final bEnd = _parseDateTime(b['endTime']);
+      if (aEnd != null && bEnd != null) {
+        final c = bEnd.compareTo(aEnd);
+        if (c != 0) return c;
+      }
+
+      final aStart = _parseDateTime(a['startTime']);
+      final bStart = _parseDateTime(b['startTime']);
+      if (aStart != null && bStart != null) {
+        final c = bStart.compareTo(aStart);
+        if (c != 0) return c;
+      }
+
+      final aDate = _parseDateTime(a['routeDate']);
+      final bDate = _parseDateTime(b['routeDate']);
+      if (aDate != null && bDate != null) {
+        final c = bDate.compareTo(aDate);
+        if (c != 0) return c;
+      }
+
+      return 0;
+    });
+
+    return list;
+  }
+
+  // Load dashboard from backend
   Future<void> _loadVendorDashboard() async {
+    if (!mounted) return;
+
     setState(() {
       loadingRoutes = true;
       loadingRequests = true;
@@ -89,18 +163,33 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       }
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final r = List<Map<String, dynamic>>.from(data['routes'] ?? []);
+
+      final vendor = (data['vendor'] ?? {}) as Map<String, dynamic>;
+      final stats = (data['stats'] ?? {}) as Map<String, dynamic>;
+
+      final r0 = List<Map<String, dynamic>>.from(data['routes'] ?? []);
       final rq = List<Map<String, dynamic>>.from(data['requests'] ?? []);
+
+      final r = _sortRoutesForUi(r0);
 
       if (!mounted) return;
       setState(() {
+        companyName = (vendor['companyName'] ?? 'Vendor Company').toString();
+        contactName = (vendor['contactName'] ?? 'Vendor').toString();
+        logoUrl = (vendor['logoUrl'] ?? '').toString();
+
+        todaysJobs = (stats['todaysJobs'] ?? 0) is num
+            ? (stats['todaysJobs'] as num).toInt()
+            : 0;
+
         routes = r;
         requests = rq;
+
         loadingRoutes = false;
         loadingRequests = false;
       });
     } catch (e) {
-      debugPrint(" Vendor dashboard load error: $e");
+      debugPrint("Vendor dashboard load error: $e");
       if (!mounted) return;
       setState(() {
         routes = [];
@@ -111,21 +200,53 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     }
   }
 
-  // DB fetch notifications
+  // Confirm / Decline booking request
+  Future<void> _updateRequestStatus(int bookingId, String status) async {
+    if (_updatingBookingIds.contains(bookingId)) return;
 
+    setState(() => _updatingBookingIds.add(bookingId));
+
+    try {
+      final res = await ApiService.patch(
+        '/vendors/requests/$bookingId',
+        {'status': status},
+      );
+
+      if (res.statusCode != 200) {
+        throw Exception("HTTP ${res.statusCode}: ${res.body}");
+      }
+
+      await _loadVendorDashboard();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Booking updated: $status")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Update failed: $e"), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() => _updatingBookingIds.remove(bookingId));
+    }
+  }
+
+  // Load notifications from DB
   Future<void> fetchNotifications() async {
     if (!mounted) return;
     setState(() => loadingNotifications = true);
 
     try {
-      final data = await NotificationService.getNotifications(); // vendor sees all
+      final data = await NotificationService.getNotifications();
       if (!mounted) return;
       setState(() {
         notifications = data;
         loadingNotifications = false;
       });
     } catch (e) {
-      debugPrint(" Error fetching vendor notifications: $e");
+      debugPrint("Error fetching vendor notifications: $e");
       if (!mounted) return;
       setState(() => loadingNotifications = false);
     }
@@ -162,14 +283,16 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                   children: [
                     Text(
                       "Notifications",
-                      style: GoogleFonts.poppins(fontSize: 20.sp, fontWeight: FontWeight.bold),
+                      style: GoogleFonts.poppins(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const Spacer(),
                     IconButton(
                       onPressed: fetchNotifications,
                       icon: const Icon(Icons.refresh),
-                      tooltip: "Refresh",
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -178,16 +301,12 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                     ? const Center(child: CircularProgressIndicator())
                     : notifications.isEmpty
                     ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.notifications_off_outlined, size: 64.w, color: Colors.grey[400]),
-                      SizedBox(height: 16.h),
-                      Text(
-                        "No notifications yet",
-                        style: GoogleFonts.poppins(fontSize: 16.sp, color: Colors.grey[600]),
-                      ),
-                    ],
+                  child: Text(
+                    "No notifications yet",
+                    style: GoogleFonts.poppins(
+                      fontSize: 16.sp,
+                      color: Colors.grey[600],
+                    ),
                   ),
                 )
                     : ListView.builder(
@@ -197,11 +316,20 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                     final n = notifications[index];
                     return ListTile(
                       leading: const Icon(Icons.water_drop, color: Colors.blue),
-                      title: Text(n.title, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                      subtitle: Text(n.message, style: GoogleFonts.poppins(color: Colors.grey[700])),
+                      title: Text(
+                        n.title,
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        n.message,
+                        style: GoogleFonts.poppins(color: Colors.grey[700]),
+                      ),
                       trailing: Text(
                         DateFormat('hh:mm a').format(n.createdAt),
-                        style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.sp,
+                          color: Colors.grey,
+                        ),
                       ),
                     );
                   },
@@ -214,10 +342,421 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     );
   }
 
-  // -------------------------
   // UI helpers
-  // -------------------------
-  Widget _emptyCard({required IconData icon, required String title, required String subtitle}) {
+  Widget _statCard({required String value, required String label, required Color color}) {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16.r),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value, style: GoogleFonts.poppins(fontSize: 26.sp, fontWeight: FontWeight.bold)),
+          SizedBox(height: 4.h),
+          Text(label, style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
+        ],
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
+    final s = status.toUpperCase();
+    if (s == "PENDING") return Colors.orange;
+    if (s == "CONFIRMED") return Colors.green;
+    if (s == "COMPLETED" || s == "DELIVERED") return Colors.blue;
+    if (s == "CANCELLED") return Colors.red;
+    return Colors.grey;
+  }
+
+  String _timeLabel(dynamic dtRaw) {
+    if (dtRaw == null) return "-";
+    try {
+      final dt = DateTime.parse(dtRaw.toString());
+      return DateFormat("h:mm a").format(dt.toLocal());
+    } catch (_) {
+      return "-";
+    }
+  }
+
+  String _dateChip(dynamic createdAtRaw) {
+    if (createdAtRaw == null) return "";
+    try {
+      final dt = DateTime.parse(createdAtRaw.toString());
+      return DateFormat("MMM dd").format(dt.toLocal());
+    } catch (_) {
+      return "";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final showCompany = companyName.trim().isNotEmpty ? companyName.trim() : "Vendor Company";
+    final showContact = contactName.trim().isNotEmpty ? contactName.trim() : "Vendor";
+
+    final activeRoutes = routes.where((r) {
+      return (r['status'] ?? '').toString().toLowerCase().trim() == 'active';
+    }).toList();
+
+    final scheduledRoutes = routes.where((r) {
+      return (r['status'] ?? '').toString().toLowerCase().trim() != 'active';
+    }).toList();
+
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await _loadVendorDashboard();
+            await fetchNotifications();
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(16.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28.w,
+                      backgroundColor: Colors.blue[50],
+                      backgroundImage: logoUrl.trim().isNotEmpty ? NetworkImage(logoUrl) : null,
+                      child: logoUrl.trim().isEmpty
+                          ? Icon(Icons.local_shipping, size: 28.w, color: Colors.blue)
+                          : null,
+                    ),
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            showCompany,
+                            style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: 2.h),
+                          Text(
+                            showContact,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13.sp,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.notifications_outlined, size: 28.w),
+                      onPressed: _showNotifications,
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 24.h),
+
+                // Stats
+                Row(
+                  children: [
+                    Expanded(child: _statCard(value: "$todaysJobs", label: "TODAY'S JOBS", color: Colors.blue[50]!)),
+                    SizedBox(width: 12.w),
+                    Expanded(child: _statCard(value: "—", label: "SUCCESS", color: Colors.green[50]!)),
+                    SizedBox(width: 12.w),
+                    Expanded(child: _statCard(value: "—", label: "RATING", color: Colors.orange[50]!)),
+                  ],
+                ),
+
+                SizedBox(height: 32.h),
+
+                // Active Routes header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Active Routes", style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
+                    TextButton(
+                      onPressed: _loadVendorDashboard,
+                      child: Text("Refresh", style: GoogleFonts.poppins(color: Colors.blue)),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16.h),
+
+                if (loadingRoutes)
+                  const Center(child: CircularProgressIndicator())
+                else if (activeRoutes.isEmpty)
+                  _emptyInfoCard(
+                    icon: Icons.route_outlined,
+                    title: "No active routes",
+                    subtitle: "Open a slot for today to show here.",
+                  )
+                else
+                  Column(
+                    children: activeRoutes.map((r) => _routeCard(r)).toList(),
+                  ),
+
+                SizedBox(height: 18.h),
+
+                // Scheduled Routes (optional but helpful)
+                if (!loadingRoutes && scheduledRoutes.isNotEmpty) ...[
+                  Text("Scheduled Routes", style: GoogleFonts.poppins(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                  SizedBox(height: 12.h),
+                  Column(children: scheduledRoutes.map((r) => _routeCard(r)).toList()),
+                ],
+
+                SizedBox(height: 24.h),
+
+                // Recent Requests header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Recent Requests", style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                SizedBox(height: 16.h),
+
+                // Requests list
+                if (loadingRequests)
+                  const Center(child: CircularProgressIndicator())
+                else if (requests.isEmpty)
+                  _emptyInfoCard(
+                    icon: Icons.receipt_long_outlined,
+                    title: "No requests",
+                    subtitle: "Requests appear when residents book your slots.",
+                  )
+                else
+                  Column(
+                    children: requests.map((rq) {
+                      final int bookingId = (rq['bookingId'] is num)
+                          ? (rq['bookingId'] as num).toInt()
+                          : int.tryParse((rq['bookingId'] ?? rq['id'] ?? "0").toString()) ?? 0;
+
+                      final residentName = (rq['residentName'] ?? "Resident").toString();
+                      final wardName = (rq['wardName'] ?? "-").toString();
+                      final status = (rq['status'] ?? "PENDING").toString();
+                      final dateChip = _dateChip(rq['createdAt']);
+
+                      final isPending = status.toUpperCase() == "PENDING";
+                      final isUpdating = _updatingBookingIds.contains(bookingId);
+
+                      return Container(
+                        margin: EdgeInsets.only(bottom: 12.h),
+                        padding: EdgeInsets.all(16.w),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20.r),
+                          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4.h))],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                if (dateChip.isNotEmpty)
+                                  Container(
+                                    padding: EdgeInsets.all(12.w),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue[50],
+                                      borderRadius: BorderRadius.circular(12.r),
+                                    ),
+                                    child: Text(
+                                      dateChip,
+                                      style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.blue),
+                                    ),
+                                  ),
+                                SizedBox(width: 12.w),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(residentName, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                      Text(
+                                        wardName,
+                                        style: GoogleFonts.poppins(fontSize: 13.sp, color: Colors.grey[600]),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(status, style: GoogleFonts.poppins(color: _statusColor(status))),
+                              ],
+                            ),
+                            if (isPending) ...[
+                              SizedBox(height: 12.h),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: isUpdating ? null : () => _updateRequestStatus(bookingId, "CONFIRMED"),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                                      ),
+                                      child: isUpdating
+                                          ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      )
+                                          : Text("Confirm", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                    ),
+                                  ),
+                                  SizedBox(width: 10.w),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: isUpdating ? null : () => _updateRequestStatus(bookingId, "CANCELLED"),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.black87,
+                                        side: BorderSide(color: Colors.grey[300]!),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                                      ),
+                                      child: Text("Decline", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+
+                SizedBox(height: 100.h),
+              ],
+            ),
+          ),
+        ),
+      ),
+
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // refresh dashboard when returning from manage slots
+          Navigator.of(context).pushNamed(AppRoutes.manageSlots).then((_) {
+            _loadVendorDashboard();
+          });
+        },
+        backgroundColor: Colors.blue,
+        child: Icon(Icons.add, size: 32.w),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8,
+        child: Row(
+          children: [
+            _bottomItem(Icons.home, "Home", true, onTap: () {}),
+            _bottomItem(Icons.route, "Routes", false, onTap: () {}),
+            SizedBox(width: 40.w),
+            _bottomItem(Icons.history, "History", false, onTap: () {}),
+            _bottomItem(
+              Icons.person,
+              "Profile",
+              false,
+              onTap: () {
+                Navigator.pushNamed(context, AppRoutes.vendorProfile).then((_) => _loadVendorDashboard());
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _routeCard(Map<String, dynamic> r) {
+    final wardName = (r['wardName'] ?? "-").toString();
+    final location = (r['location'] ?? "-").toString();
+    final status = (r['status'] ?? "Scheduled").toString();
+    final percent = (r['percentBooked'] ?? 0) is num ? (r['percentBooked'] as num).toInt() : 0;
+
+    final start = _timeLabel(r['startTime']);
+    final end = _timeLabel(r['endTime']);
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 16.h),
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4.h))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  wardName,
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: status.toLowerCase() == "active" ? Colors.green[100] : Colors.grey[200],
+                  borderRadius: BorderRadius.circular(20.r),
+                ),
+                child: Text(status, style: GoogleFonts.poppins(fontSize: 12.sp)),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.h),
+          Text("Location: $location", style: GoogleFonts.poppins(color: Colors.grey[700])),
+          SizedBox(height: 8.h),
+          Row(
+            children: [
+              Icon(Icons.circle, size: 10.sp, color: Colors.blue),
+              SizedBox(width: 8.w),
+              Text("Start: $start", style: GoogleFonts.poppins(fontSize: 13.sp)),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          Row(
+            children: [
+              Icon(Icons.circle, size: 10.sp, color: Colors.red),
+              SizedBox(width: 8.w),
+              Text("End: $end", style: GoogleFonts.poppins(fontSize: 13.sp)),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: (percent.clamp(0, 100)) / 100.0,
+                    minHeight: 8.h,
+                    backgroundColor: Colors.grey[200],
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Text(
+                "$percent% Booked",
+                style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700]),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Empty info card
+  Widget _emptyInfoCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(18.w),
@@ -249,278 +788,15 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     );
   }
 
-  Widget _buildStatCard({required String value, required String label, required Color color}) {
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(16.r)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value, style: GoogleFonts.poppins(fontSize: 28.sp, fontWeight: FontWeight.bold)),
-          Text(label, style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem({required IconData icon, required String label, bool isSelected = false}) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: isSelected ? Colors.blue : Colors.grey),
-        Text(
-          label,
-          style: GoogleFonts.poppins(fontSize: 12.sp, color: isSelected ? Colors.blue : Colors.grey),
-        ),
-      ],
-    );
-  }
-
-  Color _statusColor(String status) {
-    final s = status.toUpperCase();
-    if (s == "PENDING") return Colors.orange;
-    if (s == "CONFIRMED") return Colors.green;
-    if (s == "DELIVERED") return Colors.blue;
-    if (s == "CANCELLED") return Colors.red;
-    return Colors.grey;
-  }
-
-
-  @override
-  Widget build(BuildContext context) {
-    final todaysJobs = requests.length.toString();
-
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(16.w),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28.w,
-                    backgroundColor: Colors.grey[300],
-                    child: Icon(Icons.person, size: 32.w, color: Colors.grey),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Himalayan Water",
-                            style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.bold)),
-                        Text("Vendor Dashboard",
-                            style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.grey[600])),
-                      ],
-                    ),
-                  ),
-                  Stack(
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.notifications_outlined, size: 28.w),
-                        onPressed: _showNotifications,
-                        tooltip: "Notifications",
-                      ),
-                      if (notifications.isNotEmpty)
-                        Positioned(
-                          right: 8.w,
-                          top: 8.w,
-                          child: Container(
-                            width: 10.w,
-                            height: 10.w,
-                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-
-              SizedBox(height: 24.h),
-
-              // Stats
-              Row(
-                children: [
-                  Expanded(child: _buildStatCard(value: todaysJobs, label: "REQUESTS", color: Colors.blue[50]!)),
-                  SizedBox(width: 12.w),
-                  Expanded(child: _buildStatCard(value: "—", label: "SUCCESS", color: Colors.green[50]!)),
-                  SizedBox(width: 12.w),
-                  Expanded(child: _buildStatCard(value: "—", label: "RATING", color: Colors.orange[50]!)),
-                ],
-              ),
-
-              SizedBox(height: 32.h),
-
-              // Active Routes header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Active Routes",
-                      style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
-                  TextButton(
-                    onPressed: _loadVendorDashboard,
-                    child: Text("Refresh", style: GoogleFonts.poppins(color: Colors.blue)),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16.h),
-
-              //  Routes from DB
-              if (loadingRoutes)
-                const Center(child: CircularProgressIndicator())
-              else if (routes.isEmpty)
-                _emptyCard(
-                  icon: Icons.route_outlined,
-                  title: "No routes created",
-                  subtitle: "Routes will appear when you have assigned bookings.",
-                )
-              else
-                Column(
-                  children: routes.map((r) {
-                    final title = (r['title'] ?? "Route").toString();
-                    final ward = (r['ward'] ?? "-").toString();
-                    final status = (r['status'] ?? "Scheduled").toString();
-                    final bookings = (r['bookings'] ?? 0).toString();
-
-                    return Container(
-                      margin: EdgeInsets.only(bottom: 16.h),
-                      padding: EdgeInsets.all(16.w),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20.r),
-                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4.h))],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: Text(title, style: GoogleFonts.poppins(fontWeight: FontWeight.w600))),
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-                                decoration: BoxDecoration(
-                                  color: status.toLowerCase() == "active" ? Colors.green[100] : Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(20.r),
-                                ),
-                                child: Text(status, style: GoogleFonts.poppins(fontSize: 12.sp)),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 8.h),
-                          Text("Ward: $ward", style: GoogleFonts.poppins(color: Colors.grey[700])),
-                          SizedBox(height: 4.h),
-                          Text("$bookings bookings", style: GoogleFonts.poppins(color: Colors.grey[600])),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-
-              SizedBox(height: 32.h),
-
-              // Recent Requests header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Recent Requests",
-                      style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
-                ],
-              ),
-              SizedBox(height: 16.h),
-
-              //  Requests from DB
-              if (loadingRequests)
-                const Center(child: CircularProgressIndicator())
-              else if (requests.isEmpty)
-                _emptyCard(
-                  icon: Icons.receipt_long_outlined,
-                  title: "No requests",
-                  subtitle: "Requests will appear when residents place orders assigned to you.",
-                )
-              else
-                Column(
-                  children: requests.map((rq) {
-                    final residentName = (rq['residentName'] ?? "Resident").toString();
-                    final location = (rq['location'] ?? "-").toString();
-                    final status = (rq['status'] ?? "PENDING").toString();
-                    final createdAtRaw = rq['createdAt']?.toString();
-
-                    String dateStr = "";
-                    if (createdAtRaw != null) {
-                      try {
-                        final dt = DateTime.parse(createdAtRaw);
-                        dateStr = DateFormat("MMM dd").format(dt);
-                      } catch (_) {}
-                    }
-
-                    return Container(
-                      margin: EdgeInsets.only(bottom: 12.h),
-                      padding: EdgeInsets.all(16.w),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20.r),
-                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4.h))],
-                      ),
-                      child: Row(
-                        children: [
-                          if (dateStr.isNotEmpty)
-                            Container(
-                              padding: EdgeInsets.all(12.w),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[50],
-                                borderRadius: BorderRadius.circular(12.r),
-                              ),
-                              child: Text(dateStr,
-                                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.blue)),
-                            ),
-                          SizedBox(width: 12.w),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(residentName, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                                Text(location, style: GoogleFonts.poppins(fontSize: 13.sp, color: Colors.grey[600])),
-                              ],
-                            ),
-                          ),
-                          Text(status, style: GoogleFonts.poppins(color: _statusColor(status))),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-
-              SizedBox(height: 100.h),
-            ],
-          ),
-        ),
-      ),
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).pushNamed(AppRoutes.manageSlots);
-        },
-        backgroundColor: Colors.blue,
-        child: Icon(Icons.add, size: 32.w),
-      ),
-
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+  Widget _bottomItem(IconData icon, String label, bool active, {VoidCallback? onTap}) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildBottomNavItem(icon: Icons.home, label: "Home", isSelected: true),
-            _buildBottomNavItem(icon: Icons.route, label: "Routes"),
-            SizedBox(width: 40.w),
-            _buildBottomNavItem(icon: Icons.history, label: "History"),
-            _buildBottomNavItem(icon: Icons.person, label: "Profile"),
+            Icon(icon, color: active ? Colors.blue : Colors.grey),
+            Text(label, style: GoogleFonts.poppins(fontSize: 12.sp, color: active ? Colors.blue : Colors.grey)),
           ],
         ),
       ),

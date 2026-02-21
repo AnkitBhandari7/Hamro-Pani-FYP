@@ -1,8 +1,8 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import 'create_slot_controller.dart';
 
@@ -15,14 +15,40 @@ class ManageSlotsScreen extends ConsumerStatefulWidget {
 
 class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
   final TextEditingController _capacityController =
-  TextEditingController(text: '10'); // Total tanker slots
+  TextEditingController(text: '10');
+  final TextEditingController _priceController =
+  TextEditingController(text: '2500');
   final TextEditingController _routeController = TextEditingController();
 
   @override
   void dispose() {
     _capacityController.dispose();
+    _priceController.dispose();
     _routeController.dispose();
     super.dispose();
+  }
+
+  // ✅ Convert whatever comes from controller/API into LOCAL DateTime for UI
+  DateTime? _asLocalDateTime(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is DateTime) return raw.toLocal();
+    if (raw is String && raw.trim().isNotEmpty) {
+      try {
+        return DateTime.parse(raw).toLocal();
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  DateTime _baseDateForFilter(CreateSlotState state) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (state.selectedDateFilter == 'Tomorrow') {
+      return today.add(const Duration(days: 1));
+    }
+    return today;
   }
 
   Future<void> _selectTime() async {
@@ -33,9 +59,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
       initialTime: TimeOfDay.now(),
     );
 
-    if (picked != null) {
-      controller.setStartTime(picked);
-    }
+    if (picked != null) controller.setStartTime(picked);
   }
 
   Future<void> _onPublishPressed() async {
@@ -43,18 +67,135 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
 
     final error = await controller.publishSlot(
       capacityText: _capacityController.text,
+      priceText: _priceController.text,
       routeText: _routeController.text,
     );
 
     if (!mounted) return;
 
-    final msg = error ?? 'Slot published successfully';
-    final color = error == null ? Colors.green : Colors.red;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
-        backgroundColor: color,
+        content: Text(error ?? 'Slot published successfully'),
+        backgroundColor: error == null ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  /// End-time preview uses selected date filter (Today/Tomorrow), not always DateTime.now()
+  String _formattedEndTime(CreateSlotState state) {
+    final time = state.selectedStartTime;
+    if (time == null) return 'End time';
+
+    final base = _baseDateForFilter(state);
+    final start = DateTime(base.year, base.month, base.day, time.hour, time.minute);
+    final end = start.add(const Duration(hours: 2));
+
+    return DateFormat('hh:mm a').format(end);
+  }
+
+  Future<void> _showEditDialog(Map<String, dynamic> slot) async {
+    final controller = ref.read(createSlotControllerProvider.notifier);
+
+    final capCtrl = TextEditingController(text: (slot['total'] ?? '').toString());
+    final priceCtrl = TextEditingController(text: (slot['price'] ?? '').toString());
+
+    // Ensure we use LOCAL time for edit UI
+    final startDt = _asLocalDateTime(slot['startDt'] ?? slot['startTime']);
+    TimeOfDay pickedTime =
+    startDt != null ? TimeOfDay.fromDateTime(startDt) : TimeOfDay.now();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: Text('Edit Slot', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // time
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Start: ${pickedTime.format(context)}',
+                      style: GoogleFonts.poppins(),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final t = await showTimePicker(
+                        context: context,
+                        initialTime: pickedTime,
+                      );
+                      if (t != null) {
+                        pickedTime = t;
+                        // rebuild dialog
+                        (context as Element).markNeedsBuild();
+                      }
+                    },
+                    child: Text('Change', style: GoogleFonts.poppins()),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: capCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Capacity'),
+              ),
+              TextField(
+                controller: priceCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Price (NPR)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (ok != true) return;
+
+    final newCapacity = int.tryParse(capCtrl.text.trim());
+    final newPrice = int.tryParse(priceCtrl.text.trim());
+
+    if (newCapacity == null || newCapacity <= 0 || newPrice == null || newPrice <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid capacity/price'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+
+    final base = (startDt ?? DateTime.now()).toLocal();
+    final newStart = DateTime(base.year, base.month, base.day, pickedTime.hour, pickedTime.minute);
+    final newEnd = newStart.add(const Duration(hours: 2));
+
+    final err = await controller.updateSlot(
+      slotId: slot['slotId'] as int,
+      location: (slot['location'] ?? '').toString(),
+      startTime: newStart,
+      endTime: newEnd,
+      capacity: newCapacity,
+      price: newPrice,
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(err ?? 'Slot updated'),
+        backgroundColor: err == null ? Colors.green : Colors.red,
       ),
     );
   }
@@ -69,10 +210,6 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.menu, color: Colors.black, size: 28.w),
-          onPressed: () {},
-        ),
         title: Text(
           'Manage Slots',
           style: GoogleFonts.poppins(
@@ -96,47 +233,14 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
           children: [
             _buildOpenNewSlotCard(state, controller),
             SizedBox(height: 24.h),
-            _buildActiveSlotsSection(state),
-            SizedBox(height: 24.h),
+            _buildActiveSlotsSection(state, controller),
           ],
         ),
       ),
     );
   }
 
-  // --------------------------------------------------
-  // Helper: derived end time (start + 2 hours)
-  // --------------------------------------------------
-  String _formattedEndTime(CreateSlotState state) {
-    final time = state.selectedStartTime;
-    if (time == null) return 'End time';
-
-    final now = DateTime.now();
-    final start = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      time.hour,
-      time.minute,
-    );
-
-    final end = start.add(const Duration(hours: 2));
-
-    // DateTime does NOT have hourOfPeriod. Use hour % 12.
-    final int hour12 = (end.hour % 12 == 0) ? 12 : (end.hour % 12);
-    final String minute = end.minute.toString().padLeft(2, '0');
-    final String period = end.hour >= 12 ? 'PM' : 'AM';
-
-    return '$hour12:$minute $period';
-  }
-
-
-  // Open New Slot card
-
-  Widget _buildOpenNewSlotCard(
-      CreateSlotState state,
-      CreateSlotController controller,
-      ) {
+  Widget _buildOpenNewSlotCard(CreateSlotState state, CreateSlotController controller) {
     return Container(
       padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
@@ -153,159 +257,62 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with + icon
-          Row(
-            children: [
-              Icon(Icons.add_circle_outline, color: Colors.blue, size: 22.w),
-              SizedBox(width: 8.w),
-              Text(
-                'Open New Slot',
-                style: GoogleFonts.poppins(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 20.h),
+          Text('Open New Slot', style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
+          SizedBox(height: 14.h),
 
-          // DATE
-          Text(
-            'SELECT DATE',
-            style: GoogleFonts.poppins(
-              fontSize: 12.sp,
-              color: Colors.grey[600],
-            ),
-          ),
+          Text('SELECT DATE', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600])),
           SizedBox(height: 8.h),
           Wrap(
             spacing: 8.w,
-            runSpacing: 8.h,
             children: [
-              _buildDateChip(
-                'Today',
-                state.selectedDateFilter == 'Today',
-                    () => controller.setDateFilter('Today'),
-              ),
-              _buildDateChip(
-                'Tomorrow',
-                state.selectedDateFilter == 'Tomorrow',
-                    () => controller.setDateFilter('Tomorrow'),
-              ),
-              _buildDateChip(
-                'mm/dd/yyyy',
-                state.selectedDateFilter == 'Custom',
-                    () => controller.setDateFilter('Custom'),
-              ),
+              _buildDateChip('Today', state.selectedDateFilter == 'Today',
+                      () => controller.setDateFilter('Today')),
+              _buildDateChip('Tomorrow', state.selectedDateFilter == 'Tomorrow',
+                      () => controller.setDateFilter('Tomorrow')),
             ],
           ),
-          SizedBox(height: 20.h),
+          SizedBox(height: 16.h),
 
-          // START & END TIME row
           Row(
             children: [
-              // START
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'START TIME',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12.sp,
-                        color: Colors.grey[600],
-                      ),
+                child: GestureDetector(
+                  onTap: _selectTime,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+                    decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12.r)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(controller.formattedSelectedTime, style: GoogleFonts.poppins(fontSize: 14.sp)),
+                        Icon(Icons.access_time, size: 20.w, color: Colors.grey),
+                      ],
                     ),
-                    SizedBox(height: 8.h),
-                    GestureDetector(
-                      onTap: _selectTime,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 12.w,
-                          vertical: 12.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              controller.formattedSelectedTime,
-                              style: GoogleFonts.poppins(
-                                fontSize: 14.sp,
-                              ),
-                            ),
-                            Icon(
-                              Icons.access_time,
-                              size: 20.w,
-                              color: Colors.grey,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
               SizedBox(width: 12.w),
-
-              // END
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'END TIME',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12.sp,
-                        color: Colors.grey[600],
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+                  decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12.r)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _formattedEndTime(state),
+                        style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.grey[800]),
                       ),
-                    ),
-                    SizedBox(height: 8.h),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12.w,
-                        vertical: 12.h,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12.r),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _formattedEndTime(state),
-                            style: GoogleFonts.poppins(
-                              fontSize: 14.sp,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                          Icon(
-                            Icons.access_time,
-                            size: 20.w,
-                            color: Colors.grey[400],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                      Icon(Icons.access_time, size: 20.w, color: Colors.grey[400]),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 20.h),
+          SizedBox(height: 16.h),
 
-          // TOTAL TANKER SLOTS
-          Text(
-            'TOTAL TANKER SLOTS',
-            style: GoogleFonts.poppins(
-              fontSize: 12.sp,
-              color: Colors.grey[600],
-            ),
-          ),
+          Text('TOTAL TANKER SLOTS', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600])),
           SizedBox(height: 8.h),
           TextField(
             controller: _capacityController,
@@ -313,52 +320,37 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.grey[100],
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12.r),
-                borderSide: BorderSide.none,
-              ),
-              suffixIcon: Padding(
-                padding: EdgeInsets.all(12.w),
-                child: Icon(
-                  Icons.local_shipping,
-                  color: Colors.blue,
-                  size: 20.w,
-                ),
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r), borderSide: BorderSide.none),
             ),
           ),
-          SizedBox(height: 20.h),
+          SizedBox(height: 12.h),
 
-          // DELIVERY ROUTE / AREA
-          Text(
-            'DELIVERY ROUTE / AREA',
-            style: GoogleFonts.poppins(
-              fontSize: 12.sp,
-              color: Colors.grey[600],
+          Text('PRICE (NPR)', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600])),
+          SizedBox(height: 8.h),
+          TextField(
+            controller: _priceController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.grey[100],
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r), borderSide: BorderSide.none),
             ),
           ),
+          SizedBox(height: 12.h),
+
+          Text('DELIVERY ROUTE / AREA', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600])),
           SizedBox(height: 8.h),
           TextField(
             controller: _routeController,
             decoration: InputDecoration(
               hintText: 'e.g. Maitidevi, Ward 29',
-              hintStyle: GoogleFonts.poppins(color: Colors.grey[500]),
               filled: true,
               fillColor: Colors.grey[100],
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12.r),
-                borderSide: BorderSide.none,
-              ),
-              prefixIcon: Icon(
-                Icons.pin_drop,
-                color: Colors.grey,
-                size: 20.w,
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r), borderSide: BorderSide.none),
             ),
           ),
-          SizedBox(height: 24.h),
+          SizedBox(height: 18.h),
 
-          // Publish button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -366,18 +358,13 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 padding: EdgeInsets.symmetric(vertical: 14.h),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30.r),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.r)),
               ),
               child: state.isPublishing
                   ? SizedBox(
                 height: 20.w,
                 width: 20.w,
-                child: const CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
+                child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
               )
                   : Text(
                 'Publish Slot →',
@@ -394,71 +381,28 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
     );
   }
 
-
-  // Active Slots section
-
-  Widget _buildActiveSlotsSection(CreateSlotState state) {
+  Widget _buildActiveSlotsSection(CreateSlotState state, CreateSlotController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header + filter
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Active Slots',
-                style: GoogleFonts.poppins(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w600,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            SizedBox(width: 8.w),
-            Wrap(
-              spacing: 8.w,
-              children: [
-                _buildFilterChip('All', true),
-                _buildFilterChip('Pending', false),
-              ],
-            ),
-          ],
-        ),
+        Text('Active Slots', style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
         SizedBox(height: 16.h),
         if (state.isLoading)
-          Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 24.h),
-              child: const CircularProgressIndicator(),
-            ),
-          )
+          const Center(child: CircularProgressIndicator())
         else if (state.slots.isEmpty)
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 24.h),
-            child: Text(
-              'No active slots',
-              style: GoogleFonts.poppins(color: Colors.grey[600]),
-            ),
-          )
+          Text('No active slots', style: GoogleFonts.poppins(color: Colors.grey[600]))
         else
           ...state.slots.map(
                 (slot) => Padding(
               padding: EdgeInsets.only(bottom: 16.h),
-              child: _buildSlotCard(slot),
+              child: _buildSlotCard(slot, controller),
             ),
           ),
       ],
     );
   }
 
-
-  // Small UI helpers
-
-  Widget _buildDateChip(
-      String label,
-      bool isSelected,
-      VoidCallback onTap,
-      ) {
+  Widget _buildDateChip(String label, bool isSelected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -479,191 +423,141 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label, bool isSelected) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-      decoration: BoxDecoration(
-        color: isSelected ? Colors.blue : Colors.grey[200],
-        borderRadius: BorderRadius.circular(30.r),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 12.sp,
-          color: isSelected ? Colors.white : Colors.black87,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSlotCard(Map<String, dynamic> slot) {
-    final bool isOpen = slot['status'] == 'OPEN';
-    final bool isFull = slot['status'] == 'FULL';
+  Widget _buildSlotCard(Map<String, dynamic> slot, CreateSlotController controller) {
+    final int slotId = (slot['slotId'] ?? 0) as int;
     final int booked = (slot['booked'] ?? 0) as int;
     final int total = (slot['total'] ?? 0) as int;
     final double progress = total == 0 ? 0 : booked / total;
 
-    final statusText = isFull ? 'FULL' : slot['status'];
+    final bool isFull = slot['status'] == 'FULL';
+    final bool isOpen = slot['status'] == 'OPEN';
 
-    final double availablePercent = total == 0 ? 0 : ((total - booked) / total * 100);
+    final price = slot['price'];
+    final priceText = price == null ? '—' : 'NPR $price';
+    final location = (slot['location'] ?? '').toString();
+
+    //  Prefer real DateTimes (converted to local) for correct display across UTC storage
+    final startDt = _asLocalDateTime(slot['startDt'] ?? slot['startTime']);
+    final endDt = _asLocalDateTime(slot['endDt'] ?? slot['endTime']);
+
+    final dateText = (slot['date']?.toString().trim().isNotEmpty ?? false)
+        ? slot['date'].toString()
+        : (startDt != null ? DateFormat('MMM dd').format(startDt).toUpperCase() : '—');
+
+    final timeText = (slot['time']?.toString().trim().isNotEmpty ?? false)
+        ? slot['time'].toString()
+        : (startDt != null && endDt != null
+        ? '${DateFormat('hh:mm a').format(startDt)} - ${DateFormat('hh:mm a').format(endDt)}'
+        : '—');
 
     return Container(
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 4.h),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4.h))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Date + time + status
           Row(
             children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                decoration: BoxDecoration(
-                  color: slot['date'] == 'TODAY' ? Colors.blue[50] : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(20.r),
-                ),
-                child: Text(
-                  slot['date'],
-                  style: GoogleFonts.poppins(
-                    fontSize: 12.sp,
-                    color: slot['date'] == 'TODAY' ? Colors.blue : Colors.grey[800],
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+              Text(dateText, style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
               SizedBox(width: 12.w),
-              Text(
-                slot['time'],
-                style: GoogleFonts.poppins(
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
+              Expanded(child: Text(timeText, style: GoogleFonts.poppins(fontSize: 13.sp))),
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
                 decoration: BoxDecoration(
-                  color: isFull
-                      ? Colors.orange[100]
-                      : isOpen
-                      ? Colors.green[100]
-                      : Colors.orange[100],
+                  color: isFull ? Colors.orange[100] : Colors.green[100],
                   borderRadius: BorderRadius.circular(20.r),
                 ),
                 child: Text(
-                  statusText,
+                  (slot['status'] ?? '').toString(),
                   style: GoogleFonts.poppins(
                     fontSize: 12.sp,
-                    color: isFull
-                        ? Colors.orange[800]
-                        : isOpen
-                        ? Colors.green[800]
-                        : Colors.orange[800],
                     fontWeight: FontWeight.w600,
+                    color: isFull ? Colors.orange[800] : Colors.green[800],
                   ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12.h),
-
-          // Location
-          Row(
-            children: [
-              Icon(Icons.location_on, size: 16.w, color: Colors.grey),
-              SizedBox(width: 4.w),
-              Text(
-                slot['location'],
-                style: GoogleFonts.poppins(
-                  fontSize: 14.sp,
-                  color: Colors.grey[700],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12.h),
-
-          // Booked / total + availability %
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '$booked/$total Slots Booked',
-                style: GoogleFonts.poppins(
-                  fontSize: 12.sp,
-                  color: Colors.grey[700],
-                ),
-              ),
-              Text(
-                '${availablePercent.round()}% Available',
-                style: GoogleFonts.poppins(
-                  fontSize: 12.sp,
-                  color: Colors.grey[700],
                 ),
               ),
             ],
           ),
           SizedBox(height: 8.h),
 
-          // Progress bar
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              isFull || !isOpen ? Colors.orange : Colors.blue,
-            ),
-            minHeight: 6.h,
-            borderRadius: BorderRadius.circular(3.r),
-          ),
-          SizedBox(height: 16.h),
+          Text("Location: $location", style: GoogleFonts.poppins(color: Colors.grey[700])),
+          SizedBox(height: 8.h),
 
-          // Actions
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (isOpen && !isFull) ...[
-                _buildActionButton('Edit Details', Icons.edit, Colors.blue, () {}),
-                _buildActionButton('Mark Full', Icons.block, Colors.orange, () {}),
-              ] else ...[
-                _buildActionButton('Cancel Slot', Icons.cancel, Colors.red, () {}),
-              ],
+              Text("Capacity: $total", style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
+              Text("Price: $priceText", style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
+            ],
+          ),
+          SizedBox(height: 8.h),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('$booked/$total booked', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700])),
+              Text(
+                '${total == 0 ? 0 : (((total - booked) / total) * 100).round()}% available',
+                style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700]),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.h),
+
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey[200],
+            valueColor: AlwaysStoppedAnimation<Color>(isFull || !isOpen ? Colors.orange : Colors.blue),
+            minHeight: 6.h,
+            borderRadius: BorderRadius.circular(3.r),
+          ),
+          SizedBox(height: 12.h),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (isOpen && !isFull)
+                TextButton.icon(
+                  onPressed: () => _showEditDialog(slot),
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  label: Text('Edit', style: GoogleFonts.poppins(color: Colors.blue, fontWeight: FontWeight.w600)),
+                ),
+              if (isOpen && !isFull)
+                TextButton.icon(
+                  onPressed: () async {
+                    final err = await controller.markFull(slotId, location);
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(err ?? 'Marked full'),
+                        backgroundColor: err == null ? Colors.green : Colors.red,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.block, color: Colors.orange),
+                  label: Text('Mark Full', style: GoogleFonts.poppins(color: Colors.orange, fontWeight: FontWeight.w600)),
+                ),
+              TextButton.icon(
+                onPressed: () async {
+                  final err = await controller.deleteSlot(slotId);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(err ?? 'Slot cancelled'),
+                      backgroundColor: err == null ? Colors.green : Colors.red,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.cancel, color: Colors.red),
+                label: Text('Cancel', style: GoogleFonts.poppins(color: Colors.red, fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton(
-      String label,
-      IconData icon,
-      Color color,
-      VoidCallback onTap,
-      ) {
-    return TextButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 16.w, color: color),
-      label: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 12.sp,
-          color: color,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      style: TextButton.styleFrom(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
       ),
     );
   }

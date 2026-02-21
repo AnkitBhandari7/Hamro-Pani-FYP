@@ -1,4 +1,3 @@
-// lib/booking/create_slot_service.dart
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -7,20 +6,38 @@ import 'package:intl/intl.dart';
 
 class CreateSlotService {
   const CreateSlotService(this._dio);
-
   final Dio _dio;
 
-  // Student note: vendor loads all their routes and slots
+  Map<String, dynamic> _unwrapSlot(dynamic data) {
+    if (data is Map) {
+      final map = Map<String, dynamic>.from(data);
+
+      if (map['slot'] is Map) {
+        return Map<String, dynamic>.from(map['slot'] as Map);
+      }
+
+
+      if (map['data'] is Map) {
+        return Map<String, dynamic>.from(map['data'] as Map);
+      }
+
+      return map;
+    }
+
+    throw Exception('Unexpected response format (expected Map)');
+  }
+
+  // vendor loads all their routes and slots
   Future<List<Map<String, dynamic>>> fetchMyRoutes() async {
     final response = await _dio.get('/vendors/routes/my');
     final list = response.data as List<dynamic>;
     return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
-  // Student note: ERD route = vendorId + wardId + routeDate + location
+
   Future<Map<String, dynamic>> createRoute({
     int? wardId,
-    String? ward, // optional: backend may create/find ward by name
+    String? ward,
     required DateTime routeDate,
     required String location,
   }) async {
@@ -37,23 +54,66 @@ class CreateSlotService {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
-  // Student note: ERD slot = startTime + endTime + capacity + bookedCount
+  // create slot with capacity + price
+
   Future<Map<String, dynamic>> createSlot({
     required int routeId,
     required DateTime startTime,
     required DateTime endTime,
     required int capacity,
+    required int price,
   }) async {
+    // Always send UTC ISO to backend to avoid timezone shifting in DB
+    final startUtc = startTime.toUtc().toIso8601String();
+    final endUtc = endTime.toUtc().toIso8601String();
+
     final response = await _dio.post(
       '/vendors/routes/$routeId/slots',
       data: {
-        'startTime': startTime.toIso8601String(),
-        'endTime': endTime.toIso8601String(),
+        'startTime': startUtc,
+        'endTime': endUtc,
         'capacity': capacity,
+        'price': price,
       },
     );
 
-    return Map<String, dynamic>.from(response.data as Map);
+    return _unwrapSlot(response.data);
+  }
+
+  //  update slot
+
+  Future<Map<String, dynamic>> updateSlot({
+    required int slotId,
+    DateTime? startTime,
+    DateTime? endTime,
+    int? capacity,
+    int? price,
+  }) async {
+    //  Send UTC ISO when updating times too
+    final response = await _dio.patch(
+      '/vendors/slots/$slotId',
+      data: {
+        if (startTime != null) 'startTime': startTime.toUtc().toIso8601String(),
+        if (endTime != null) 'endTime': endTime.toUtc().toIso8601String(),
+        if (capacity != null) 'capacity': capacity,
+        if (price != null) 'price': price,
+      },
+    );
+
+    return _unwrapSlot(response.data);
+  }
+
+  // mark slot full
+
+  Future<Map<String, dynamic>> markSlotFull(int slotId) async {
+    final response = await _dio.patch('/vendors/slots/$slotId/mark-full');
+    return _unwrapSlot(response.data);
+  }
+
+  // delete/cancel slot
+
+  Future<void> deleteSlot(int slotId) async {
+    await _dio.delete('/vendors/slots/$slotId');
   }
 
   // UI helpers
@@ -63,20 +123,23 @@ class CreateSlotService {
     final target = DateTime(date.year, date.month, date.day);
 
     if (target == today) return 'TODAY';
-
     final tomorrow = today.add(const Duration(days: 1));
     if (target == tomorrow) return 'TOMORROW';
 
     return DateFormat('MMM dd').format(date).toUpperCase();
   }
 
+  // format as LOCAL time for display consistency
+  // (If the DateTime passed in is UTC, this prevents showing shifted time)
   String buildTimeRange(DateTime start, DateTime end) {
     final fmt = DateFormat('hh:mm a');
-    return '${fmt.format(start)} - ${fmt.format(end)}';
+    final s = start.toLocal();
+    final e = end.toLocal();
+    return '${fmt.format(s)} - ${fmt.format(e)}';
   }
 }
 
-// ---------------- Providers ----------------
+// Providers
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) => FirebaseAuth.instance);
 
@@ -106,7 +169,7 @@ final apiDioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
-        debugPrint('➡️ [DIO] ${options.method} ${options.uri}');
+        debugPrint(' [DIO] ${options.method} ${options.uri}');
         final user = auth.currentUser;
         if (user != null) {
           final token = await user.getIdToken();
@@ -115,8 +178,8 @@ final apiDioProvider = Provider<Dio>((ref) {
         return handler.next(options);
       },
       onError: (e, handler) {
-        debugPrint('❌ [DIO] ${e.response?.statusCode} ${e.requestOptions.uri}');
-        debugPrint('❌ [DIO] ${e.response?.data}');
+        debugPrint(' [DIO] ${e.response?.statusCode} ${e.requestOptions.uri}');
+        debugPrint(' [DIO] ${e.response?.data}');
         return handler.next(e);
       },
     ),

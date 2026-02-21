@@ -55,7 +55,9 @@ Thumbs.db
 *.iml
 
 
+
 # Root flutter generated
+
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
