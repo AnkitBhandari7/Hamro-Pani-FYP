@@ -19,30 +19,34 @@ class VendorDashboardScreen extends StatefulWidget {
   State<VendorDashboardScreen> createState() => _VendorDashboardScreenState();
 }
 
-class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
-  // Student note: Notifications
+class _VendorDashboardScreenState extends State<VendorDashboardScreen>
+    with WidgetsBindingObserver {
+  // Notifications
   List<AppNotification> notifications = [];
   bool loadingNotifications = true;
 
-  // Student note: Dashboard data
+  // Dashboard data
   bool loadingRoutes = true;
   bool loadingRequests = true;
 
   List<Map<String, dynamic>> routes = [];
   List<Map<String, dynamic>> requests = [];
 
-  // Student note: Header info
-  String vendorName = "Vendor";
+  // Header info
+  String companyName = "Vendor Company";
+  String contactName = "Vendor";
+  String logoUrl = "";
+
   int todaysJobs = 0;
 
-  // Student note: used to disable confirm/decline button while API is running
   final Set<int> _updatingBookingIds = {};
-
   StreamSubscription<RemoteMessage>? _onMessageSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     _initVendorFCM();
     _loadVendorDashboard();
     fetchNotifications();
@@ -50,11 +54,21 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _onMessageSub?.cancel();
     super.dispose();
   }
 
-  // Student note: FCM for vendors
+  // Auto refresh when app resumes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadVendorDashboard();
+      fetchNotifications();
+    }
+  }
+
+  // FCM for vendors
   Future<void> _initVendorFCM() async {
     try {
       await FirebaseMessaging.instance.requestPermission();
@@ -62,6 +76,8 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
 
       _onMessageSub = FirebaseMessaging.onMessage.listen((RemoteMessage msg) async {
         await fetchNotifications();
+        await _loadVendorDashboard();
+
         if (!mounted) return;
 
         final title = msg.notification?.title ?? "New notification";
@@ -78,8 +94,63 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     }
   }
 
-  // Student note: Load dashboard from backend
+  DateTime? _parseDateTime(dynamic raw) {
+    if (raw == null) return null;
+    try {
+      return DateTime.parse(raw.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Sort so latest slot routes show first
+  List<Map<String, dynamic>> _sortRoutesForUi(List<Map<String, dynamic>> input) {
+    final list = [...input];
+
+    int statusRank(String s) {
+      final v = s.toLowerCase().trim();
+      if (v == "active") return 0;
+      return 1; // scheduled/others after
+    }
+
+    list.sort((a, b) {
+      final aStatus = (a['status'] ?? '').toString();
+      final bStatus = (b['status'] ?? '').toString();
+      final sr = statusRank(aStatus).compareTo(statusRank(bStatus));
+      if (sr != 0) return sr;
+
+      // Prefer endTime (latest slot ends later), fallback startTime, fallback routeDate
+      final aEnd = _parseDateTime(a['endTime']);
+      final bEnd = _parseDateTime(b['endTime']);
+      if (aEnd != null && bEnd != null) {
+        final c = bEnd.compareTo(aEnd);
+        if (c != 0) return c;
+      }
+
+      final aStart = _parseDateTime(a['startTime']);
+      final bStart = _parseDateTime(b['startTime']);
+      if (aStart != null && bStart != null) {
+        final c = bStart.compareTo(aStart);
+        if (c != 0) return c;
+      }
+
+      final aDate = _parseDateTime(a['routeDate']);
+      final bDate = _parseDateTime(b['routeDate']);
+      if (aDate != null && bDate != null) {
+        final c = bDate.compareTo(aDate);
+        if (c != 0) return c;
+      }
+
+      return 0;
+    });
+
+    return list;
+  }
+
+  // Load dashboard from backend
   Future<void> _loadVendorDashboard() async {
+    if (!mounted) return;
+
     setState(() {
       loadingRoutes = true;
       loadingRequests = true;
@@ -96,13 +167,20 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       final vendor = (data['vendor'] ?? {}) as Map<String, dynamic>;
       final stats = (data['stats'] ?? {}) as Map<String, dynamic>;
 
-      final r = List<Map<String, dynamic>>.from(data['routes'] ?? []);
+      final r0 = List<Map<String, dynamic>>.from(data['routes'] ?? []);
       final rq = List<Map<String, dynamic>>.from(data['requests'] ?? []);
+
+      final r = _sortRoutesForUi(r0);
 
       if (!mounted) return;
       setState(() {
-        vendorName = (vendor['name'] ?? 'Vendor').toString();
-        todaysJobs = (stats['todaysJobs'] ?? 0) is num ? (stats['todaysJobs'] as num).toInt() : 0;
+        companyName = (vendor['companyName'] ?? 'Vendor Company').toString();
+        contactName = (vendor['contactName'] ?? 'Vendor').toString();
+        logoUrl = (vendor['logoUrl'] ?? '').toString();
+
+        todaysJobs = (stats['todaysJobs'] ?? 0) is num
+            ? (stats['todaysJobs'] as num).toInt()
+            : 0;
 
         routes = r;
         requests = rq;
@@ -122,14 +200,13 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     }
   }
 
-  // ✅ Student note: Confirm / Decline booking request
+  // Confirm / Decline booking request
   Future<void> _updateRequestStatus(int bookingId, String status) async {
     if (_updatingBookingIds.contains(bookingId)) return;
 
     setState(() => _updatingBookingIds.add(bookingId));
 
     try {
-      // Student note: ApiService.patch signature is patch(endpoint, body)
       final res = await ApiService.patch(
         '/vendors/requests/$bookingId',
         {'status': status},
@@ -139,7 +216,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
         throw Exception("HTTP ${res.statusCode}: ${res.body}");
       }
 
-      // refresh dashboard after update
       await _loadVendorDashboard();
 
       if (!mounted) return;
@@ -157,7 +233,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     }
   }
 
-  // Student note: Load notifications from DB
+  // Load notifications from DB
   Future<void> fetchNotifications() async {
     if (!mounted) return;
     setState(() => loadingNotifications = true);
@@ -205,10 +281,18 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                 padding: EdgeInsets.all(16.w),
                 child: Row(
                   children: [
-                    Text("Notifications",
-                        style: GoogleFonts.poppins(fontSize: 20.sp, fontWeight: FontWeight.bold)),
+                    Text(
+                      "Notifications",
+                      style: GoogleFonts.poppins(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const Spacer(),
-                    IconButton(onPressed: fetchNotifications, icon: const Icon(Icons.refresh)),
+                    IconButton(
+                      onPressed: fetchNotifications,
+                      icon: const Icon(Icons.refresh),
+                    ),
                   ],
                 ),
               ),
@@ -219,7 +303,10 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                     ? Center(
                   child: Text(
                     "No notifications yet",
-                    style: GoogleFonts.poppins(fontSize: 16.sp, color: Colors.grey[600]),
+                    style: GoogleFonts.poppins(
+                      fontSize: 16.sp,
+                      color: Colors.grey[600],
+                    ),
                   ),
                 )
                     : ListView.builder(
@@ -229,11 +316,20 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
                     final n = notifications[index];
                     return ListTile(
                       leading: const Icon(Icons.water_drop, color: Colors.blue),
-                      title: Text(n.title, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                      subtitle: Text(n.message, style: GoogleFonts.poppins(color: Colors.grey[700])),
+                      title: Text(
+                        n.title,
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        n.message,
+                        style: GoogleFonts.poppins(color: Colors.grey[700]),
+                      ),
                       trailing: Text(
                         DateFormat('hh:mm a').format(n.createdAt),
-                        style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.sp,
+                          color: Colors.grey,
+                        ),
                       ),
                     );
                   },
@@ -246,11 +342,14 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     );
   }
 
-  // Student note: UI helpers
+  // UI helpers
   Widget _statCard({required String value, required String label, required Color color}) {
     return Container(
       padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(16.r)),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16.r),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -293,300 +392,253 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final showCompany = companyName.trim().isNotEmpty ? companyName.trim() : "Vendor Company";
+    final showContact = contactName.trim().isNotEmpty ? contactName.trim() : "Vendor";
+
+    final activeRoutes = routes.where((r) {
+      return (r['status'] ?? '').toString().toLowerCase().trim() == 'active';
+    }).toList();
+
+    final scheduledRoutes = routes.where((r) {
+      return (r['status'] ?? '').toString().toLowerCase().trim() != 'active';
+    }).toList();
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(16.w),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28.w,
-                    backgroundColor: Colors.grey[300],
-                    child: Icon(Icons.person, size: 32.w, color: Colors.grey),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          vendorName,
-                          style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          "Vendor Dashboard",
-                          style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.grey[600]),
-                        ),
-                      ],
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await _loadVendorDashboard();
+            await fetchNotifications();
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(16.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28.w,
+                      backgroundColor: Colors.blue[50],
+                      backgroundImage: logoUrl.trim().isNotEmpty ? NetworkImage(logoUrl) : null,
+                      child: logoUrl.trim().isEmpty
+                          ? Icon(Icons.local_shipping, size: 28.w, color: Colors.blue)
+                          : null,
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.notifications_outlined, size: 28.w),
-                    onPressed: _showNotifications,
-                  ),
-                ],
-              ),
-
-              SizedBox(height: 24.h),
-
-              // Stats row
-              Row(
-                children: [
-                  Expanded(child: _statCard(value: "$todaysJobs", label: "TODAY'S JOBS", color: Colors.blue[50]!)),
-                  SizedBox(width: 12.w),
-                  Expanded(child: _statCard(value: "—", label: "SUCCESS", color: Colors.green[50]!)),
-                  SizedBox(width: 12.w),
-                  Expanded(child: _statCard(value: "—", label: "RATING", color: Colors.orange[50]!)),
-                ],
-              ),
-
-              SizedBox(height: 32.h),
-
-              // Active Routes header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Active Routes", style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
-                  TextButton(
-                    onPressed: _loadVendorDashboard,
-                    child: Text("Refresh", style: GoogleFonts.poppins(color: Colors.blue)),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16.h),
-
-              // Routes list
-              if (loadingRoutes)
-                const Center(child: CircularProgressIndicator())
-              else if (routes.isEmpty)
-                _emptyInfoCard(
-                  icon: Icons.route_outlined,
-                  title: "No routes created",
-                  subtitle: "Create routes and open slots to receive bookings.",
-                )
-              else
-                Column(
-                  children: routes.map((r) {
-                    final wardName = (r['wardName'] ?? "-").toString();
-                    final location = (r['location'] ?? "-").toString();
-                    final status = (r['status'] ?? "Scheduled").toString();
-                    final percent = (r['percentBooked'] ?? 0) is num ? (r['percentBooked'] as num).toInt() : 0;
-
-                    final start = _timeLabel(r['startTime']);
-                    final end = _timeLabel(r['endTime']);
-
-                    return Container(
-                      margin: EdgeInsets.only(bottom: 16.h),
-                      padding: EdgeInsets.all(16.w),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20.r),
-                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4.h))],
-                      ),
+                    SizedBox(width: 12.w),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  wardName,
-                                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-                                decoration: BoxDecoration(
-                                  color: status.toLowerCase() == "active" ? Colors.green[100] : Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(20.r),
-                                ),
-                                child: Text(status, style: GoogleFonts.poppins(fontSize: 12.sp)),
-                              ),
-                            ],
+                          Text(
+                            showCompany,
+                            style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          SizedBox(height: 8.h),
-                          Text("Location: $location", style: GoogleFonts.poppins(color: Colors.grey[700])),
-                          SizedBox(height: 8.h),
-
-                          Row(
-                            children: [
-                              Icon(Icons.circle, size: 10.sp, color: Colors.blue),
-                              SizedBox(width: 8.w),
-                              Text("Start: $start", style: GoogleFonts.poppins(fontSize: 13.sp)),
-                            ],
-                          ),
-                          SizedBox(height: 6.h),
-                          Row(
-                            children: [
-                              Icon(Icons.circle, size: 10.sp, color: Colors.red),
-                              SizedBox(width: 8.w),
-                              Text("End: $end", style: GoogleFonts.poppins(fontSize: 13.sp)),
-                            ],
-                          ),
-
-                          SizedBox(height: 12.h),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(999),
-                                  child: LinearProgressIndicator(
-                                    value: (percent.clamp(0, 100)) / 100.0,
-                                    minHeight: 8.h,
-                                    backgroundColor: Colors.grey[200],
-                                    color: Colors.blue,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 10.w),
-                              Text(
-                                "$percent% Booked",
-                                style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700]),
-                              ),
-                            ],
+                          SizedBox(height: 2.h),
+                          Text(
+                            showContact,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13.sp,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
-                    );
-                  }).toList(),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.notifications_outlined, size: 28.w),
+                      onPressed: _showNotifications,
+                    ),
+                  ],
                 ),
 
-              SizedBox(height: 24.h),
+                SizedBox(height: 24.h),
 
-              // Recent Requests header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Recent Requests", style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
+                // Stats
+                Row(
+                  children: [
+                    Expanded(child: _statCard(value: "$todaysJobs", label: "TODAY'S JOBS", color: Colors.blue[50]!)),
+                    SizedBox(width: 12.w),
+                    Expanded(child: _statCard(value: "—", label: "SUCCESS", color: Colors.green[50]!)),
+                    SizedBox(width: 12.w),
+                    Expanded(child: _statCard(value: "—", label: "RATING", color: Colors.orange[50]!)),
+                  ],
+                ),
+
+                SizedBox(height: 32.h),
+
+                // Active Routes header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Active Routes", style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
+                    TextButton(
+                      onPressed: _loadVendorDashboard,
+                      child: Text("Refresh", style: GoogleFonts.poppins(color: Colors.blue)),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16.h),
+
+                if (loadingRoutes)
+                  const Center(child: CircularProgressIndicator())
+                else if (activeRoutes.isEmpty)
+                  _emptyInfoCard(
+                    icon: Icons.route_outlined,
+                    title: "No active routes",
+                    subtitle: "Open a slot for today to show here.",
+                  )
+                else
+                  Column(
+                    children: activeRoutes.map((r) => _routeCard(r)).toList(),
+                  ),
+
+                SizedBox(height: 18.h),
+
+                // Scheduled Routes (optional but helpful)
+                if (!loadingRoutes && scheduledRoutes.isNotEmpty) ...[
+                  Text("Scheduled Routes", style: GoogleFonts.poppins(fontSize: 16.sp, fontWeight: FontWeight.w600)),
+                  SizedBox(height: 12.h),
+                  Column(children: scheduledRoutes.map((r) => _routeCard(r)).toList()),
                 ],
-              ),
-              SizedBox(height: 16.h),
 
-              // Requests list
-              if (loadingRequests)
-                const Center(child: CircularProgressIndicator())
-              else if (requests.isEmpty)
-                _emptyInfoCard(
-                  icon: Icons.receipt_long_outlined,
-                  title: "No requests",
-                  subtitle: "Requests appear when residents book your slots.",
-                )
-              else
-                Column(
-                  children: requests.map((rq) {
-                    final int bookingId = (rq['bookingId'] is num)
-                        ? (rq['bookingId'] as num).toInt()
-                        : int.tryParse((rq['bookingId'] ?? rq['id'] ?? "0").toString()) ?? 0;
+                SizedBox(height: 24.h),
 
-                    final residentName = (rq['residentName'] ?? "Resident").toString();
-                    final wardName = (rq['wardName'] ?? "-").toString();
-                    final status = (rq['status'] ?? "PENDING").toString();
-                    final dateChip = _dateChip(rq['createdAt']);
+                // Recent Requests header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Recent Requests", style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                SizedBox(height: 16.h),
 
-                    final isPending = status.toUpperCase() == "PENDING";
-                    final isUpdating = _updatingBookingIds.contains(bookingId);
+                // Requests list
+                if (loadingRequests)
+                  const Center(child: CircularProgressIndicator())
+                else if (requests.isEmpty)
+                  _emptyInfoCard(
+                    icon: Icons.receipt_long_outlined,
+                    title: "No requests",
+                    subtitle: "Requests appear when residents book your slots.",
+                  )
+                else
+                  Column(
+                    children: requests.map((rq) {
+                      final int bookingId = (rq['bookingId'] is num)
+                          ? (rq['bookingId'] as num).toInt()
+                          : int.tryParse((rq['bookingId'] ?? rq['id'] ?? "0").toString()) ?? 0;
 
-                    return Container(
-                      margin: EdgeInsets.only(bottom: 12.h),
-                      padding: EdgeInsets.all(16.w),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20.r),
-                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4.h))],
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              if (dateChip.isNotEmpty)
-                                Container(
-                                  padding: EdgeInsets.all(12.w),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue[50],
-                                    borderRadius: BorderRadius.circular(12.r),
-                                  ),
-                                  child: Text(
-                                    dateChip,
-                                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.blue),
-                                  ),
-                                ),
-                              SizedBox(width: 12.w),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(residentName, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                                    Text(
-                                      wardName,
-                                      style: GoogleFonts.poppins(fontSize: 13.sp, color: Colors.grey[600]),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Text(status, style: GoogleFonts.poppins(color: _statusColor(status))),
-                            ],
-                          ),
+                      final residentName = (rq['residentName'] ?? "Resident").toString();
+                      final wardName = (rq['wardName'] ?? "-").toString();
+                      final status = (rq['status'] ?? "PENDING").toString();
+                      final dateChip = _dateChip(rq['createdAt']);
 
-                          // ✅ Confirm / Decline buttons only for PENDING
-                          if (isPending) ...[
-                            SizedBox(height: 12.h),
+                      final isPending = status.toUpperCase() == "PENDING";
+                      final isUpdating = _updatingBookingIds.contains(bookingId);
+
+                      return Container(
+                        margin: EdgeInsets.only(bottom: 12.h),
+                        padding: EdgeInsets.all(16.w),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20.r),
+                          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4.h))],
+                        ),
+                        child: Column(
+                          children: [
                             Row(
                               children: [
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: isUpdating ? null : () => _updateRequestStatus(bookingId, "CONFIRMED"),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                                if (dateChip.isNotEmpty)
+                                  Container(
+                                    padding: EdgeInsets.all(12.w),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue[50],
+                                      borderRadius: BorderRadius.circular(12.r),
                                     ),
-                                    child: isUpdating
-                                        ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                        : Text("Confirm", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                    child: Text(
+                                      dateChip,
+                                      style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.blue),
+                                    ),
+                                  ),
+                                SizedBox(width: 12.w),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(residentName, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                      Text(
+                                        wardName,
+                                        style: GoogleFonts.poppins(fontSize: 13.sp, color: Colors.grey[600]),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                SizedBox(width: 10.w),
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: isUpdating ? null : () => _updateRequestStatus(bookingId, "CANCELLED"),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.black87,
-                                      side: BorderSide(color: Colors.grey[300]!),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                                    ),
-                                    child: Text("Decline", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                                  ),
-                                ),
+                                Text(status, style: GoogleFonts.poppins(color: _statusColor(status))),
                               ],
                             ),
+                            if (isPending) ...[
+                              SizedBox(height: 12.h),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: isUpdating ? null : () => _updateRequestStatus(bookingId, "CONFIRMED"),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                                      ),
+                                      child: isUpdating
+                                          ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      )
+                                          : Text("Confirm", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                    ),
+                                  ),
+                                  SizedBox(width: 10.w),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: isUpdating ? null : () => _updateRequestStatus(bookingId, "CANCELLED"),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.black87,
+                                        side: BorderSide(color: Colors.grey[300]!),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                                      ),
+                                      child: Text("Decline", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
 
-              SizedBox(height: 100.h),
-            ],
+                SizedBox(height: 100.h),
+              ],
+            ),
           ),
         ),
       ),
 
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.of(context).pushNamed(AppRoutes.manageSlots);
+          // refresh dashboard when returning from manage slots
+          Navigator.of(context).pushNamed(AppRoutes.manageSlots).then((_) {
+            _loadVendorDashboard();
+          });
         },
         backgroundColor: Colors.blue,
         child: Icon(Icons.add, size: 32.w),
@@ -597,21 +649,114 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
         shape: const CircularNotchedRectangle(),
         notchMargin: 8,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _bottomItem(Icons.home, "Home", true),
-            _bottomItem(Icons.route, "Routes", false),
+            _bottomItem(Icons.home, "Home", true, onTap: () {}),
+            _bottomItem(Icons.route, "Routes", false, onTap: () {}),
             SizedBox(width: 40.w),
-            _bottomItem(Icons.history, "History", false),
-            _bottomItem(Icons.person, "Profile", false),
+            _bottomItem(Icons.history, "History", false, onTap: () {}),
+            _bottomItem(
+              Icons.person,
+              "Profile",
+              false,
+              onTap: () {
+                Navigator.pushNamed(context, AppRoutes.vendorProfile).then((_) => _loadVendorDashboard());
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  // Student note: simple empty info card
-  Widget _emptyInfoCard({required IconData icon, required String title, required String subtitle}) {
+  Widget _routeCard(Map<String, dynamic> r) {
+    final wardName = (r['wardName'] ?? "-").toString();
+    final location = (r['location'] ?? "-").toString();
+    final status = (r['status'] ?? "Scheduled").toString();
+    final percent = (r['percentBooked'] ?? 0) is num ? (r['percentBooked'] as num).toInt() : 0;
+
+    final start = _timeLabel(r['startTime']);
+    final end = _timeLabel(r['endTime']);
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 16.h),
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4.h))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  wardName,
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: status.toLowerCase() == "active" ? Colors.green[100] : Colors.grey[200],
+                  borderRadius: BorderRadius.circular(20.r),
+                ),
+                child: Text(status, style: GoogleFonts.poppins(fontSize: 12.sp)),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.h),
+          Text("Location: $location", style: GoogleFonts.poppins(color: Colors.grey[700])),
+          SizedBox(height: 8.h),
+          Row(
+            children: [
+              Icon(Icons.circle, size: 10.sp, color: Colors.blue),
+              SizedBox(width: 8.w),
+              Text("Start: $start", style: GoogleFonts.poppins(fontSize: 13.sp)),
+            ],
+          ),
+          SizedBox(height: 6.h),
+          Row(
+            children: [
+              Icon(Icons.circle, size: 10.sp, color: Colors.red),
+              SizedBox(width: 8.w),
+              Text("End: $end", style: GoogleFonts.poppins(fontSize: 13.sp)),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: (percent.clamp(0, 100)) / 100.0,
+                    minHeight: 8.h,
+                    backgroundColor: Colors.grey[200],
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Text(
+                "$percent% Booked",
+                style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[700]),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Empty info card
+  Widget _emptyInfoCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(18.w),
@@ -622,7 +767,11 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(radius: 22.r, backgroundColor: Colors.blue[50], child: Icon(icon, color: Colors.blue)),
+          CircleAvatar(
+            radius: 22.r,
+            backgroundColor: Colors.blue[50],
+            child: Icon(icon, color: Colors.blue),
+          ),
           SizedBox(width: 14.w),
           Expanded(
             child: Column(
@@ -639,13 +788,18 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
     );
   }
 
-  Widget _bottomItem(IconData icon, String label, bool active) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: active ? Colors.blue : Colors.grey),
-        Text(label, style: GoogleFonts.poppins(fontSize: 12.sp, color: active ? Colors.blue : Colors.grey)),
-      ],
+  Widget _bottomItem(IconData icon, String label, bool active, {VoidCallback? onTap}) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: active ? Colors.blue : Colors.grey),
+            Text(label, style: GoogleFonts.poppins(fontSize: 12.sp, color: active ? Colors.blue : Colors.grey)),
+          ],
+        ),
+      ),
     );
   }
 }
