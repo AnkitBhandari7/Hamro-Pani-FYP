@@ -61,14 +61,10 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
 
   DateTime? _parseToLocalDateTime(dynamic raw) {
     if (raw == null) return null;
-
     if (raw is DateTime) return raw.toLocal();
-
     final s = raw.toString().trim();
     if (s.isEmpty) return null;
-
     try {
-
       return DateTime.parse(s).toLocal();
     } catch (_) {
       return null;
@@ -86,7 +82,7 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
       final routes = await _service.fetchMyRoutes();
       final slots = _buildSlotsFromRoutes(routes);
       state = state.copyWith(routes: routes, slots: slots);
-    } catch (e) {
+    } catch (_) {
       state = state.copyWith(routes: const [], slots: const []);
     } finally {
       state = state.copyWith(isLoading: false);
@@ -119,20 +115,20 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
   }
 
   Map<String, dynamic> _slotToUiMap(String routeLocation, Map<String, dynamic> slotJson) {
-    final capacity = _asInt(slotJson['capacity']);
+    final bookingSlots = _asInt(slotJson['capacity']); // booking slots count
     final bookedCount = _asInt(slotJson['bookedCount']);
     final price = slotJson['price'];
 
-    // Parse backend times and force LOCAL
-    final start = _parseToLocalDateTime(slotJson['startTime']) ?? DateTime.now();
-    final end =
-        _parseToLocalDateTime(slotJson['endTime']) ?? start.add(const Duration(hours: 2));
+    // NEW liters field
+    final tankerLiters = _asInt(slotJson['tankerCapacityLiters'], fallback: 12000);
 
-    // Build labels from LOCAL times
+    final start = _parseToLocalDateTime(slotJson['startTime']) ?? DateTime.now();
+    final end = _parseToLocalDateTime(slotJson['endTime']) ?? start.add(const Duration(hours: 2));
+
     final dateLabel = _service.buildDateLabel(start);
     final timeRange = _service.buildTimeRange(start, end);
 
-    final uiStatus = bookedCount >= capacity && capacity > 0 ? 'FULL' : 'OPEN';
+    final uiStatus = bookedCount >= bookingSlots && bookingSlots > 0 ? 'FULL' : 'OPEN';
 
     return {
       'slotId': _asInt(slotJson['id']),
@@ -141,8 +137,9 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
       'status': uiStatus,
       'location': routeLocation,
       'booked': bookedCount,
-      'total': capacity,
+      'total': bookingSlots,
       'price': price,
+      'tankerCapacityLiters': tankerLiters,
       'startDt': start,
       'endDt': end,
     };
@@ -159,6 +156,10 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
     state = state.copyWith(selectedStartTime: value);
   }
 
+  void resetForm() {
+    state = state.copyWith(selectedStartTime: null);
+  }
+
   String get formattedSelectedTime {
     final time = state.selectedStartTime;
     if (time == null) return 'Select Time';
@@ -173,21 +174,24 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
   // CREATE
 
   Future<String?> publishSlot({
-    required String capacityText,
+    required String bookingSlotsText,
     required String priceText,
     required String routeText,
+    required String tankerCapacityLitersText,
   }) async {
     if (state.selectedStartTime == null) return 'Please select a start time';
 
-    final capacity = int.tryParse(capacityText.trim());
-    if (capacity == null || capacity <= 0) return 'Please enter a valid capacity';
+    final bookingSlots = int.tryParse(bookingSlotsText.trim());
+    if (bookingSlots == null || bookingSlots <= 0) return 'Please enter valid booking slots';
 
     final price = int.tryParse(priceText.trim());
     if (price == null || price <= 0) return 'Please enter a valid price';
 
+    final liters = int.tryParse(tankerCapacityLitersText.trim());
+    if (liters == null || liters <= 0) return 'Please enter valid tanker capacity (liters)';
+
     final location = routeText.trim();
     if (location.isEmpty) return 'Please enter a delivery route/area';
-
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -196,7 +200,6 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
         ? today.add(const Duration(days: 1))
         : today;
 
-    // local selected start/end (service will send UTC)
     final startDateTime = DateTime(
       routeDate.year,
       routeDate.month,
@@ -209,12 +212,9 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
     state = state.copyWith(isPublishing: true);
 
     try {
-      // reuse route for same day + same location
       Map<String, dynamic>? route;
       for (final r in state.routes) {
         final rLocation = (r['location'] ?? '').toString().toLowerCase();
-
-
         final rDate = _parseToLocalDateTime(r['routeDate']);
         final sameDay = rDate != null && _dateOnly(rDate) == _dateOnly(routeDate);
 
@@ -242,15 +242,16 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
         routeId: routeId,
         startTime: startDateTime,
         endTime: endDateTime,
-        capacity: capacity,
+        bookingSlots: bookingSlots,
         price: price,
+        tankerCapacityLiters: liters,
       );
 
       final uiSlot = _slotToUiMap(location, createdSlot);
       state = state.copyWith(slots: [uiSlot, ...state.slots]);
 
       return null;
-    } catch (e) {
+    } catch (_) {
       return 'Failed to publish slot. Please try again.';
     } finally {
       state = state.copyWith(isPublishing: false);
@@ -265,16 +266,18 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
     required String location,
     DateTime? startTime,
     DateTime? endTime,
-    int? capacity,
+    int? bookingSlots,
     int? price,
+    int? tankerCapacityLiters,
   }) async {
     try {
       final updated = await _service.updateSlot(
         slotId: slotId,
         startTime: startTime,
         endTime: endTime,
-        capacity: capacity,
+        bookingSlots: bookingSlots,
         price: price,
+        tankerCapacityLiters: tankerCapacityLiters,
       );
 
       final updatedUi = _slotToUiMap(location, updated);
@@ -285,13 +288,13 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
 
       state = state.copyWith(slots: newSlots);
       return null;
-    } catch (e) {
+    } catch (_) {
       return 'Failed to update slot';
     }
   }
 
 
-  // UPDATE (Mark Full)
+  // Mark Full
 
   Future<String?> markFull(int slotId, String location) async {
     try {
@@ -304,7 +307,7 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
 
       state = state.copyWith(slots: newSlots);
       return null;
-    } catch (e) {
+    } catch (_) {
       return 'Failed to mark full';
     }
   }
@@ -319,13 +322,12 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
         slots: state.slots.where((s) => s['slotId'] != slotId).toList(),
       );
       return null;
-    } catch (e) {
+    } catch (_) {
       return 'Failed to delete slot';
     }
   }
 }
 
-// autoDispose provider
 final createSlotControllerProvider =
 AutoDisposeNotifierProvider<CreateSlotController, CreateSlotState>(
     CreateSlotController.new);

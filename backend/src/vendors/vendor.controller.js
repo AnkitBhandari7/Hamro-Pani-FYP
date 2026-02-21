@@ -1,9 +1,7 @@
-
 import prisma from "../prisma.js";
 import fcmService from "../notifications/fcmservice.js";
 import fs from "fs";
 import path from "path";
-
 
 const APP_TIMEZONE = process.env.APP_TIMEZONE || "Asia/Kathmandu";
 
@@ -25,7 +23,6 @@ function parseClientDateTimeOrThrow(raw, fieldName = "dateTime") {
     throw err;
   }
 
-  // Require timezone suffix to avoid silent conversions
   const hasTz = /([zZ]|[+\-]\d{2}:\d{2})$/.test(s);
   if (!hasTz) {
     const err = new Error(
@@ -46,7 +43,6 @@ function parseClientDateTimeOrThrow(raw, fieldName = "dateTime") {
 
 // For routeDate (yyyy-MM-dd) avoid JS Date UTC parsing issues:
 function parseDateOnlyOrDefault(raw) {
-  // expects "YYYY-MM-DD"
   if (!raw) return new Date();
   const s = String(raw).trim();
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
@@ -54,8 +50,7 @@ function parseDateOnlyOrDefault(raw) {
   const y = Number(m[1]);
   const mo = Number(m[2]) - 1;
   const d = Number(m[3]);
-  // local midnight
-  return new Date(y, mo, d);
+  return new Date(y, mo, d); // local midnight
 }
 
 function startOfToday() {
@@ -64,18 +59,12 @@ function startOfToday() {
 }
 
 function isActiveRoute(routeDate) {
-  // route is Active if routeDate is today
   const d = new Date(routeDate);
   const t = startOfToday();
   const tomorrow = new Date(t.getTime() + 24 * 60 * 60 * 1000);
   return d >= t && d < tomorrow;
 }
 
-/**
-
- * This uses server local timezone for display labels.
- * Ideally, client should format times.
- */
 function toTimeLabel(dt) {
   if (!dt) return null;
   const d = new Date(dt);
@@ -87,9 +76,6 @@ function toTimeLabel(dt) {
   return `${h}:${m} ${ampm}`;
 }
 
-/**
- *  Format time in a fixed timezone
-*/
 function formatTimeInTz(date, timeZone = APP_TIMEZONE) {
   try {
     return new Intl.DateTimeFormat("en-US", {
@@ -99,7 +85,6 @@ function formatTimeInTz(date, timeZone = APP_TIMEZONE) {
       hour12: true,
     }).format(date);
   } catch (_) {
-    // fallback: server local
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 }
@@ -126,9 +111,7 @@ async function getVendorByUserId(userId) {
   return { vendor };
 }
 
-/**
- * Dashboard sorting helpers
- */
+// Dashboard sorting helpers
 function parseDateTime(raw) {
   if (!raw) return null;
   const d = new Date(raw);
@@ -178,11 +161,23 @@ function sortRoutesForDashboardUi(list) {
   });
 }
 
+/**
+ *
+ * Touch route so it moves to top of dashboard when slot changes.
+
+ */
+async function touchRoute(routeId, tx = prisma) {
+  await tx.route.update({
+    where: { id: routeId },
+    data: { updatedAt: new Date() },
+    select: { id: true },
+  });
+}
+
 /*
   GET /vendors/dashboard
-  Fixes:
-  only routes with slots (slots: { some: {} })
-  sorting for UI (Active first then latest)
+   only routes with slots
+  orderBy updatedAt desc so recently-changed route comes first
 */
 export async function getVendorDashboard(req, res) {
   const userId = getUserId(req);
@@ -200,24 +195,22 @@ export async function getVendorDashboard(req, res) {
     const rawRoutes = await prisma.route.findMany({
       where: {
         vendorId: vendor.id,
-        slots: { some: {} }, //  hide empty routes
+        slots: { some: {} },
       },
       include: {
         ward: true,
         slots: { orderBy: { startTime: "asc" } },
       },
       take: 50,
-      orderBy: { routeDate: "desc" },
+      orderBy: { updatedAt: "desc" },
     });
 
     const mappedRoutes = rawRoutes.map((r) => {
       const slotsTotal = r.slots.reduce((sum, s) => sum + (s.capacity ?? 0), 0);
       const slotsUsed = r.slots.reduce((sum, s) => sum + (s.bookedCount ?? 0), 0);
-      const percentBooked =
-        slotsTotal > 0 ? Math.round((slotsUsed / slotsTotal) * 100) : 0;
+      const percentBooked = slotsTotal > 0 ? Math.round((slotsUsed / slotsTotal) * 100) : 0;
 
-      const first = r.slots.length > 0 ? r.slots[0] : null;
-      const last = r.slots.length > 0 ? r.slots[r.slots.length - 1] : null;
+      const latest = r.slots.length > 0 ? r.slots[r.slots.length - 1] : null;
 
       return {
         routeId: r.id,
@@ -225,10 +218,13 @@ export async function getVendorDashboard(req, res) {
         location: r.location ?? "-",
         routeDate: r.routeDate,
         status: isActiveRoute(r.routeDate) ? "Active" : "Scheduled",
-        startTime: first?.startTime ?? null,
-        endTime: last?.endTime ?? null,
-        startTimeLabel: toTimeLabel(first?.startTime),
-        endTimeLabel: toTimeLabel(last?.endTime),
+
+        // Use latest slot's time range
+        startTime: latest?.startTime ?? null,
+        endTime: latest?.endTime ?? null,
+        startTimeLabel: toTimeLabel(latest?.startTime),
+        endTimeLabel: toTimeLabel(latest?.endTime),
+
         slotsTotal,
         slotsUsed,
         percentBooked,
@@ -317,16 +313,11 @@ export async function createRoute(req, res) {
       wardRow = await prisma.ward.findUnique({ where: { id: Number(wardId) } });
     } else if (typeof ward === "string" && ward.trim()) {
       wardRow = await prisma.ward.findFirst({ where: { wardName: ward.trim() } });
-      if (!wardRow) {
-        wardRow = await prisma.ward.create({ data: { wardName: ward.trim() } });
-      }
+      if (!wardRow) wardRow = await prisma.ward.create({ data: { wardName: ward.trim() } });
     }
 
-    if (!wardRow) {
-      return res.status(400).json({ error: "wardId or ward name is required" });
-    }
+    if (!wardRow) return res.status(400).json({ error: "wardId or ward name is required" });
 
-    // parse yyyy-MM-dd safely (avoid UTC parsing shift)
     const d = routeDate ? parseDateOnlyOrDefault(routeDate) : new Date();
     const routeDateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
@@ -335,9 +326,7 @@ export async function createRoute(req, res) {
         vendorId: vendor.id,
         wardId: wardRow.id,
         routeDate: routeDateOnly,
-        location: typeof location === "string" && location.trim()
-          ? location.trim()
-          : null,
+        location: typeof location === "string" && location.trim() ? location.trim() : null,
       },
       include: { ward: true },
     });
@@ -363,10 +352,7 @@ export async function getMyRoutes(req, res) {
     const routes = await prisma.route.findMany({
       where: { vendorId: vendor.id },
       orderBy: { createdAt: "desc" },
-      include: {
-        ward: true,
-        slots: { orderBy: { startTime: "asc" } },
-      },
+      include: { ward: true, slots: { orderBy: { startTime: "asc" } } },
     });
 
     return res.json(routes);
@@ -378,7 +364,7 @@ export async function getMyRoutes(req, res) {
 
 /*
   POST /vendors/routes/:routeId/slots
-
+  touch route after create so it appears in dashboard immediately
 */
 export async function createSlot(req, res) {
   const userId = getUserId(req);
@@ -388,12 +374,10 @@ export async function createSlot(req, res) {
   if (error) return res.status(error.status).json({ error: error.message });
 
   const routeId = Number(req.params.routeId);
-  const { startTime, endTime, capacity, price, notifyResidents } = req.body || {};
+  const { startTime, endTime, capacity, price, tankerCapacityLiters, notifyResidents } = req.body || {};
 
   if (!routeId || !startTime || !endTime || capacity == null || price == null) {
-    return res.status(400).json({
-      error: "startTime, endTime, capacity, price are required",
-    });
+    return res.status(400).json({ error: "startTime, endTime, capacity, price are required" });
   }
 
   const capNum = Number(capacity);
@@ -406,26 +390,22 @@ export async function createSlot(req, res) {
     return res.status(400).json({ error: "price must be a positive number" });
   }
 
+  const litersNum = tankerCapacityLiters == null ? 12000 : Number(tankerCapacityLiters);
+  if (!Number.isFinite(litersNum) || litersNum <= 0) {
+    return res.status(400).json({ error: "tankerCapacityLiters must be a positive number" });
+  }
+
   try {
     const route = await prisma.route.findFirst({
       where: { id: routeId, vendorId: vendor.id },
-      include: {
-        ward: true,
-        vendor: { include: { user: true } },
-      },
+      include: { ward: true, vendor: { include: { user: true } } },
     });
 
-    if (!route) {
-      return res.status(404).json({ error: "Route not found or not owned by vendor" });
-    }
+    if (!route) return res.status(404).json({ error: "Route not found or not owned by vendor" });
 
-    //  parse timezone-aware ISO only
     const startDt = parseClientDateTimeOrThrow(startTime, "startTime");
     const endDt = parseClientDateTimeOrThrow(endTime, "endTime");
-
-    if (endDt <= startDt) {
-      return res.status(400).json({ error: "endTime must be after startTime" });
-    }
+    if (endDt <= startDt) return res.status(400).json({ error: "endTime must be after startTime" });
 
     const slot = await prisma.slot.create({
       data: {
@@ -434,29 +414,28 @@ export async function createSlot(req, res) {
         endTime: endDt,
         capacity: capNum,
         price: priceNum,
+        tankerCapacityLiters: litersNum,
       },
     });
 
+    // TOUCH route so /vendors/dashboard sees it first
+    await touchRoute(routeId);
 
-    // Notification
-
+    // Notification (optional)
     const shouldNotify = notifyResidents !== false;
     let notificationResult = null;
 
     if (shouldNotify) {
       const wardName = route.ward?.wardName ?? "Ward";
-      const vendorName =
-        route.vendor?.user?.name || (route.vendor?.companyName ?? "Vendor");
-
+      const vendorName = route.vendor?.user?.name || (route.vendor?.companyName ?? "Vendor");
       const title = "New Tanker Slot Available";
 
-      //  Format in your app timezone for consistent resident view
       const startLabel = formatTimeInTz(startDt, APP_TIMEZONE);
       const endLabel = formatTimeInTz(endDt, APP_TIMEZONE);
 
       const msg =
         `${vendorName} opened a new tanker slot for ${wardName} ` +
-        `(${startLabel} - ${endLabel}).`;
+        `(${startLabel} - ${endLabel}) • ${litersNum}L.`;
 
       const notif = await prisma.notification.create({
         data: {
@@ -529,11 +508,7 @@ export async function createSlot(req, res) {
       };
     }
 
-    return res.status(201).json({
-      success: true,
-      slot,
-      notify: notificationResult,
-    });
+    return res.status(201).json({ success: true, slot, notify: notificationResult });
   } catch (e) {
     const code = e?.statusCode || 500;
     console.error("createSlot error:", e);
@@ -543,7 +518,7 @@ export async function createSlot(req, res) {
 
 /*
   PATCH /vendors/slots/:slotId
-
+  touch route after update so dashboard order is correct
 */
 export async function updateSlot(req, res) {
   const userId = getUserId(req);
@@ -553,7 +528,7 @@ export async function updateSlot(req, res) {
   if (error) return res.status(error.status).json({ error: error.message });
 
   const slotId = Number(req.params.slotId);
-  const { startTime, endTime, capacity, price } = req.body || {};
+  const { startTime, endTime, capacity, price, tankerCapacityLiters } = req.body || {};
 
   if (!Number.isFinite(slotId)) return res.status(400).json({ error: "Invalid slotId" });
 
@@ -580,19 +555,24 @@ export async function updateSlot(req, res) {
       return res.status(400).json({ error: "Invalid price" });
     }
 
+    const litersNum = tankerCapacityLiters == null ? null : Number(tankerCapacityLiters);
+    if (litersNum != null && (!Number.isFinite(litersNum) || litersNum <= 0)) {
+      return res.status(400).json({ error: "Invalid tankerCapacityLiters" });
+    }
+
     const updated = await prisma.slot.update({
       where: { id: slotId },
       data: {
-        startTime: startTime
-          ? parseClientDateTimeOrThrow(startTime, "startTime")
-          : undefined,
-        endTime: endTime
-          ? parseClientDateTimeOrThrow(endTime, "endTime")
-          : undefined,
+        startTime: startTime ? parseClientDateTimeOrThrow(startTime, "startTime") : undefined,
+        endTime: endTime ? parseClientDateTimeOrThrow(endTime, "endTime") : undefined,
         capacity: capNum == null ? undefined : capNum,
         price: priceNum == null ? undefined : priceNum,
+        tankerCapacityLiters: litersNum == null ? undefined : litersNum,
       },
     });
+
+    // TOUCH parent route
+    await touchRoute(slot.routeId);
 
     return res.json({ success: true, slot: updated });
   } catch (e) {
@@ -604,6 +584,7 @@ export async function updateSlot(req, res) {
 
 /*
   PATCH /vendors/slots/:slotId/mark-full
+   touch route after mark-full
 */
 export async function markSlotFull(req, res) {
   const userId = getUserId(req);
@@ -630,6 +611,9 @@ export async function markSlotFull(req, res) {
       data: { bookedCount: slot.capacity },
     });
 
+    // TOUCH parent route
+    await touchRoute(slot.routeId);
+
     return res.json({ success: true, slot: updated });
   } catch (e) {
     console.error("markSlotFull error:", e);
@@ -639,7 +623,7 @@ export async function markSlotFull(req, res) {
 
 /*
   DELETE /vendors/slots/:slotId
-  if last slot deleted, delete empty route too
+    touch route if route still exists after deleting a slot
 */
 export async function deleteSlot(req, res) {
   const userId = getUserId(req);
@@ -680,6 +664,9 @@ export async function deleteSlot(req, res) {
       const remaining = await tx.slot.count({ where: { routeId } });
       if (remaining === 0) {
         await tx.route.delete({ where: { id: routeId } });
+      } else {
+        // TOUCH route so dashboard ordering refreshes
+        await touchRoute(routeId, tx);
       }
     });
 
@@ -708,7 +695,6 @@ export async function listSlotsByWardAndDate(req, res) {
 
     let routeDateFilter = {};
     if (date) {
-      // date expected: YYYY-MM-DD
       const base = parseDateOnlyOrDefault(date);
       const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0);
       const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59, 999);
@@ -933,21 +919,15 @@ export async function updateVendorProfileMe(req, res) {
       await tx.user.update({
         where: { id: userId },
         data: {
-          name: typeof contactName === "string" && contactName.trim()
-            ? contactName.trim()
-            : undefined,
-          phoneNumber: typeof phone === "string" && phone.trim()
-            ? phone.trim()
-            : undefined,
+          name: typeof contactName === "string" && contactName.trim() ? contactName.trim() : undefined,
+          phoneNumber: typeof phone === "string" && phone.trim() ? phone.trim() : undefined,
         },
       });
 
       await tx.vendor.update({
         where: { id: vendor.id },
         data: {
-          companyName: typeof companyName === "string" && companyName.trim()
-            ? companyName.trim()
-            : undefined,
+          companyName: typeof companyName === "string" && companyName.trim() ? companyName.trim() : undefined,
           phone: typeof phone === "string" && phone.trim() ? phone.trim() : undefined,
           address: typeof address === "string" ? address.trim() : undefined,
           tankerCount: tankerCount == null ? undefined : Number(tankerCount),

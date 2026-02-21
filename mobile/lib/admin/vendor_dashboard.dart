@@ -103,21 +103,30 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
     }
   }
 
-  // Sort so latest slot routes show first
+  bool _isTodayLocal(DateTime dt) {
+    final now = DateTime.now();
+    final d = dt.toLocal();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
+  bool _isActiveRouteFromData(Map<String, dynamic> r) {
+    final rd = _parseDateTime(r['routeDate']);
+    if (rd == null) return false;
+    return _isTodayLocal(rd);
+  }
+
+  String _uiStatus(Map<String, dynamic> r) {
+    return _isActiveRouteFromData(r) ? "Active" : "Scheduled";
+  }
+
+  // Sort so latest slot routes show first AND Active first (based on routeDate)
   List<Map<String, dynamic>> _sortRoutesForUi(List<Map<String, dynamic>> input) {
     final list = [...input];
 
-    int statusRank(String s) {
-      final v = s.toLowerCase().trim();
-      if (v == "active") return 0;
-      return 1; // scheduled/others after
-    }
-
     list.sort((a, b) {
-      final aStatus = (a['status'] ?? '').toString();
-      final bStatus = (b['status'] ?? '').toString();
-      final sr = statusRank(aStatus).compareTo(statusRank(bStatus));
-      if (sr != 0) return sr;
+      final aActive = _isActiveRouteFromData(a);
+      final bActive = _isActiveRouteFromData(b);
+      if (aActive != bActive) return aActive ? -1 : 1;
 
       // Prefer endTime (latest slot ends later), fallback startTime, fallback routeDate
       final aEnd = _parseDateTime(a['endTime']);
@@ -178,9 +187,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
         contactName = (vendor['contactName'] ?? 'Vendor').toString();
         logoUrl = (vendor['logoUrl'] ?? '').toString();
 
-        todaysJobs = (stats['todaysJobs'] ?? 0) is num
-            ? (stats['todaysJobs'] as num).toInt()
-            : 0;
+        todaysJobs = (stats['todaysJobs'] ?? 0) is num ? (stats['todaysJobs'] as num).toInt() : 0;
 
         routes = r;
         requests = rq;
@@ -395,13 +402,9 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
     final showCompany = companyName.trim().isNotEmpty ? companyName.trim() : "Vendor Company";
     final showContact = contactName.trim().isNotEmpty ? contactName.trim() : "Vendor";
 
-    final activeRoutes = routes.where((r) {
-      return (r['status'] ?? '').toString().toLowerCase().trim() == 'active';
-    }).toList();
-
-    final scheduledRoutes = routes.where((r) {
-      return (r['status'] ?? '').toString().toLowerCase().trim() != 'active';
-    }).toList();
+    //  Active based on routeDate (not backend status)
+    final activeRoutes = routes.where(_isActiveRouteFromData).toList();
+    final scheduledRoutes = routes.where((r) => !_isActiveRouteFromData(r)).toList();
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -473,7 +476,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
 
                 SizedBox(height: 32.h),
 
-                // Active Routes header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -501,7 +503,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
 
                 SizedBox(height: 18.h),
 
-                // Scheduled Routes (optional but helpful)
                 if (!loadingRoutes && scheduledRoutes.isNotEmpty) ...[
                   Text("Scheduled Routes", style: GoogleFonts.poppins(fontSize: 16.sp, fontWeight: FontWeight.w600)),
                   SizedBox(height: 12.h),
@@ -510,7 +511,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
 
                 SizedBox(height: 24.h),
 
-                // Recent Requests header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -519,7 +519,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                 ),
                 SizedBox(height: 16.h),
 
-                // Requests list
                 if (loadingRequests)
                   const Center(child: CircularProgressIndicator())
                 else if (requests.isEmpty)
@@ -634,11 +633,10 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
       ),
 
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // refresh dashboard when returning from manage slots
-          Navigator.of(context).pushNamed(AppRoutes.manageSlots).then((_) {
-            _loadVendorDashboard();
-          });
+        onPressed: () async {
+          await Navigator.of(context).pushNamed(AppRoutes.manageSlots);
+          if (!mounted) return;
+          await _loadVendorDashboard();
         },
         backgroundColor: Colors.blue,
         child: Icon(Icons.add, size: 32.w),
@@ -659,7 +657,8 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
               "Profile",
               false,
               onTap: () {
-                Navigator.pushNamed(context, AppRoutes.vendorProfile).then((_) => _loadVendorDashboard());
+                Navigator.pushNamed(context, AppRoutes.vendorProfile)
+                    .then((_) => _loadVendorDashboard());
               },
             ),
           ],
@@ -671,7 +670,10 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
   Widget _routeCard(Map<String, dynamic> r) {
     final wardName = (r['wardName'] ?? "-").toString();
     final location = (r['location'] ?? "-").toString();
-    final status = (r['status'] ?? "Scheduled").toString();
+
+    // status derived from routeDate
+    final status = _uiStatus(r);
+
     final percent = (r['percentBooked'] ?? 0) is num ? (r['percentBooked'] as num).toInt() : 0;
 
     final start = _timeLabel(r['startTime']);

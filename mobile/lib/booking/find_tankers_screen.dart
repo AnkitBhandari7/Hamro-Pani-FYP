@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'find_tankers_controller.dart';
+import 'vendor_details_screen.dart';
 
 class FindTankersScreen extends StatelessWidget {
   const FindTankersScreen({super.key});
@@ -69,23 +70,24 @@ class _FindTankersContent extends StatelessWidget {
               ),
             ),
           ),
-
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.w),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _filterChip('All', controller.selectedFilter == 'All', () => controller.setFilter('All')),
+                  _filterChip('All', controller.selectedFilter == 'All',
+                          () => controller.setFilter('All')),
                   SizedBox(width: 12.w),
-                  _filterChip('Available Now', controller.selectedFilter == 'Available Now', () => controller.setFilter('Available Now')),
+                  _filterChip('Available Now', controller.selectedFilter == 'Available Now',
+                          () => controller.setFilter('Available Now')),
                   SizedBox(width: 12.w),
-                  _filterChip('Low Stock', controller.selectedFilter == 'Low Stock', () => controller.setFilter('Low Stock')),
+                  _filterChip('Low Stock', controller.selectedFilter == 'Low Stock',
+                          () => controller.setFilter('Low Stock')),
                 ],
               ),
             ),
           ),
-
           SizedBox(height: 16.h),
 
           if (controller.getDemandMessage().isNotEmpty)
@@ -126,7 +128,11 @@ class _FindTankersContent extends StatelessWidget {
                       ),
                       child: Text(
                         'Peak Hours: 8AM - 11AM',
-                        style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.white, fontWeight: FontWeight.w600),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.sp,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -141,8 +147,14 @@ class _FindTankersContent extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Nearby Vendors', style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w700)),
-                TextButton(onPressed: () {}, child: Text('View Map', style: GoogleFonts.poppins(color: Colors.blue))),
+                Text(
+                  'Nearby Vendors',
+                  style: GoogleFonts.poppins(fontSize: 18.sp, fontWeight: FontWeight.w700),
+                ),
+                TextButton(
+                  onPressed: () {},
+                  child: Text('View Map', style: GoogleFonts.poppins(color: Colors.blue)),
+                ),
               ],
             ),
           ),
@@ -187,7 +199,11 @@ class _FindTankersContent extends StatelessWidget {
     );
   }
 
-  Widget _vendorCard(BuildContext context, FindTankersController controller, Map<String, dynamic> vendor) {
+  Widget _vendorCard(
+      BuildContext context,
+      FindTankersController controller,
+      Map<String, dynamic> vendor,
+      ) {
     final status = (vendor['status'] ?? 'UNKNOWN').toString();
     final statusColor = _getStatusColor(status);
 
@@ -196,13 +212,10 @@ class _FindTankersContent extends StatelessWidget {
     final String slotsText = (total > 0) ? "$used/$total Slots" : "—";
 
     final slotIdRaw = vendor['nextSlotId'];
-    final int? nextSlotId = slotIdRaw is num ? slotIdRaw.toInt() : int.tryParse(slotIdRaw?.toString() ?? "");
+    final int? nextSlotId =
+    slotIdRaw is num ? slotIdRaw.toInt() : int.tryParse(slotIdRaw?.toString() ?? "");
 
-    final price = vendor['price'];
-
-    final String buttonText = status.toUpperCase() == "AVAILABLE"
-        ? (price != null ? "Book Now • NPR $price" : "Book Now")
-        : "Check Schedule";
+    const String buttonText = "View Details";
 
     return Container(
       margin: EdgeInsets.only(bottom: 12.h),
@@ -210,7 +223,13 @@ class _FindTankersContent extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16.r),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: Offset(0, 4.h))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4.h),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,8 +280,10 @@ class _FindTankersContent extends StatelessWidget {
             children: [
               Text(slotsText, style: GoogleFonts.poppins(fontSize: 13.sp, color: Colors.grey[700])),
               if (vendor['nextTime'] != null)
-                Text('Next: ${vendor['nextTime']}',
-                    style: GoogleFonts.poppins(fontSize: 13.sp, color: Colors.grey[700])),
+                Text(
+                  'Next: ${vendor['nextTime']}',
+                  style: GoogleFonts.poppins(fontSize: 13.sp, color: Colors.grey[700]),
+                ),
             ],
           ),
 
@@ -271,22 +292,25 @@ class _FindTankersContent extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: (nextSlotId == null)
-                  ? null
-                  : () async {
-                try {
-                  await controller.bookSlot(nextSlotId);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Booked successfully")),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Booking failed: $e"), backgroundColor: Colors.red),
-                    );
-                  }
+              onPressed: () async {
+
+                final booked = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChangeNotifierProvider.value(
+                      value: controller,
+                      child: VendorDetailsScreen(
+                        vendor: vendor,
+                        nextSlotId: nextSlotId,
+                      ),
+                    ),
+                  ),
+                );
+
+                if (booked == true && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Booked successfully")),
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(
