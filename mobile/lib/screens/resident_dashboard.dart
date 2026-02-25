@@ -5,11 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
-
 import '../../core/routes/app_navigation.dart';
 import '../../core/routes/routes.dart';
 import 'package:fyp/models/notification_model.dart';
 import 'package:fyp/notifications/notification_service.dart';
+import 'package:fyp/booking/tanker_service.dart';
 
 class ResidentDashboardScreen extends StatefulWidget {
   final String userName;
@@ -55,6 +55,8 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
   List<AppNotification> notifications = [];
   bool loadingReports = true;
   List<Map<String, dynamic>> myReports = [];
+  bool loadingNearby = true;
+  List<Map<String, dynamic>> nearbyTankers = [];
 
 
   // Ward helpers
@@ -131,11 +133,44 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     }
   }
 
+  Future<void> fetchNearbyTankers() async {
+    if (!mounted) return;
+    setState(() => loadingNearby = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception("Not logged in");
+
+      final String? token = await user.getIdToken(true);
+      if (token == null || token.trim().isEmpty) {
+        throw Exception("Failed to get token");
+      }
+
+      final data = await TankerService.getNearbyTankers(
+        token: token,
+        filter: "available_now", // ✅ only vendors with available slots
+      );
+
+      if (!mounted) return;
+      setState(() {
+        nearbyTankers = data;
+        loadingNearby = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        nearbyTankers = [];
+        loadingNearby = false;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     fetchNotifications();
     fetchMyReports();
+    fetchNearbyTankers();
   }
 
 
@@ -512,7 +547,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () {},
+                        onPressed: _openBookings, // ✅ open Find Tankers screen
                         child: Text(
                           "View All",
                           style: GoogleFonts.poppins(
@@ -526,30 +561,71 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
 
                   const SizedBox(height: 10),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _nearbyTankerCard(
-                          name: "Kathmandu Water",
-                          capacityText: "12,000 Ltr",
-                          priceText: "Rs. 3,500",
-                          slotsText: "5/10",
-                        ),
+                  if (loadingNearby)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _nearbyTankerCard(
-                          name: "Pure Drop",
-                          capacityText: "7,000 Ltr",
-                          priceText: "Rs. 2,200",
-                          slotsText: "3/10",
-                        ),
+                    )
+                  else if (nearbyTankers.isEmpty)
+                    Container(
+                      decoration: _softCard(),
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        "No tankers available right now",
+                        style: GoogleFonts.poppins(color: textSecondary),
                       ),
-                    ],
-                  ),
+                    )
+                  else
+                    Column(
+                      children: nearbyTankers.take(2).map((t) {
+                        final name = (t['name'] ?? 'Vendor').toString();
+                        final status = (t['status'] ?? '').toString();
+
+                        return Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: _softCard(),
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: Colors.blue[50],
+                                child: const Icon(Icons.local_shipping, color: Color(0xFF1976D2)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (status.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE3F2FD),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  child: Text(
+                                    status,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: accentBlue,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
 
                   const SizedBox(height: 22),
-
                   // Your Reports
                   Text(
                     "Your Reports",
