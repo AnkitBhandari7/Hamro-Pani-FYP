@@ -16,6 +16,7 @@ import scheduleRoutes from "./schedules/schedule.routes.js";
 import vendorRoutes from "./vendors/vendor.routes.js";
 import bookingRoutes from "./bookings/tankerBooking.routes.js";
 import tankerRoutes from "./bookings/tanker/tanker.routes.js";
+import complaintRouter from "./complaints/complaint.routes.js";
 
 const app = express();
 
@@ -47,8 +48,8 @@ app.use("/notifications", notificationRoutes);
 app.use("/schedules", scheduleRoutes);
 app.use("/vendors", vendorRoutes);
 app.use("/bookings", bookingRoutes);
-
 app.use("/tankers", tankerRoutes);
+app.use("/complaints", complaintRouter);
 
 // with /api
 
