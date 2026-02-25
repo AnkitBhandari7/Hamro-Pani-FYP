@@ -4,17 +4,14 @@ import 'package:fyp/screens/home_wrapper.dart';
 import 'package:fyp/profile/vendorProfile/vendor_profile_screen.dart';
 import 'package:fyp/booking/find_tankers_screen.dart';
 import 'package:fyp/admin/profile/ward_admin_profile_screen.dart';
-
 import 'package:fyp/auth/login_view.dart';
 import 'package:fyp/auth/signup_view.dart';
-
 import 'package:fyp/profile/profile_screen.dart';
 import 'package:fyp/notifications/notifications_screen.dart';
-
 import 'package:fyp/booking/orders_screen.dart';
 import 'package:fyp/booking/new_schedule.dart';
 import 'package:fyp/booking/create_slot.dart';
-
+import 'package:fyp/features/complaints/report_issue_screen.dart';
 import 'package:fyp/admin/send_notice.dart';
 
 class AppNavigation {
@@ -59,6 +56,9 @@ class AppNavigation {
 
       case AppRoutes.findTankers:
         return MaterialPageRoute(builder: (_) => const FindTankersScreen());
+
+        case AppRoutes.reportIssue:
+          return MaterialPageRoute(builder: (_) => const ReportIssueScreen());
 
       case AppRoutes.profile:
         final args = settings.arguments as Map<String, dynamic>?;

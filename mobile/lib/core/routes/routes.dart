@@ -12,7 +12,7 @@ class AppRoutes {
   static const String orders = '/orders';
   static const String profile = '/profile';
   static const String sendNotice = '/send-notice';
-
+  static const String reportIssue = '/report-issue';
   static const String changePassword = '/change-password';
   static const String notifications = '/notifications';
   static const String bookingDetails = '/booking-details';
