@@ -248,9 +248,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
 
   void _openReportIssue() {
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Open Report Issue")),
-    );
+   AppNavigation.push(context, AppRoutes.reportIssue);
   }
 
 
