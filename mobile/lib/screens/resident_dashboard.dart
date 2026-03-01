@@ -9,7 +9,7 @@ import '../../core/routes/routes.dart';
 import 'package:fyp/models/notification_model.dart';
 import 'package:fyp/notifications/notification_service.dart';
 import 'package:fyp/booking/tanker_service.dart';
-
+import 'package:fyp/complaint/detail/complaint_detail_screen.dart';
 
 class ResidentDashboardScreen extends StatefulWidget {
   final String userName;
@@ -148,7 +148,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
 
       final data = await TankerService.getNearbyTankers(
         token: token,
-        filter: "available_now", // ✅ only vendors with available slots
+        filter: "available_now",
       );
 
       if (!mounted) return;
@@ -547,7 +547,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: _openBookings, // ✅ open Find Tankers screen
+                        onPressed: _openBookings,
                         child: Text(
                           "View All",
                           style: GoogleFonts.poppins(
@@ -821,61 +821,78 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
 
   // Report card
   Widget _reportCard(Map<String, dynamic> r) {
-    final id = r['id'];
+    final complaintIdRaw = r['id'];
+    final complaintId =
+    complaintIdRaw is num ? complaintIdRaw.toInt() : int.tryParse(complaintIdRaw?.toString() ?? '');
+
     final title = (r['title'] ?? 'Issue').toString();
     final status = (r['status'] ?? 'IN_REVIEW').toString();
     final createdAt = DateTime.tryParse((r['createdAt'] ?? '').toString());
 
-    final label = status.toUpperCase() == "IN_REVIEW" ? "In Review" : status;
+    final statusUpper = status.toUpperCase();
+    final label = statusUpper == "IN_REVIEW" ? "In Review" : status;
 
-    return Container(
-      decoration: _softCard(),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            height: 44,
-            width: 44,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFF9C4),
-              shape: BoxShape.circle,
-            ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () {
+        if (complaintId == null) return;
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ComplaintDetailScreen(complaintId: complaintId),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  "Ticket #$id • ${createdAt != null ? _relativeDay(createdAt) : '-'}",
-                  style: GoogleFonts.poppins(fontSize: 12, color: textSecondary),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE3F2FD),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: accentBlue,
+        );
+      },
+      child: Container(
+        decoration: _softCard(),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              height: 44,
+              width: 44,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF9C4),
+                shape: BoxShape.circle,
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "Ticket #${complaintId ?? '-'} • ${createdAt != null ? _relativeDay(createdAt) : '-'}",
+                    style: GoogleFonts.poppins(fontSize: 12, color: textSecondary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3F2FD),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: accentBlue,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
