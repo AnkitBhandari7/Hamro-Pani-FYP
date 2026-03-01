@@ -1,9 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fyp/booking/payments/esewa_payment_service.dart';
+import 'package:fyp/booking/tanker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import 'find_tankers_controller.dart';
 import 'vendor_details_controller.dart';
 
 class VendorDetailsScreen extends StatelessWidget {
@@ -35,9 +37,19 @@ class _VendorDetailsContent extends StatefulWidget {
 
 class _VendorDetailsContentState extends State<_VendorDetailsContent> {
   bool _booking = false;
+  String _paymentMethod = "CASH"; // CASH | ESEWA
 
-  // select one payment method
-  String _paymentMethod = "CASH";
+  Future<String> _getTokenOrThrow() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception("Not logged in");
+
+    final String? token = await user.getIdToken(true);
+    if (token == null || token.trim().isEmpty) {
+      throw Exception("Failed to get token");
+    }
+
+    return token;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +154,6 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
 
             SizedBox(height: 24.h),
 
-            // Slot details
             _buildSectionHeader('SLOT DETAILS'),
             SizedBox(height: 12.h),
 
@@ -189,7 +200,6 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
 
             SizedBox(height: 24.h),
 
-            // Payment method selection
             _buildSectionHeader('PAYMENT METHOD'),
             SizedBox(height: 10.h),
 
@@ -219,12 +229,57 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
                     ? null
                     : () async {
                   setState(() => _booking = true);
-                  try {
-                    final findCtrl = context.read<FindTankersController>();
 
-                    await findCtrl.bookSlot(
-                      widget.nextSlotId!,
-                      paymentMethod: _paymentMethod,
+                  try {
+                    final token = await _getTokenOrThrow();
+                    final slotId = widget.nextSlotId!;
+
+                    // Book first creates booking + payment row
+                    final bookingRes = await TankerService.bookTankerSlot(
+                      token: token,
+                      slotId: slotId,
+                      paymentMethod: _paymentMethod, // CASH or ESEWA
+                    );
+
+                    final booking = Map<String, dynamic>.from(bookingRes['booking'] as Map);
+                    final payment = Map<String, dynamic>.from(bookingRes['payment'] as Map);
+
+                    final bookingId = (booking['id'] as num).toInt();
+                    final amountStr = payment['amount'].toString();
+                    final amount = double.tryParse(amountStr) ?? 0.0;
+
+                    // CASH
+                    if (_paymentMethod.toUpperCase() == "CASH") {
+                      if (!mounted) return;
+                      Navigator.pop(context, true);
+                      return;
+                    }
+
+                    // ESEWA
+                    final refId = await EsewaPaymentService.pay(
+                      bookingId: bookingId,
+                      totalAmount: amount,
+                      productName: "Hamro Pani Tanker Booking",
+                    );
+
+                    // cancelled/failed cancel booking to free slot
+                    if (refId == null) {
+                      try {
+                        await TankerService.cancelBooking(token: token, bookingId: bookingId);
+                      } catch (_) {}
+
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Payment cancelled")),
+                      );
+                      return;
+                    }
+
+                    // verify mark payment PAID permanently in DB
+                    await TankerService.verifyEsewaPayment(
+                      token: token,
+                      bookingId: bookingId,
+                      refId: refId,
                     );
 
                     if (!mounted) return;

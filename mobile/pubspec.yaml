@@ -52,6 +52,7 @@ dependencies:
   flutter_riverpod: ^2.5.1
   provider: ^6.1.2
   image_picker: ^1.0.7
+  esewa_flutter_sdk: ^2.0.1
 
 
 dev_dependencies:
@@ -66,6 +67,11 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+
+dependency_overrides:
+    esewa_flutter_sdk:
+      path: third_party/esewa_flutter_sdk
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
