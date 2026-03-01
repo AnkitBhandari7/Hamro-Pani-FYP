@@ -1,0 +1,48 @@
+group 'com.f1soft.esewa.esewa_flutter_sdk'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+//repositories {
+  //  google()
+    //mavenCentral()
+
+    // ✅ local maven repo that contains esewasdk-release AAR
+   // maven { url uri("$projectDir/maven_repo") }
+//}
+
+android {
+    namespace "com.f1soft.esewa.esewa_flutter_sdk"
+    compileSdkVersion 36
+
+    defaultConfig {
+        minSdkVersion 16
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    // Match your app (Java/Kotlin 17)
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    // ✅ AAR as proper Maven dependency (not a local file dependency)
+    implementation "com.f1soft.esewa:esewasdk-release:1.0.0"
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.7.10"
+    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'androidx.appcompat:appcompat:1.3.1'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.9.1'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.9.1'
+}

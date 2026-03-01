@@ -2,11 +2,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
-
 import path from "path";
 import multer from "multer";
-
-
 import config from "./config/config.js";
 import authRoutes from "./auth/auth.routes.js";
 import profileRoutes from "./profile/profile.routes.js";
@@ -17,6 +14,7 @@ import vendorRoutes from "./vendors/vendor.routes.js";
 import bookingRoutes from "./bookings/tankerBooking.routes.js";
 import tankerRoutes from "./bookings/tanker/tanker.routes.js";
 import complaintRouter from "./complaints/complaint.routes.js";
+import paymentRoutes from "./payments/payment.routes.js";
 
 const app = express();
 
@@ -25,7 +23,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 
-// Serve uploaded images (profile photos)
+// Serve uploaded images
 app.use("/uploads", express.static(path.resolve("uploads")));
 
 if (config.corsOrigins === "*") {
@@ -50,6 +48,7 @@ app.use("/vendors", vendorRoutes);
 app.use("/bookings", bookingRoutes);
 app.use("/tankers", tankerRoutes);
 app.use("/complaints", complaintRouter);
+app.use("/payments", paymentRoutes);
 
 // with /api
 
@@ -72,7 +71,7 @@ app.use((req, res) => res.status(404).json({ error: "Route not found" }));
 app.use((err, _req, res, _next) => {
   console.error("Unhandled error:", err);
 
-  // Multer errors -
+  // Multer errors
   if (err instanceof multer.MulterError) {
     return res.status(400).json({ error: err.message });
   }

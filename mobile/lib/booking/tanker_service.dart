@@ -36,7 +36,7 @@ class TankerService {
     }
   }
 
-  // send paymentMethod
+  /// POST /tankers/book
   static Future<Map<String, dynamic>> bookTankerSlot({
     required String token,
     required int slotId,
@@ -60,5 +60,53 @@ class TankerService {
     }
 
     throw Exception('Booking failed: ${res.statusCode} - ${res.body}');
+  }
+
+  ///POST /payments/esewa/verify
+  static Future<Map<String, dynamic>> verifyEsewaPayment({
+    required String token,
+    required int bookingId,
+    required String refId,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/payments/esewa/verify'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        "bookingId": bookingId,
+        "refId": refId,
+      }),
+    );
+
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+
+    throw Exception('Verify failed: ${res.statusCode} - ${res.body}');
+  }
+
+  /// cancel booking if user cancels eSewa payment
+  /// This matches your booking controller: PATCH /bookings/:id/status
+  static Future<void> cancelBooking({
+    required String token,
+    required int bookingId,
+  }) async {
+    final res = await http.patch(
+      Uri.parse('$baseUrl/bookings/$bookingId/status'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({"status": "CANCELLED"}),
+    );
+
+    if (res.statusCode == 200) return;
+
+
+    throw Exception('Cancel failed: ${res.statusCode} - ${res.body}');
   }
 }
