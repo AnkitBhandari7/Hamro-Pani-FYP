@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import '../../core/routes/app_navigation.dart';
 import '../../core/routes/routes.dart';
-import 'package:fyp/models/notification_model.dart';
+import 'package:fyp/notifications/notification_model.dart';
 import 'package:fyp/notifications/notification_service.dart';
 import 'package:fyp/booking/tanker_service.dart';
 import 'package:fyp/complaint/detail/complaint_detail_screen.dart';
@@ -335,16 +335,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                               ],
                             ),
                             child: IconButton(
-                              onPressed: () {
-                                showModalBottomSheet(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-                                  ),
-                                  builder: (_) => _NotificationSheet(notifications: notifications),
-                                );
-                              },
+                              onPressed: () => Navigator.pushNamed(context, AppRoutes.notifications),
                               icon: const Icon(Icons.notifications_none, size: 26),
                             ),
                           ),

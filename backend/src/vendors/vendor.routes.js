@@ -18,6 +18,7 @@ import {
 
   // vendor profile endpoints
   getVendorProfileMe,
+  getVendorDeliveries,
   updateVendorProfileMe,
   uploadVendorPhotoMe,
   deleteVendorPhotoMe,
@@ -103,4 +104,5 @@ router.get("/slots/ward/:ward", listSlotsByWardAndDate);
 // Confirm/Decline booking request
 router.patch("/requests/:bookingId", authenticateFirebase, updateBookingStatus);
 
+router.get("/deliveries", authenticateFirebase, getVendorDeliveries);
 export default router;
