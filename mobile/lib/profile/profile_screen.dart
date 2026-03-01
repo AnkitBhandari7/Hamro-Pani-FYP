@@ -1,15 +1,19 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
-
 import '../../core/routes/app_navigation.dart';
 import '../../core/routes/routes.dart';
 import 'package:fyp/notifications/fcm_service.dart';
+import 'package:fyp/booking/history/my_bookings_history_screen.dart';
+import 'package:fyp/booking/detail/booking_detail_screen.dart';
+import 'package:fyp/complaint/detail/complaint_detail_screen.dart';
+
+
+
 
 class BookingModel {
   final int id;
@@ -583,7 +587,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
 
-                      // Delete photo (only if exists)
+                      // Delete photo
                       if (photoUrl.isNotEmpty)
                         Positioned(
                           left: 2,
@@ -642,9 +646,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 32),
 
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text("Recent Activity", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Recent Activity", style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+                  TextButton(
+                    onPressed: () {
+                      // "See all" for bookings history screen
+                      if (selectedTab == 0) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MyBookingsHistoryScreen()),
+                        );
+                      } else {
+                        // Optional: if you later create complaints history screen, navigate there.
+                        _showSnackBar("Complaints history screen not added yet", isError: false);
+                      }
+                    },
+                    child: Text("See all", style: GoogleFonts.poppins(color: Colors.blue, fontWeight: FontWeight.w600)),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
 
@@ -673,7 +694,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         "${b.routeLocation ?? "-"} • ${_formatTimeRange(b.slotStartTime, b.slotEndTime)} • ${_formatDate(b.createdAt)}",
                         status: b.status,
                         statusColor: _bookingStatusColor(b.status),
-                        onTap: () {},
+
+                        // OPEN Booking Detail
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: b.id)),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -690,10 +718,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         subtitle: "Complaint #${i.id} • ${_formatDate(i.createdAt)}",
                         status: i.status,
                         statusColor: _issueStatusColor(i.status),
+
+                        // OPEN Complaint Detail
                         onTap: () {
-                          if (i.message != null && i.message!.isNotEmpty) {
-                            _showSnackBar(i.message!, isError: false);
-                          }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ComplaintDetailScreen(complaintId: i.id)),
+                          );
                         },
                       ),
                     ),

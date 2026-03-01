@@ -189,3 +189,42 @@ export async function updateBookingStatus(req, res) {
     return res.status(500).json({ error: "Failed to update booking status" });
   }
 }
+
+// GET /bookings/:id
+export async function getBookingDetail(req, res) {
+  const userId = Number(req.auth?.sub);
+  if (!userId || Number.isNaN(userId)) return res.status(401).json({ error: "Unauthorized" });
+
+  const bookingId = Number(req.params.id);
+  if (!Number.isFinite(bookingId)) return res.status(400).json({ error: "Invalid booking id" });
+
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        payment: true,
+        statusHistory: { orderBy: { changedAt: "asc" } },
+        slot: {
+          include: {
+            route: {
+              include: {
+                ward: true,
+                vendor: { include: { user: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    // Resident can only see own booking
+    if (booking.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+    return res.json(booking);
+  } catch (e) {
+    console.error("getBookingDetail error:", e);
+    return res.status(500).json({ error: "Failed to load booking detail" });
+  }
+}

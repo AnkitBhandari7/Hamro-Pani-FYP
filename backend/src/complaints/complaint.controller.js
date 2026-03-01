@@ -96,7 +96,6 @@ export async function createComplaint(req, res) {
         await tx.complaintPhoto.createMany({ data: rows });
       }
 
-      // fetch photos for response
       const photos = await tx.complaintPhoto.findMany({
         where: { complaintId: complaint.id },
         orderBy: { id: "asc" },
@@ -126,6 +125,9 @@ export async function createComplaint(req, res) {
   }
 }
 
+/**
+ * GET /complaints/my
+ */
 export async function getMyComplaints(req, res) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -157,6 +159,84 @@ export async function getMyComplaints(req, res) {
   }
 }
 
+/**
+ * GET /complaints/:id  (Complaint Detail)
+ */
+export async function getComplaintDetail(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const complaintId = Number(req.params.id);
+  if (!Number.isFinite(complaintId)) return res.status(400).json({ error: "Invalid complaint id" });
+
+  try {
+    const complaint = await prisma.complaint.findUnique({
+      where: { id: complaintId },
+      include: {
+        photos: true,
+        booking: {
+          include: {
+            slot: {
+              include: {
+                route: {
+                  include: {
+                    ward: true,
+                    vendor: { include: { user: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!complaint) return res.status(404).json({ error: "Complaint not found" });
+
+    // Resident can only view their own complaint
+    if (complaint.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+    const route = complaint.booking?.slot?.route;
+    const vendorName = route?.vendor?.user?.name ?? "Vendor";
+    const routeLocation = route?.location ?? "";
+    const wardName = route?.ward?.wardName ?? "";
+
+    return res.json({
+      id: complaint.id,
+      status: complaint.status,
+      createdAt: complaint.createdAt,
+      updatedAt: complaint.updatedAt,
+      bookingId: complaint.bookingId,
+      message: complaint.message,
+
+      // helpful extra data for UI
+      booking: complaint.booking
+        ? {
+            id: complaint.booking.id,
+            status: complaint.booking.status,
+            createdAt: complaint.booking.createdAt,
+            vendorName,
+            routeLocation,
+            wardName,
+            slotStartTime: complaint.booking.slot?.startTime ?? null,
+            slotEndTime: complaint.booking.slot?.endTime ?? null,
+          }
+        : null,
+
+      photos: (complaint.photos || []).map((p) => ({
+        id: p.id,
+        photoUrl: toAbsoluteUrl(req, p.photoUrl),
+      })),
+    });
+  } catch (e) {
+    console.error("getComplaintDetail error:", e);
+    return res.status(500).json({ error: "Failed to load complaint detail" });
+  }
+}
+
+/**
+ * PATCH /complaints/:id/status
+ */
 export async function updateComplaintStatus(req, res) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });

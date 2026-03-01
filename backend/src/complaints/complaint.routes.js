@@ -7,6 +7,7 @@ import fs from "fs";
 import {
   createComplaint,
   getMyComplaints,
+  getComplaintDetail,
   updateComplaintStatus,
 } from "./complaint.controller.js";
 
@@ -37,7 +38,7 @@ router.post(
 );
 
 router.get("/my", authenticateFirebase, getMyComplaints);
-
+router.get("/:id", authenticateFirebase, getComplaintDetail);
 router.patch("/:id/status", authenticateFirebase, updateComplaintStatus);
 
 export default router;
