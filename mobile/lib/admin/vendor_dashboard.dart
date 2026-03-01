@@ -1,16 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
-
 import 'package:fyp/core/routes/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:intl/intl.dart';
-
 import 'package:fyp/services/api_service.dart';
-import 'package:fyp/models/notification_model.dart';
+import 'package:fyp/notifications/notification_model.dart';
 import 'package:fyp/notifications/notification_service.dart';
+import 'package:fyp/admin/features/deliveries/history/vendor_delivery_history_screen.dart';
+
 
 class VendorDashboardScreen extends StatefulWidget {
   const VendorDashboardScreen({super.key});
@@ -103,29 +103,35 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
     }
   }
 
-  bool _isTodayLocal(DateTime dt) {
-    final now = DateTime.now();
-    final d = dt.toLocal();
-    return d.year == now.year && d.month == now.month && d.day == now.day;
+  /// Active route = current time is within latest slot's startTime/endTime
+  bool _isActiveSlotNow(Map<String, dynamic> r) {
+    final start = _parseDateTime(r['startTime']);
+    final end = _parseDateTime(r['endTime']);
+    if (start == null || end == null) return false;
+
+    final now = DateTime.now().toLocal();
+    final s = start.toLocal();
+    final e = end.toLocal();
+
+    return (now.isAfter(s) || now.isAtSameMomentAs(s)) &&
+        (now.isBefore(e) || now.isAtSameMomentAs(e));
   }
 
-  bool _isActiveRouteFromData(Map<String, dynamic> r) {
-    final rd = _parseDateTime(r['routeDate']);
-    if (rd == null) return false;
-    return _isTodayLocal(rd);
+  /// show requests only within last 24 hours
+  bool _isWithinLast24Hours(dynamic createdAtRaw) {
+    final dt = _parseDateTime(createdAtRaw);
+    if (dt == null) return false;
+    final cutoff = DateTime.now().toLocal().subtract(const Duration(hours: 24));
+    return dt.toLocal().isAfter(cutoff);
   }
 
-  String _uiStatus(Map<String, dynamic> r) {
-    return _isActiveRouteFromData(r) ? "Active" : "Scheduled";
-  }
-
-  // Sort so latest slot routes show first AND Active first (based on routeDate)
+  // Sort so latest slot routes show first AND Active (NOW) first
   List<Map<String, dynamic>> _sortRoutesForUi(List<Map<String, dynamic>> input) {
     final list = [...input];
 
     list.sort((a, b) {
-      final aActive = _isActiveRouteFromData(a);
-      final bActive = _isActiveRouteFromData(b);
+      final aActive = _isActiveSlotNow(a);
+      final bActive = _isActiveSlotNow(b);
       if (aActive != bActive) return aActive ? -1 : 1;
 
       // Prefer endTime (latest slot ends later), fallback startTime, fallback routeDate
@@ -402,9 +408,11 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
     final showCompany = companyName.trim().isNotEmpty ? companyName.trim() : "Vendor Company";
     final showContact = contactName.trim().isNotEmpty ? contactName.trim() : "Vendor";
 
-    //  Active based on routeDate (not backend status)
-    final activeRoutes = routes.where(_isActiveRouteFromData).toList();
-    final scheduledRoutes = routes.where((r) => !_isActiveRouteFromData(r)).toList();
+    // Active routes only based on slot time
+    final activeRoutes = routes.where(_isActiveSlotNow).toList();
+
+    // Requests only last 24 hours
+    final recentRequests = requests.where((rq) => _isWithinLast24Hours(rq['createdAt'])).toList();
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -456,7 +464,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                     ),
                     IconButton(
                       icon: Icon(Icons.notifications_outlined, size: 28.w),
-                      onPressed: _showNotifications,
+                      onPressed: () => Navigator.pushNamed(context, AppRoutes.notifications),
                     ),
                   ],
                 ),
@@ -494,20 +502,12 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                   _emptyInfoCard(
                     icon: Icons.route_outlined,
                     title: "No active routes",
-                    subtitle: "Open a slot for today to show here.",
+                    subtitle: "Your slot will appear here only during its time window.",
                   )
                 else
                   Column(
                     children: activeRoutes.map((r) => _routeCard(r)).toList(),
                   ),
-
-                SizedBox(height: 18.h),
-
-                if (!loadingRoutes && scheduledRoutes.isNotEmpty) ...[
-                  Text("Scheduled Routes", style: GoogleFonts.poppins(fontSize: 16.sp, fontWeight: FontWeight.w600)),
-                  SizedBox(height: 12.h),
-                  Column(children: scheduledRoutes.map((r) => _routeCard(r)).toList()),
-                ],
 
                 SizedBox(height: 24.h),
 
@@ -521,15 +521,15 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
 
                 if (loadingRequests)
                   const Center(child: CircularProgressIndicator())
-                else if (requests.isEmpty)
+                else if (recentRequests.isEmpty)
                   _emptyInfoCard(
                     icon: Icons.receipt_long_outlined,
                     title: "No requests",
-                    subtitle: "Requests appear when residents book your slots.",
+                    subtitle: "Only requests from the last 24 hours will appear here.",
                   )
                 else
                   Column(
-                    children: requests.map((rq) {
+                    children: recentRequests.map((rq) {
                       final int bookingId = (rq['bookingId'] is num)
                           ? (rq['bookingId'] as num).toInt()
                           : int.tryParse((rq['bookingId'] ?? rq['id'] ?? "0").toString()) ?? 0;
@@ -631,7 +631,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
           ),
         ),
       ),
-
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Navigator.of(context).pushNamed(AppRoutes.manageSlots);
@@ -642,7 +641,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
         child: Icon(Icons.add, size: 32.w),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
         notchMargin: 8,
@@ -651,7 +649,20 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
             _bottomItem(Icons.home, "Home", true, onTap: () {}),
             _bottomItem(Icons.route, "Routes", false, onTap: () {}),
             SizedBox(width: 40.w),
-            _bottomItem(Icons.history, "History", false, onTap: () {}),
+
+            // Open Delivery History screen
+            _bottomItem(
+              Icons.history,
+              "History",
+              false,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const VendorDeliveryHistoryScreen()),
+                );
+              },
+            ),
+
             _bottomItem(
               Icons.person,
               "Profile",
@@ -671,8 +682,8 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
     final wardName = (r['wardName'] ?? "-").toString();
     final location = (r['location'] ?? "-").toString();
 
-    // status derived from routeDate
-    final status = _uiStatus(r);
+    // Since we only show active routes, status is always Active
+    const status = "Active";
 
     final percent = (r['percentBooked'] ?? 0) is num ? (r['percentBooked'] as num).toInt() : 0;
 
@@ -702,7 +713,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
                 decoration: BoxDecoration(
-                  color: status.toLowerCase() == "active" ? Colors.green[100] : Colors.grey[200],
+                  color: Colors.green[100],
                   borderRadius: BorderRadius.circular(20.r),
                 ),
                 child: Text(status, style: GoogleFonts.poppins(fontSize: 12.sp)),

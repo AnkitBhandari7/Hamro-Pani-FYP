@@ -13,6 +13,7 @@ import 'package:fyp/booking/new_schedule.dart';
 import 'package:fyp/booking/create_slot.dart';
 import 'package:fyp/features/complaints/report_issue_screen.dart';
 import 'package:fyp/admin/send_notice.dart';
+import 'package:fyp/notifications/notification_model.dart';
 
 class AppNavigation {
   static String? wardNameFrom(Object? ward) {
@@ -79,7 +80,7 @@ class AppNavigation {
         return MaterialPageRoute(builder: (_) => const OrderScreen());
 
       case AppRoutes.notifications:
-        return MaterialPageRoute(builder: (_) => const NotificationScreen());
+        return MaterialPageRoute(builder: (_) => const NotificationsScreen());
 
       case AppRoutes.vendorProfile:
         return MaterialPageRoute(builder: (_) => const VendorProfileScreen());

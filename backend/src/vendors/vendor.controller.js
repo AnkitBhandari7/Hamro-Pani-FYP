@@ -41,7 +41,7 @@ function parseClientDateTimeOrThrow(raw, fieldName = "dateTime") {
   return d;
 }
 
-// For routeDate (yyyy-MM-dd) avoid JS Date UTC parsing issues:
+// For routeDate (yyyy-MM-dd) avoid JS Date UTC parsing
 function parseDateOnlyOrDefault(raw) {
   if (!raw) return new Date();
   const s = String(raw).trim();
@@ -50,7 +50,7 @@ function parseDateOnlyOrDefault(raw) {
   const y = Number(m[1]);
   const mo = Number(m[2]) - 1;
   const d = Number(m[3]);
-  return new Date(y, mo, d); // local midnight
+  return new Date(y, mo, d);
 }
 
 function startOfToday() {
@@ -161,10 +161,8 @@ function sortRoutesForDashboardUi(list) {
   });
 }
 
-/**
- *
- * Touch route so it moves to top of dashboard when slot changes.
-
+/*
+ * Touch route so it moves to top of dashboard when slot changes
  */
 async function touchRoute(routeId, tx = prisma) {
   await tx.route.update({
@@ -291,6 +289,104 @@ export async function getVendorDashboard(req, res) {
   } catch (e) {
     console.error("getVendorDashboard error:", e);
     return res.status(500).json({ error: "Failed to load vendor dashboard" });
+  }
+}
+
+
+// Vendor Deliveries (History)
+// GET /vendors/deliveries
+
+
+function paymentLabel(payment) {
+  if (!payment) return "Not applicable";
+  const m = String(payment.method || "").toUpperCase();
+  if (m === "ESEWA") return "Paid via eSewa";
+  if (m === "CASH") return "Cash on Delivery";
+  return payment.method || "Not applicable";
+}
+
+function bookingToDelivery(b) {
+  const status = String(b.status || "PENDING").toUpperCase();
+
+
+  let uiStatus = "PENDING";
+  if (status === "COMPLETED") uiStatus = "DELIVERED";
+  else if (status === "CANCELLED") uiStatus = "CANCELLED";
+
+
+  const dt = (status === "COMPLETED" ? b.updatedAt : b.createdAt) || b.createdAt;
+
+  return {
+    bookingId: b.id,
+    customerName: b.user?.name || "Resident",
+    address: b.slot?.route?.location || "",
+    status: uiStatus,
+    dateTime: dt,
+    quantityLiters: b.slot?.tankerCapacityLiters ?? 12000,
+    paymentMethod: paymentLabel(b.payment),
+  };
+}
+
+export async function getVendorDeliveries(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const limitRaw = Number(req.query.limit || 100);
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, limitRaw)) : 100;
+
+  try {
+
+    const vendor = await prisma.vendor.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!vendor) return res.status(403).json({ error: "Vendor profile not found" });
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        slot: { route: { vendorId: vendor.id } },
+      },
+      include: {
+        user: { select: { id: true, name: true } },
+        payment: true,
+        slot: { include: { route: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+    });
+
+    const deliveries = bookings.map(bookingToDelivery);
+
+    const deliveredBookings = bookings.filter(
+      (b) => String(b.status || "").toUpperCase() === "COMPLETED"
+    );
+
+    const totalDeliveries = deliveredBookings.length;
+
+    const totalEarnings = deliveredBookings.reduce((sum, b) => {
+      const amt = b.payment?.amount;
+
+      // Prisma Decimal handling
+      const n =
+        amt && typeof amt.toNumber === "function"
+          ? amt.toNumber()
+          : Number(amt ?? 0);
+
+      return sum + (Number.isFinite(n) ? n : 0);
+    }, 0);
+
+    return res.json({
+      stats: {
+        totalDeliveries,
+        totalEarnings,
+        avgRating: 4.8,
+      },
+      deliveries,
+    });
+  } catch (e) {
+    console.error("getVendorDeliveries error:", e);
+    return res.status(500).json({ error: "Failed to load vendor deliveries" });
   }
 }
 
@@ -421,7 +517,7 @@ export async function createSlot(req, res) {
     // TOUCH route so /vendors/dashboard sees it first
     await touchRoute(routeId);
 
-    // Notification (optional)
+    // Notification
     const shouldNotify = notifyResidents !== false;
     let notificationResult = null;
 
@@ -825,7 +921,7 @@ function toAbsoluteUrl(req, storedPath) {
   return `${base}${p}`;
 }
 
-// Delete old image file if it is under /uploads/
+
 function getUploadAbsolutePathFromStoredUrl(stored) {
   if (!stored) return null;
   const s = String(stored);

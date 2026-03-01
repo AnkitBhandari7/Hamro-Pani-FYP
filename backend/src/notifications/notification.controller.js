@@ -3,9 +3,8 @@ import fcmService from "./fcmservice.js";
 
 /*
   GET /notifications
-  return a flat list for Flutter NotificationScreen
-
 */
+
 export async function getNotifications(req, res) {
   const userId = Number(req.auth?.sub);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -45,6 +44,52 @@ export async function getNotifications(req, res) {
   }
 }
 
+// PATCH /notifications/:id/read
+export async function markNotificationRead(req, res) {
+  const userId = Number(req.auth?.sub);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const notificationId = Number(req.params.id);
+  if (!Number.isFinite(notificationId)) {
+    return res.status(400).json({ error: "Invalid notification id" });
+  }
+
+  try {
+    // mark all rows for this user+notification as read
+    const updated = await prisma.notificationRecipient.updateMany({
+      where: {
+        userId,
+        notificationId,
+        isRead: false,
+      },
+      data: { isRead: true },
+    });
+
+    return res.json({ success: true, updatedCount: updated.count });
+  } catch (e) {
+    console.error("markNotificationRead error:", e);
+    return res.status(500).json({ error: "Failed to mark notification read" });
+  }
+}
+
+// POST /notifications/mark-all-read
+export async function markAllNotificationsRead(req, res) {
+  const userId = Number(req.auth?.sub);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const updated = await prisma.notificationRecipient.updateMany({
+      where: { userId, isRead: false },
+      data: { isRead: true },
+    });
+
+    return res.json({ success: true, updatedCount: updated.count });
+  } catch (e) {
+    console.error("markAllNotificationsRead error:", e);
+    return res.status(500).json({ error: "Failed to mark all notifications read" });
+  }
+}
+
 /*
   POST /notifications
   - Only ward admin can create
@@ -68,7 +113,7 @@ export async function createNotification(req, res) {
   const {
     title,
     message,
-    recipient = "resident",   // resident | vendor | both
+    recipient = "resident",
     wardId,
     push = true,
     type = "GENERAL",
