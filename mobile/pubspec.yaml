@@ -53,6 +53,12 @@ dependencies:
   provider: ^6.1.2
   image_picker: ^1.0.7
   esewa_flutter_sdk: ^2.0.1
+  pdf: ^3.10.8
+  printing: ^5.13.4
+  path_provider: ^2.1.4
+  flutter_file_dialog: ^3.0.2
+  file_selector: ^1.0.3
+  file_saver: ^0.2.14
 
 
 dev_dependencies:
@@ -88,6 +94,8 @@ flutter:
 
     - assets/images/
     - assets/icons/
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Bold.ttf
     #- assets/images/google_logo.webp
     #- assets/images/hamropani_logo.png
     #- assets/images/tanker1.png

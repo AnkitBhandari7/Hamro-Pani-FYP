@@ -16,7 +16,7 @@ class ManageSlotsScreen extends ConsumerStatefulWidget {
 class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
   final TextEditingController _bookingSlotsController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
-  final TextEditingController _tankerLitersController = TextEditingController(); // ✅ NEW
+  final TextEditingController _tankerLitersController = TextEditingController();
   final TextEditingController _routeController = TextEditingController();
 
   @override
@@ -78,13 +78,31 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
       _priceController.clear();
       _tankerLitersController.clear();
       _routeController.clear();
-      controller.resetForm(); // clears selected time
+      controller.resetForm();
+    }
+
+    // ✅ Friendly dialog for overlap
+    if (error != null && error.toLowerCase().contains("slot already exists")) {
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text("Cannot Publish Slot", style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          content: Text(error, style: GoogleFonts.poppins()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("OK", style: GoogleFonts.poppins(color: Colors.blue)),
+            ),
+          ],
+        ),
+      );
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(error ?? 'Slot published successfully'),
         backgroundColor: error == null ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -105,11 +123,10 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
 
     final slotsCtrl = TextEditingController(text: (slot['total'] ?? '').toString());
     final priceCtrl = TextEditingController(text: (slot['price'] ?? '').toString());
-    final litersCtrl = TextEditingController(text: (slot['tankerCapacityLiters'] ?? '12000').toString()); // ✅ NEW
+    final litersCtrl = TextEditingController(text: (slot['tankerCapacityLiters'] ?? '12000').toString());
 
     final startDt = _asLocalDateTime(slot['startDt'] ?? slot['startTime']);
-    TimeOfDay pickedTime =
-    startDt != null ? TimeOfDay.fromDateTime(startDt) : TimeOfDay.now();
+    TimeOfDay pickedTime = startDt != null ? TimeOfDay.fromDateTime(startDt) : TimeOfDay.now();
 
     final ok = await showDialog<bool>(
       context: context,
@@ -121,9 +138,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: Text('Start: ${pickedTime.format(context)}', style: GoogleFonts.poppins()),
-                  ),
+                  Expanded(child: Text('Start: ${pickedTime.format(context)}', style: GoogleFonts.poppins())),
                   TextButton(
                     onPressed: () async {
                       final t = await showTimePicker(context: context, initialTime: pickedTime);
@@ -137,22 +152,9 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-
-              TextField(
-                controller: litersCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Tanker Capacity (Liters)'),
-              ),
-              TextField(
-                controller: slotsCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Booking Slots'),
-              ),
-              TextField(
-                controller: priceCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Price (NPR)'),
-              ),
+              TextField(controller: litersCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Tanker Capacity (Liters)')),
+              TextField(controller: slotsCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Booking Slots')),
+              TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Price (NPR)')),
             ],
           ),
           actions: [
@@ -171,9 +173,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
 
     if (newSlots == null || newSlots <= 0 || newPrice == null || newPrice <= 0 || newLiters == null || newLiters <= 0) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid inputs'), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid inputs'), backgroundColor: Colors.red));
       return;
     }
 
@@ -193,10 +193,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(err ?? 'Slot updated'),
-        backgroundColor: err == null ? Colors.green : Colors.red,
-      ),
+      SnackBar(content: Text(err ?? 'Slot updated'), backgroundColor: err == null ? Colors.green : Colors.red),
     );
   }
 
@@ -300,7 +297,6 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
 
           SizedBox(height: 16.h),
 
-          // ✅ NEW liters
           Text('TANKER CAPACITY (LITERS)', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600])),
           SizedBox(height: 8.h),
           TextField(
@@ -314,7 +310,6 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
           ),
           SizedBox(height: 12.h),
 
-          // booking slots
           Text('TOTAL BOOKING SLOTS', style: GoogleFonts.poppins(fontSize: 12.sp, color: Colors.grey[600])),
           SizedBox(height: 8.h),
           TextField(
@@ -487,7 +482,6 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
           Text("Location: $location", style: GoogleFonts.poppins(color: Colors.grey[700])),
           SizedBox(height: 8.h),
 
-          // Separate slots + tanker liters
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -535,10 +529,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
                     final err = await controller.markFull(slotId, location);
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(err ?? 'Marked full'),
-                        backgroundColor: err == null ? Colors.green : Colors.red,
-                      ),
+                      SnackBar(content: Text(err ?? 'Marked full'), backgroundColor: err == null ? Colors.green : Colors.red),
                     );
                   },
                   icon: const Icon(Icons.block, color: Colors.orange),
@@ -549,10 +540,7 @@ class _ManageSlotsScreenState extends ConsumerState<ManageSlotsScreen> {
                   final err = await controller.deleteSlot(slotId);
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(err ?? 'Slot cancelled'),
-                      backgroundColor: err == null ? Colors.green : Colors.red,
-                    ),
+                    SnackBar(content: Text(err ?? 'Slot cancelled'), backgroundColor: err == null ? Colors.green : Colors.red),
                   );
                 },
                 icon: const Icon(Icons.cancel, color: Colors.red),

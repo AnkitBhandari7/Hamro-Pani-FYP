@@ -172,6 +172,33 @@ async function touchRoute(routeId, tx = prisma) {
   });
 }
 
+function minutesDiff(a, b) {
+  return Math.round((b.getTime() - a.getTime()) / 60000);
+}
+
+/**
+ * Overlap rule:
+ * existing.startTime < newEndTime AND existing.endTime > newStartTime
+ */
+async function findOverlappingSlot({
+  vendorId,
+  wardId,
+  startTime,
+  endTime,
+  excludeSlotId = null,
+  tx = prisma,
+}) {
+  return tx.slot.findFirst({
+    where: {
+      ...(excludeSlotId ? { NOT: { id: excludeSlotId } } : {}),
+      route: { vendorId, wardId },
+      startTime: { lt: endTime },
+      endTime: { gt: startTime },
+    },
+    select: { id: true, routeId: true, startTime: true, endTime: true },
+  });
+}
+
 /*
   GET /vendors/dashboard
    only routes with slots
@@ -503,6 +530,32 @@ export async function createSlot(req, res) {
     const endDt = parseClientDateTimeOrThrow(endTime, "endTime");
     if (endDt <= startDt) return res.status(400).json({ error: "endTime must be after startTime" });
 
+    // ✅ enforce 2 hours delivery window
+    const durMin = minutesDiff(startDt, endDt);
+    if (durMin !== 120) {
+      return res.status(400).json({ error: "Slot duration must be exactly 2 hours" });
+    }
+
+    // ✅ block overlapping slot for same vendor + same ward
+    const conflict = await findOverlappingSlot({
+      vendorId: vendor.id,
+      wardId: route.wardId,
+      startTime: startDt,
+      endTime: endDt,
+    });
+
+    if (conflict) {
+      return res.status(409).json({
+        error: "You already have a delivery slot for this ward during this time window",
+        conflict: {
+          slotId: conflict.id,
+          routeId: conflict.routeId,
+          startTime: conflict.startTime,
+          endTime: conflict.endTime,
+        },
+      });
+    }
+
     const slot = await prisma.slot.create({
       data: {
         routeId,
@@ -656,11 +709,52 @@ export async function updateSlot(req, res) {
       return res.status(400).json({ error: "Invalid tankerCapacityLiters" });
     }
 
+    // ✅ NEW: compute final times for overlap + duration check
+    const nextStart = startTime
+      ? parseClientDateTimeOrThrow(startTime, "startTime")
+      : slot.startTime;
+
+    const nextEnd = endTime
+      ? parseClientDateTimeOrThrow(endTime, "endTime")
+      : slot.endTime;
+
+    if (nextEnd <= nextStart) {
+      return res.status(400).json({ error: "endTime must be after startTime" });
+    }
+
+    // ✅ enforce 2 hours
+    const durMin = minutesDiff(nextStart, nextEnd);
+    if (durMin !== 120) {
+      return res.status(400).json({ error: "Slot duration must be exactly 2 hours" });
+    }
+
+    // ✅ block overlapping slot in same ward for same vendor
+    const conflict = await findOverlappingSlot({
+      vendorId: vendor.id,
+      wardId: slot.route.wardId,
+      startTime: nextStart,
+      endTime: nextEnd,
+      excludeSlotId: slot.id,
+    });
+
+    if (conflict) {
+      return res.status(409).json({
+        error: "Slot overlaps another existing slot in the same ward",
+        conflict: {
+          slotId: conflict.id,
+          routeId: conflict.routeId,
+          startTime: conflict.startTime,
+          endTime: conflict.endTime,
+        },
+      });
+    }
+
+    // ✅ update after validation passed
     const updated = await prisma.slot.update({
       where: { id: slotId },
       data: {
-        startTime: startTime ? parseClientDateTimeOrThrow(startTime, "startTime") : undefined,
-        endTime: endTime ? parseClientDateTimeOrThrow(endTime, "endTime") : undefined,
+        startTime: startTime ? nextStart : undefined,
+        endTime: endTime ? nextEnd : undefined,
         capacity: capNum == null ? undefined : capNum,
         price: priceNum == null ? undefined : priceNum,
         tankerCapacityLiters: litersNum == null ? undefined : litersNum,

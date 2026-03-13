@@ -1,4 +1,6 @@
 
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +11,36 @@ class CreateSlotService {
   const CreateSlotService(this._dio);
   final Dio _dio;
 
+
+
+  Map<String, dynamic> _normalizeErrorBody(dynamic data) {
+    if (data is Map) return Map<String, dynamic>.from(data);
+    if (data is String) {
+      // if backend returned stringified json, try decode
+      try {
+        final decoded = jsonDecode(data);
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+      return {'error': data};
+    }
+    return {'error': data?.toString() ?? 'Unknown error'};
+  }
+
+  Never _throwApiError(DioException e) {
+    final status = e.response?.statusCode;
+
+    if (e.response == null) {
+      // No response
+      throw Exception('Network error: ${e.message ?? 'Please try again.'}');
+    }
+
+    final body = _normalizeErrorBody(e.response?.data);
+
+    //  controller can parse it and show conflict times nicely.
+    throw Exception('HTTP $status: ${jsonEncode(body)}');
+  }
+
+  // Response unwrap
 
   Map<String, dynamic> _unwrapSlot(dynamic data) {
     if (data is Map) {
@@ -27,10 +59,16 @@ class CreateSlotService {
     throw Exception('Unexpected response format (expected Map)');
   }
 
+  // API calls
+
   Future<List<Map<String, dynamic>>> fetchMyRoutes() async {
-    final response = await _dio.get('/vendors/routes/my');
-    final list = response.data as List<dynamic>;
-    return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    try {
+      final response = await _dio.get('/vendors/routes/my');
+      final list = response.data as List<dynamic>;
+      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } on DioException catch (e) {
+      _throwApiError(e);
+    }
   }
 
   Future<Map<String, dynamic>> createRoute({
@@ -39,20 +77,24 @@ class CreateSlotService {
     required DateTime routeDate,
     required String location,
   }) async {
-    final response = await _dio.post(
-      '/vendors/routes',
-      data: {
-        if (wardId != null) 'wardId': wardId,
-        if (ward != null && ward.trim().isNotEmpty) 'ward': ward.trim(),
-        'routeDate': DateFormat('yyyy-MM-dd').format(routeDate),
-        'location': location.trim(),
-      },
-    );
+    try {
+      final response = await _dio.post(
+        '/vendors/routes',
+        data: {
+          if (wardId != null) 'wardId': wardId,
+          if (ward != null && ward.trim().isNotEmpty) 'ward': ward.trim(),
+          'routeDate': DateFormat('yyyy-MM-dd').format(routeDate),
+          'location': location.trim(),
+        },
+      );
 
-    return Map<String, dynamic>.from(response.data as Map);
+      return Map<String, dynamic>.from(response.data as Map);
+    } on DioException catch (e) {
+      _throwApiError(e);
+    }
   }
 
-  //  create slot (booking slots + price + tanker liters)
+  /// create slot (booking slots + price + tanker liters)
   Future<Map<String, dynamic>> createSlot({
     required int routeId,
     required DateTime startTime,
@@ -61,21 +103,25 @@ class CreateSlotService {
     required int price,
     required int tankerCapacityLiters,
   }) async {
-    final response = await _dio.post(
-      '/vendors/routes/$routeId/slots',
-      data: {
-        'startTime': startTime.toUtc().toIso8601String(),
-        'endTime': endTime.toUtc().toIso8601String(),
-        'capacity': bookingSlots, // backend uses "capacity" for booking slots
-        'price': price,
-        'tankerCapacityLiters': tankerCapacityLiters,
-      },
-    );
+    try {
+      final response = await _dio.post(
+        '/vendors/routes/$routeId/slots',
+        data: {
+          'startTime': startTime.toUtc().toIso8601String(),
+          'endTime': endTime.toUtc().toIso8601String(),
+          'capacity': bookingSlots,
+          'price': price,
+          'tankerCapacityLiters': tankerCapacityLiters,
+        },
+      );
 
-    return _unwrapSlot(response.data);
+      return _unwrapSlot(response.data);
+    } on DioException catch (e) {
+      _throwApiError(e); // this will throw HTTP 409
+    }
   }
 
-  // update slot
+  /// update slot
   Future<Map<String, dynamic>> updateSlot({
     required int slotId,
     DateTime? startTime,
@@ -84,30 +130,43 @@ class CreateSlotService {
     int? price,
     int? tankerCapacityLiters,
   }) async {
-    final response = await _dio.patch(
-      '/vendors/slots/$slotId',
-      data: {
-        if (startTime != null) 'startTime': startTime.toUtc().toIso8601String(),
-        if (endTime != null) 'endTime': endTime.toUtc().toIso8601String(),
-        if (bookingSlots != null) 'capacity': bookingSlots,
-        if (price != null) 'price': price,
-        if (tankerCapacityLiters != null) 'tankerCapacityLiters': tankerCapacityLiters,
-      },
-    );
+    try {
+      final response = await _dio.patch(
+        '/vendors/slots/$slotId',
+        data: {
+          if (startTime != null) 'startTime': startTime.toUtc().toIso8601String(),
+          if (endTime != null) 'endTime': endTime.toUtc().toIso8601String(),
+          if (bookingSlots != null) 'capacity': bookingSlots,
+          if (price != null) 'price': price,
+          if (tankerCapacityLiters != null) 'tankerCapacityLiters': tankerCapacityLiters,
+        },
+      );
 
-    return _unwrapSlot(response.data);
+      return _unwrapSlot(response.data);
+    } on DioException catch (e) {
+      _throwApiError(e);
+    }
   }
 
   Future<Map<String, dynamic>> markSlotFull(int slotId) async {
-    final response = await _dio.patch('/vendors/slots/$slotId/mark-full');
-    return _unwrapSlot(response.data);
+    try {
+      final response = await _dio.patch('/vendors/slots/$slotId/mark-full');
+      return _unwrapSlot(response.data);
+    } on DioException catch (e) {
+      _throwApiError(e);
+    }
   }
 
   Future<void> deleteSlot(int slotId) async {
-    await _dio.delete('/vendors/slots/$slotId');
+    try {
+      await _dio.delete('/vendors/slots/$slotId');
+    } on DioException catch (e) {
+      _throwApiError(e);
+    }
   }
 
   // UI helpers
+
   String buildDateLabel(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -126,7 +185,7 @@ class CreateSlotService {
   }
 }
 
-//Providers
+//  Providers
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) => FirebaseAuth.instance);
 

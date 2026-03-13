@@ -1,13 +1,17 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
 import 'create_slot_service.dart';
 
 class CreateSlotState {
   final String selectedDateFilter; // Today | Tomorrow
   final TimeOfDay? selectedStartTime;
 
-  final List<Map<String, dynamic>> routes; // raw backend routes
-  final List<Map<String, dynamic>> slots; // UI-ready slots
+  final List<Map<String, dynamic>> routes;
+  final List<Map<String, dynamic>> slots;
 
   final bool isLoading;
   final bool isPublishing;
@@ -50,7 +54,6 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
     return const CreateSlotState();
   }
 
-
   // Helpers
 
   int _asInt(dynamic v, {int fallback = 0}) {
@@ -73,8 +76,58 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
 
   DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
+  String _fmtTime(dynamic iso) {
+    final dt = DateTime.tryParse(iso.toString())?.toLocal();
+    if (dt == null) return "-";
+    return DateFormat('h:mm a').format(dt);
+  }
 
-  // Load
+  /// Extract JSON object from exception text if possible
+  Map<String, dynamic>? _tryExtractJsonFromError(Object e) {
+    final s = e.toString();
+    final idx = s.indexOf('{');
+    if (idx == -1) return null;
+
+    final jsonPart = s.substring(idx);
+    try {
+      final decoded = jsonDecode(jsonPart);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+    return null;
+  }
+
+
+  String _friendlyOverlapMessage(Map<String, dynamic> body) {
+    final conflict = body['conflict'];
+    if (conflict is Map) {
+      final c = Map<String, dynamic>.from(conflict);
+      final start = _fmtTime(c['startTime']);
+      final end = _fmtTime(c['endTime']);
+      return "Slot already exists for this ward from $start to $end. Please choose after $end.";
+    }
+    return (body['error'] ?? "Slot overlaps an existing slot. Please choose another time.").toString();
+  }
+
+  /// Convert any exception into a user-friendly message
+  String _friendlyMessageFromException(Object e) {
+    // If CreateSlotService throws an Exception containing "409" and JSON body, parse it.
+    final s = e.toString().toLowerCase();
+
+    final json = _tryExtractJsonFromError(e);
+    if (s.contains('409') && json != null) {
+      return _friendlyOverlapMessage(json);
+    }
+
+    if (json != null && json['error'] != null) {
+      final err = json['error'].toString();
+      return err;
+    }
+
+    // fallback
+    return "Failed to publish slot. Please try again.";
+  }
+
+  //  Load
 
   Future<void> loadInitialData() async {
     state = state.copyWith(isLoading: true);
@@ -115,11 +168,10 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
   }
 
   Map<String, dynamic> _slotToUiMap(String routeLocation, Map<String, dynamic> slotJson) {
-    final bookingSlots = _asInt(slotJson['capacity']); // booking slots count
+    final bookingSlots = _asInt(slotJson['capacity']);
     final bookedCount = _asInt(slotJson['bookedCount']);
     final price = slotJson['price'];
 
-    // NEW liters field
     final tankerLiters = _asInt(slotJson['tankerCapacityLiters'], fallback: 12000);
 
     final start = _parseToLocalDateTime(slotJson['startTime']) ?? DateTime.now();
@@ -145,7 +197,6 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
     };
   }
 
-
   // UI setters
 
   void setDateFilter(String value) {
@@ -169,7 +220,6 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
     final range = _service.buildTimeRange(dt, dt);
     return range.split(' - ').first;
   }
-
 
   // CREATE
 
@@ -251,16 +301,14 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
       state = state.copyWith(slots: [uiSlot, ...state.slots]);
 
       return null;
-    } catch (_) {
-      return 'Failed to publish slot. Please try again.';
+    } catch (e) {
+      return _friendlyMessageFromException(e);
     } finally {
       state = state.copyWith(isPublishing: false);
     }
   }
 
-
   // UPDATE
-
   Future<String?> updateSlot({
     required int slotId,
     required String location,
@@ -288,13 +336,12 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
 
       state = state.copyWith(slots: newSlots);
       return null;
-    } catch (_) {
-      return 'Failed to update slot';
+    } catch (e) {
+      return _friendlyMessageFromException(e);
     }
   }
 
-
-  // Mark Full
+  //  Mark Full
 
   Future<String?> markFull(int slotId, String location) async {
     try {
@@ -312,9 +359,7 @@ class CreateSlotController extends AutoDisposeNotifier<CreateSlotState> {
     }
   }
 
-
   // DELETE
-
   Future<String?> deleteSlot(int slotId) async {
     try {
       await _service.deleteSlot(slotId);

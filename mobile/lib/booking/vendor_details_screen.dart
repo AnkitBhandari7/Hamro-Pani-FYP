@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'vendor_details_controller.dart';
+import 'package:fyp/booking/payments/payment_receipt_screen.dart';
 
 class VendorDetailsScreen extends StatelessWidget {
   const VendorDetailsScreen({
@@ -47,7 +48,6 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
     if (token == null || token.trim().isEmpty) {
       throw Exception("Failed to get token");
     }
-
     return token;
   }
 
@@ -234,11 +234,11 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
                     final token = await _getTokenOrThrow();
                     final slotId = widget.nextSlotId!;
 
-                    // Book first creates booking + payment row
+                    //  Book first  creates booking + payment row
                     final bookingRes = await TankerService.bookTankerSlot(
                       token: token,
                       slotId: slotId,
-                      paymentMethod: _paymentMethod, // CASH or ESEWA
+                      paymentMethod: _paymentMethod,
                     );
 
                     final booking = Map<String, dynamic>.from(bookingRes['booking'] as Map);
@@ -248,21 +248,26 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
                     final amountStr = payment['amount'].toString();
                     final amount = double.tryParse(amountStr) ?? 0.0;
 
-                    // CASH
+                    //  CASH open receipt immediately
                     if (_paymentMethod.toUpperCase() == "CASH") {
                       if (!mounted) return;
-                      Navigator.pop(context, true);
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PaymentReceiptScreen(bookingId: bookingId),
+                        ),
+                      );
                       return;
                     }
 
-                    // ESEWA
+                    // ESEWA  open SDK
                     final refId = await EsewaPaymentService.pay(
                       bookingId: bookingId,
                       totalAmount: amount,
                       productName: "Hamro Pani Tanker Booking",
                     );
 
-                    // cancelled/failed cancel booking to free slot
+                    //  Cancel/fail -> cancel booking to free slot
                     if (refId == null) {
                       try {
                         await TankerService.cancelBooking(token: token, bookingId: bookingId);
@@ -275,7 +280,7 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
                       return;
                     }
 
-                    // verify mark payment PAID permanently in DB
+                    //  Verify  mark payment PAID permanently
                     await TankerService.verifyEsewaPayment(
                       token: token,
                       bookingId: bookingId,
@@ -283,7 +288,14 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
                     );
 
                     if (!mounted) return;
-                    Navigator.pop(context, true);
+
+                    //  Open receipt after verification
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PaymentReceiptScreen(bookingId: bookingId),
+                      ),
+                    );
                   } catch (e) {
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(

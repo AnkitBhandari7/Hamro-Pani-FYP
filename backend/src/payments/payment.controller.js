@@ -94,3 +94,67 @@ export async function verifyEsewaPayment(req, res) {
     return res.status(500).json({ error: "Failed to verify eSewa payment" });
   }
 }
+
+// ✅ GET /payments/receipt/:bookingId
+export async function getPaymentReceipt(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const bookingId = Number(req.params.bookingId);
+  if (!Number.isFinite(bookingId)) return res.status(400).json({ error: "Invalid bookingId" });
+
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        payment: true,
+        slot: {
+          include: {
+            route: {
+              include: {
+                vendor: { include: { user: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+
+    if (!booking.payment) return res.status(400).json({ error: "Payment not found" });
+
+    // For eSewa, we saved refId into payment.transactionId in verify API
+    const transactionId = booking.payment.transactionId || `BOOKING-${booking.id}`;
+    const paidAt = booking.payment.paidAt || booking.updatedAt || booking.createdAt;
+
+    const vendorName =
+      booking.slot?.route?.vendor?.user?.name ||
+      booking.slot?.route?.vendor?.companyName ||
+      "Vendor";
+
+    const liters = booking.slot?.tankerCapacityLiters ?? 12000;
+
+    // Prisma Decimal -> number safe conversion
+    const amt = booking.payment.amount;
+    const amount =
+      amt && typeof amt.toNumber === "function"
+        ? amt.toNumber()
+        : Number(amt ?? 0);
+
+    return res.json({
+      bookingId: booking.id,
+      transactionId,
+      dateTime: paidAt,
+      paymentMethod: booking.payment.method, // CASH/ESEWA
+      recipient: vendorName,
+      service: "Water Tanker Delivery",
+      quantityLiters: liters,
+      amount,
+    });
+  } catch (e) {
+    console.error("getPaymentReceipt error:", e);
+    return res.status(500).json({ error: "Failed to load receipt" });
+  }
+}
