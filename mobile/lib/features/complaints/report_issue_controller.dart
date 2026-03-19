@@ -12,13 +12,16 @@ class ReportIssueController extends ChangeNotifier {
   String? selectedIssue;
   final descriptionController = TextEditingController();
 
-  //  multiple photos
   final List<String> photoPaths = [];
   bool isSubmitting = false;
 
-  // location placeholders
+  // Location (picked from map)
+  double? lat;
+  double? lng;
+
+  // Display labels (you can later reverse-geocode)
   String wardLabel = 'Ward 4';
-  String locationLabel = 'Baluwatar, Kathmandu';
+  String locationLabel = 'Tap to pick from map';
 
   final List<Map<String, dynamic>> issueTypes = [
     {'label': 'Missed Delivery', 'icon': Icons.local_shipping_outlined},
@@ -33,7 +36,7 @@ class ReportIssueController extends ChangeNotifier {
     notifyListeners();
   }
 
-  ///  Call this later when you auto-detect user location from map/geolocator
+  /// Use this if you auto-detect ward/location later
   void setDetectedLocation({
     required String ward,
     required String location,
@@ -42,6 +45,21 @@ class ReportIssueController extends ChangeNotifier {
     locationLabel = location.trim().isEmpty ? locationLabel : location.trim();
     notifyListeners();
   }
+
+  /// ✅ Called after map picker returns lat/lng
+  void setPickedCoordinates({
+    required double lat,
+    required double lng,
+  }) {
+    this.lat = lat;
+    this.lng = lng;
+
+    // simple label for now (free). Later you can reverse geocode.
+    locationLabel = "${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}";
+    notifyListeners();
+  }
+
+  bool get hasPickedLocation => lat != null && lng != null;
 
   bool get canAddMorePhotos => photoPaths.length < maxPhotos;
 
@@ -69,9 +87,7 @@ class ReportIssueController extends ChangeNotifier {
     if (!canAddMorePhotos) return;
 
     try {
-      final List<XFile> picked = await _picker.pickMultiImage(
-        imageQuality: 75,
-      );
+      final List<XFile> picked = await _picker.pickMultiImage(imageQuality: 75);
       if (picked.isEmpty) return;
 
       for (final x in picked) {
@@ -120,6 +136,17 @@ class ReportIssueController extends ChangeNotifier {
       return;
     }
 
+    // ✅ require user to pick location
+    if (!hasPickedLocation) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please pick a location from map."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (isSubmitting) return;
 
     isSubmitting = true;
@@ -134,6 +161,8 @@ class ReportIssueController extends ChangeNotifier {
         description: desc,
         ward: wardLabel,
         location: locationLabel,
+        lat: lat!, // ✅
+        lng: lng!, // ✅
         photoPaths: photoPaths,
       );
 
@@ -150,6 +179,9 @@ class ReportIssueController extends ChangeNotifier {
       selectedIssue = null;
       descriptionController.clear();
       photoPaths.clear();
+      lat = null;
+      lng = null;
+      locationLabel = 'Tap to pick from map';
       notifyListeners();
 
       Navigator.pop(context);

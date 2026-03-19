@@ -11,7 +11,12 @@ enum UserRole {
   RESIDENT
   VENDOR
   WARD_ADMIN
-  ADMIN
+
+}
+
+enum AppLanguage {
+  EN
+  NP
 }
 
 enum BookingStatus {
@@ -60,13 +65,15 @@ model Ward {
 model User {
   id           Int      @id @default(autoincrement()) @map("user_id")
   firebaseUid  String   @unique @map("firebase_uid")
-
   name         String?
   email        String?  @unique
   phoneNumber  String?  @map("phone_number")
   role         UserRole @default(RESIDENT)
-
   passwordHash String?  @map("password_hash")
+
+  language     AppLanguage @default(EN) @map("language")
+
+    locations    SavedLocation[]
 
 
   // WARD_ADMIN => must be NULL
@@ -91,6 +98,25 @@ model User {
   notificationRecipients NotificationRecipient[] @relation("NotificationRecipientUser")
 
   @@map("users")
+}
+
+model SavedLocation {
+  id        Int      @id @default(autoincrement()) @map("location_id")
+  userId    Int      @map("user_id")
+
+  label     String   @map("label")
+  address   String   @map("address")
+    lat       Float    @map("lat")
+    lng       Float    @map("lng")
+  isDefault Boolean  @default(false) @map("is_default")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_locations")
 }
 
 model FcmToken {
@@ -246,6 +272,10 @@ model Complaint {
   bookingId Int             @map("booking_id")
 
   message   String
+
+  lat       Float?          @map("lat")
+  lng       Float?          @map("lng")
+
   status    ComplaintStatus @default(OPEN)
   createdAt DateTime        @default(now()) @map("created_at")
   updatedAt DateTime        @updatedAt @map("updated_at")

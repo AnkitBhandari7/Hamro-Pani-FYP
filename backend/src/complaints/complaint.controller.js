@@ -14,6 +14,12 @@ function toAbsoluteUrl(req, storedPath) {
   return `${base}${p}`;
 }
 
+function parseOptionalNumber(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 /**
  * POST /complaints
  */
@@ -25,6 +31,13 @@ export async function createComplaint(req, res) {
   const description = String(req.body?.description || "").trim();
   const ward = String(req.body?.ward || "").trim();
   const location = String(req.body?.location || "").trim();
+
+  //  lat/lng
+  const latParsed = parseOptionalNumber(req.body?.lat);
+  const lngParsed = parseOptionalNumber(req.body?.lng);
+  if (Number.isNaN(latParsed) || Number.isNaN(lngParsed)) {
+    return res.status(400).json({ error: "lat/lng must be numbers" });
+  }
 
   const bookingIdRaw = req.body?.bookingId;
   const bookingIdNum = bookingIdRaw == null ? null : Number(bookingIdRaw);
@@ -74,6 +87,7 @@ export async function createComplaint(req, res) {
         `Issue Type: ${issueType}\n` +
         (ward ? `Ward: ${ward}\n` : "") +
         (location ? `Location: ${location}\n` : "") +
+        (latParsed != null && lngParsed != null ? `LatLng: ${latParsed}, ${lngParsed}\n` : "") +
         `Description: ${description}`;
 
       const complaint = await tx.complaint.create({
@@ -82,10 +96,13 @@ export async function createComplaint(req, res) {
           bookingId,
           message,
           status: "OPEN",
+
+          // store coords separately
+          lat: latParsed,
+          lng: lngParsed,
         },
       });
 
-      // MULTIPLE files
       const files = req.files || [];
       if (files.length > 0) {
         const rows = files.map((f) => ({
@@ -112,6 +129,11 @@ export async function createComplaint(req, res) {
         createdAt: result.complaint.createdAt,
         bookingId: result.complaint.bookingId,
         message: result.complaint.message,
+
+        // return coords
+        lat: result.complaint.lat,
+        lng: result.complaint.lng,
+
         photos: result.photos.map((p) => ({
           id: p.id,
           photoUrl: toAbsoluteUrl(req, p.photoUrl),
@@ -147,6 +169,11 @@ export async function getMyComplaints(req, res) {
         createdAt: c.createdAt,
         bookingId: c.bookingId,
         message: c.message,
+
+        // include coords
+        lat: c.lat,
+        lng: c.lng,
+
         photos: (c.photos || []).map((p) => ({
           id: p.id,
           photoUrl: toAbsoluteUrl(req, p.photoUrl),
@@ -160,7 +187,7 @@ export async function getMyComplaints(req, res) {
 }
 
 /**
- * GET /complaints/:id  (Complaint Detail)
+ * GET /complaints/:id
  */
 export async function getComplaintDetail(req, res) {
   const userId = getUserId(req);
@@ -192,8 +219,6 @@ export async function getComplaintDetail(req, res) {
     });
 
     if (!complaint) return res.status(404).json({ error: "Complaint not found" });
-
-    // Resident can only view their own complaint
     if (complaint.userId !== userId) return res.status(403).json({ error: "Forbidden" });
 
     const route = complaint.booking?.slot?.route;
@@ -209,7 +234,10 @@ export async function getComplaintDetail(req, res) {
       bookingId: complaint.bookingId,
       message: complaint.message,
 
-      // helpful extra data for UI
+      //  coords
+      lat: complaint.lat,
+      lng: complaint.lng,
+
       booking: complaint.booking
         ? {
             id: complaint.booking.id,

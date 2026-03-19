@@ -10,6 +10,8 @@ class ReportIssueService {
     required String description,
     required String ward,
     required String location,
+    required double lat,
+    required double lng,
     required List<String> photoPaths,
     int? bookingId,
   }) async {
@@ -28,6 +30,11 @@ class ReportIssueService {
       'description': description,
       'ward': ward,
       'location': location,
+
+      // ✅ NEW
+      'lat': lat.toString(),
+      'lng': lng.toString(),
+
       if (bookingId != null) 'bookingId': bookingId.toString(),
     });
 

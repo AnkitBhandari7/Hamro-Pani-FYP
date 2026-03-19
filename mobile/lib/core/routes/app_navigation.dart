@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:fyp/core/routes/routes.dart';
+
 import 'package:fyp/screens/home_wrapper.dart';
 import 'package:fyp/profile/vendorProfile/vendor_profile_screen.dart';
 import 'package:fyp/booking/find_tankers_screen.dart';
 import 'package:fyp/admin/profile/ward_admin_profile_screen.dart';
+
 import 'package:fyp/auth/login_view.dart';
 import 'package:fyp/auth/signup_view.dart';
+import 'package:fyp/auth/forgot_password_view.dart';
+
 import 'package:fyp/profile/profile_screen.dart';
+import 'package:fyp/profile/change_password_view.dart';
+import 'package:fyp/profile/language_preference_view.dart';
+
 import 'package:fyp/notifications/notifications_screen.dart';
-import 'package:fyp/booking/orders_screen.dart';
 import 'package:fyp/booking/new_schedule.dart';
 import 'package:fyp/booking/create_slot.dart';
 import 'package:fyp/features/complaints/report_issue_screen.dart';
 import 'package:fyp/admin/send_notice.dart';
-import 'package:fyp/notifications/notification_model.dart';
+
+import 'package:fyp/maps/location_picker_view.dart';
 
 class AppNavigation {
   static String? wardNameFrom(Object? ward) {
@@ -39,7 +46,7 @@ class AppNavigation {
         final String phone = (args?['phone'] ?? '').toString();
         final String email = (args?['email'] ?? '').toString();
 
-        //  ward can be Map now
+        // ward can be Map or String
         final Object? ward = args?['ward'];
 
         return MaterialPageRoute(
@@ -58,8 +65,11 @@ class AppNavigation {
       case AppRoutes.findTankers:
         return MaterialPageRoute(builder: (_) => const FindTankersScreen());
 
-        case AppRoutes.reportIssue:
-          return MaterialPageRoute(builder: (_) => const ReportIssueScreen());
+      case AppRoutes.reportIssue:
+        return MaterialPageRoute(builder: (_) => const ReportIssueScreen());
+
+      case AppRoutes.forgotPassword:
+        return MaterialPageRoute(builder: (_) => const ForgotPasswordView());
 
       case AppRoutes.profile:
         final args = settings.arguments as Map<String, dynamic>?;
@@ -76,23 +86,30 @@ class AppNavigation {
           ),
         );
 
-      case AppRoutes.orders:
-        return MaterialPageRoute(builder: (_) => const OrderScreen());
-
       case AppRoutes.notifications:
         return MaterialPageRoute(builder: (_) => const NotificationsScreen());
 
       case AppRoutes.vendorProfile:
         return MaterialPageRoute(builder: (_) => const VendorProfileScreen());
 
-     case AppRoutes.wardAdminProfile:
-       return MaterialPageRoute(builder: (_) => const WardAdminProfileScreen());
+      case AppRoutes.wardAdminProfile:
+        return MaterialPageRoute(builder: (_) => const WardAdminProfileScreen());
 
       case AppRoutes.sendNotice:
         return MaterialPageRoute(builder: (_) => const SendNoticeScreen());
 
       case AppRoutes.manageSlots:
         return MaterialPageRoute(builder: (_) => const ManageSlotsScreen());
+
+      case AppRoutes.changePassword:
+        return MaterialPageRoute(builder: (_) => const ChangePasswordView());
+
+      case AppRoutes.languagePreference:
+        return MaterialPageRoute(builder: (_) => const LanguagePreferenceView());
+
+
+      case AppRoutes.locationPicker:
+        return MaterialPageRoute(builder: (_) => const LocationPickerView());
 
       default:
         return MaterialPageRoute(
@@ -127,8 +144,6 @@ class AppNavigation {
   }
 
   static void pop(BuildContext context) => Navigator.pop(context);
-
-
 
   static Future<T?> pushHomeWithRole<T extends Object?>(
       BuildContext context, {

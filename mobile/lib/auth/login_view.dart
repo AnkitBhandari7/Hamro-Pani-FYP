@@ -61,19 +61,123 @@ class _LoginViewState extends State<LoginView> {
     return "RESIDENT";
   }
 
-  bool _isRoleMatch(String actualRole, String selectedRole) {
-    final actual = actualRole.toLowerCase().trim();
-    final selected = selectedRole.toLowerCase().trim();
+  // Normalize backend role values (handles RESIDENT/VENDOR/WARD_ADMIN and old values)
+  String _normalizeBackendRole(String role) {
+    final r = role.toLowerCase().trim();
+    if (r == 'resident' || r == 'residents') return 'resident';
+    if (r == 'vendor' || r == 'vendors') return 'vendor';
 
-    if (actual == 'resident' && selected == 'resident') return true;
-    if (actual == 'vendor' && selected == 'vendor') return true;
-
-    if ((actual == 'ward_admin' || actual == 'ward admin' || actual == 'wardadmin') &&
-        (selected == 'ward admin' || selected == 'ward_admin')) {
-      return true;
+    if (r == 'ward_admin' || r == 'ward admin' || r == 'wardadmin') {
+      return 'ward admin';
     }
 
-    return false;
+    // handle enums (RESIDENT/VENDOR/WARD_ADMIN)
+    if (r == 'resident'.toUpperCase().toLowerCase()) return 'resident';
+    if (r == 'vendor'.toUpperCase().toLowerCase()) return 'vendor';
+    if (r == 'ward_admin'.toUpperCase().toLowerCase()) return 'ward admin';
+
+    return r; // unknown => leave as-is
+  }
+
+  String _normalizeSelectedRole(String selectedRole) {
+    final s = selectedRole.toLowerCase().trim();
+    if (s == 'ward admin' || s == 'ward_admin') return 'ward admin';
+    return s;
+  }
+
+  bool _isRoleMatch(String actualRole, String selectedRole) {
+    final actual = _normalizeBackendRole(actualRole);
+    final selected = _normalizeSelectedRole(selectedRole);
+    return actual == selected;
+  }
+
+  /// Shared post-login flow for both Email login and Google login
+  Future<void> _postFirebaseLogin({required String idToken}) async {
+    final selectedRoleName = roles[selectedRole];
+    final backendRole = _selectedRoleToBackendRole(selectedRoleName);
+
+    // 1) Get profile first (do NOT overwrite role on login)
+    http.Response meResponse = await http.get(
+      Uri.parse('$_baseUrl/auth/me'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+
+    // 2) If user is not in backend DB yet, create user ONCE with selected role
+    if (meResponse.statusCode == 404) {
+      final registerResponse = await http.post(
+        Uri.parse('$_baseUrl/auth/register'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'role': backendRole}),
+      );
+
+      debugPrint("=== Register Response ===");
+      debugPrint("Status: ${registerResponse.statusCode}");
+      debugPrint("Body: ${registerResponse.body}");
+
+      if (registerResponse.statusCode != 200) {
+        throw Exception("Failed to register user (HTTP ${registerResponse.statusCode})");
+      }
+
+      // retry /auth/me after register
+      meResponse = await http.get(
+        Uri.parse('$_baseUrl/auth/me'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+    }
+
+    debugPrint("=== /auth/me Response ===");
+    debugPrint("Status: ${meResponse.statusCode}");
+    debugPrint("Body: ${meResponse.body}");
+
+    if (meResponse.statusCode != 200) {
+      throw Exception("Failed to load user profile (HTTP ${meResponse.statusCode})");
+    }
+
+    final userData = json.decode(meResponse.body) as Map<String, dynamic>;
+
+    final String userRole = (userData['role'] ?? 'RESIDENT').toString();
+    final String userName = (userData['name'] ?? 'User').toString();
+    final String phone = (userData['phone'] ?? '').toString();
+    final String userEmail = (userData['email'] ?? '').toString();
+
+    final Object? wardRaw = userData['ward']; // can be Map {id,name}
+    final String? wardName = _wardNameFrom(wardRaw);
+
+    debugPrint("=== User Data ===");
+    debugPrint("Role: $userRole");
+    debugPrint("Name: $userName");
+    debugPrint("Ward(raw): $wardRaw");
+    debugPrint("Ward(name): $wardName");
+
+    // 3) Role-based access check
+    if (!_isRoleMatch(userRole, selectedRoleName)) {
+      await FirebaseAuth.instance.signOut();
+      throw Exception("You are registered as '$userRole'. Please select the correct role tab.");
+    }
+
+    // 4) FCM setup (non-fatal)
+    try {
+      await FCMService().saveTokenAfterLogin();
+      debugPrint("FCM token saved after login");
+    } catch (fcmError) {
+      debugPrint("FCM token save error (non-fatal): $fcmError");
+    }
+
+    await _subscribeToTopics(role: userRole, wardName: wardName);
+
+    // 5) Navigate
+    if (!mounted) return;
+    AppNavigation.pushHomeWithRole(
+      context,
+      role: userRole,
+      userName: userName,
+      phone: phone,
+      email: userEmail,
+      ward: wardRaw,
+    );
   }
 
   Future<void> _handleLogin() async {
@@ -88,7 +192,6 @@ class _LoginViewState extends State<LoginView> {
     setState(() => _isLoading = true);
 
     try {
-      // 1) Firebase login
       final user = await _authController.login(
         email: email,
         password: password,
@@ -101,7 +204,6 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-      // 2) Get Firebase ID token
       final firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser == null) {
         _showError("Firebase user not found");
@@ -110,105 +212,61 @@ class _LoginViewState extends State<LoginView> {
       }
 
       final idToken = await firebaseUser.getIdToken(true);
-
-      // 3) Register/ensure user exists in backend
-
-      final selectedRoleName = roles[selectedRole];
-      final backendRole = _selectedRoleToBackendRole(selectedRoleName);
-
-      final registerResponse = await http.post(
-        Uri.parse('$_baseUrl/auth/register'),
-        headers: {
-          'Authorization': 'Bearer $idToken',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'role': backendRole,
-
-        }),
-      );
-
-      debugPrint("=== Register Response ===");
-      debugPrint("Status: ${registerResponse.statusCode}");
-      debugPrint("Body: ${registerResponse.body}");
-
-      if (registerResponse.statusCode != 200) {
-        _showError("Failed to register user");
-        setState(() => _isLoading = false);
-        return;
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception("Failed to get Firebase ID token");
       }
 
-      // 4) Load profile from backend
-      final meResponse = await http.get(
-        Uri.parse('$_baseUrl/auth/me'),
-        headers: {'Authorization': 'Bearer $idToken'},
-      );
-
-      debugPrint("=== /auth/me Response ===");
-      debugPrint("Status: ${meResponse.statusCode}");
-      debugPrint("Body: ${meResponse.body}");
-
-      if (meResponse.statusCode != 200) {
-        _showError("Failed to load user profile");
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final userData = json.decode(meResponse.body) as Map<String, dynamic>;
-
-      final String userRole = (userData['role'] ?? 'RESIDENT').toString();
-      final String userName = (userData['name'] ?? 'User').toString();
-      final String phone = (userData['phone'] ?? '').toString();
-      final String userEmail = (userData['email'] ?? '').toString();
-
-      final Object? wardRaw = userData['ward']; // can be Map {id,name}
-      final String? wardName = _wardNameFrom(wardRaw);
-
-      debugPrint("=== User Data ===");
-      debugPrint("Role: $userRole");
-      debugPrint("Name: $userName");
-      debugPrint("Ward(raw): $wardRaw");
-      debugPrint("Ward(name): $wardName");
-
-      // 5) Validate selected role vs actual backend role
-      if (!_isRoleMatch(userRole, selectedRoleName)) {
-        await FirebaseAuth.instance.signOut();
-        _showError("You are registered as '$userRole'. Please select the correct role tab.");
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // 6) FCM setup
-      try {
-        await FCMService().saveTokenAfterLogin();
-        debugPrint("FCM token saved after login");
-      } catch (fcmError) {
-        debugPrint("FCM token save error (non-fatal): $fcmError");
-      }
-
-      await _subscribeToTopics(role: userRole, wardName: wardName);
+      await _postFirebaseLogin(idToken: idToken);
 
       setState(() => _isLoading = false);
-
-      // 7) Navigate to Home
-      AppNavigation.pushHomeWithRole(
-        context,
-        role: userRole,
-        userName: userName,
-        phone: phone,
-        email: userEmail,
-        ward: wardRaw, // pass raw (Map) so dashboard gets id+name
-      );
     } catch (e) {
       debugPrint("Login error: $e");
-      _showError("Login failed: $e");
+      _showError(e.toString().replaceFirst("Exception: ", ""));
       setState(() => _isLoading = false);
     }
   }
 
+  Future<void> _handleGoogleLogin() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final user = await _authController.googleLogin(
+        remember: true,
+        context: context,
+      );
+
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final firebaseUser = FirebaseAuth.instance.currentUser;
+      if (firebaseUser == null) {
+        _showError("Firebase user not found");
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final idToken = await firebaseUser.getIdToken(true);
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception("Failed to get Firebase ID token");
+      }
+
+      await _postFirebaseLogin(idToken: idToken);
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint("Google login error: $e");
+      _showError(e.toString().replaceFirst("Exception: ", ""));
+      setState(() => _isLoading = false);
+    }
+  }
+
+
   Future<void> _subscribeToTopics({required String role, String? wardName}) async {
     final fcmService = FCMService();
-    final normalizedRole = role.toLowerCase().trim();
+    final normalizedRole = _normalizeBackendRole(role);
 
     try {
       if (normalizedRole == 'resident') {
@@ -323,7 +381,7 @@ class _LoginViewState extends State<LoginView> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    hintText: "name@example.com",
+                    hintText: "Enter Your Email",
                     prefixIcon: const Icon(Icons.email_outlined),
                     filled: true,
                     fillColor: Colors.grey[200],
@@ -338,6 +396,7 @@ class _LoginViewState extends State<LoginView> {
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
+                    hintText: "Enter Your Password",
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
@@ -352,7 +411,9 @@ class _LoginViewState extends State<LoginView> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.pushNamed(context, AppRoutes.forgotPassword);
+                    },
                     child: Text("Forgot?", style: GoogleFonts.poppins(color: Colors.blue)),
                   ),
                 ),
@@ -394,13 +455,11 @@ class _LoginViewState extends State<LoginView> {
 
                 const SizedBox(height: 20),
 
-                // Google login button
+                // Google login button (FIXED)
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () async {
-                      await _authController.googleLogin(remember: true, context: context);
-                    },
+                    onPressed: _isLoading ? null : _handleGoogleLogin,
                     icon: Image.asset('assets/images/google_logo.webp', height: 24),
                     label: Text("Google", style: GoogleFonts.poppins(fontSize: 16)),
                     style: OutlinedButton.styleFrom(

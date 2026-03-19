@@ -1,20 +1,15 @@
-
 import prisma from "../prisma.js";
 import fs from "fs";
 import path from "path";
 
-// helper to safely read user id from token middleware
 function getUserId(req) {
   const id = Number(req.auth?.sub);
   return Number.isFinite(id) ? id : null;
 }
 
-// convert stored path (/uploads/...) to absolute URL for Flutter
 function toAbsoluteUrl(req, storedPath) {
   if (!storedPath) return "";
   const s = String(storedPath);
-
-  // already absolute
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
 
   const base = `${req.protocol}://${req.get("host")}`;
@@ -22,22 +17,19 @@ function toAbsoluteUrl(req, storedPath) {
   return `${base}${p}`;
 }
 
-// handle deleting old photo whether stored as absolute URL or /uploads/...
 function getUploadAbsolutePathFromStoredUrl(stored) {
   if (!stored) return null;
-
   const s = String(stored);
   const idx = s.indexOf("/uploads/");
   if (idx === -1) return null;
 
-  const publicPath = s.substring(idx); // "/uploads/profile/..."
-  return path.resolve(publicPath.replace(/^\//, "")); // "uploads/profile/..."
+  const publicPath = s.substring(idx);
+  return path.resolve(publicPath.replace(/^\//, ""));
 }
 
 function tryDeleteOldUpload(stored) {
   const abs = getUploadAbsolutePathFromStoredUrl(stored);
   if (!abs) return;
-
   try {
     if (fs.existsSync(abs)) fs.unlinkSync(abs);
   } catch (e) {
@@ -47,18 +39,18 @@ function tryDeleteOldUpload(stored) {
 
 /*
   GET /profile/me
-  - returns bookings + complaints (issues)
-  - now also returns profileImageUrl (absolute)
 */
 export async function meDetails(req, res) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    // load basic user with ward relation
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { ward: true },
+      include: {
+        ward: true,
+        locations: { orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }] },
+      },
     });
 
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -66,7 +58,7 @@ export async function meDetails(req, res) {
     const bookings = await prisma.booking.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 50,
       include: {
         slot: {
           include: {
@@ -84,13 +76,8 @@ export async function meDetails(req, res) {
     const complaints = await prisma.complaint.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        message: true,
-        status: true,
-        createdAt: true,
-      },
+      take: 50,
+      select: { id: true, message: true, status: true, createdAt: true },
     });
 
     return res.json({
@@ -101,20 +88,25 @@ export async function meDetails(req, res) {
         phone: user.phoneNumber,
         role: user.role,
         ward: user.ward ? user.ward.wardName : null,
-
-
+        language: user.language,
         profileImageUrl: user.profileImageUrl ? toAbsoluteUrl(req, user.profileImageUrl) : "",
       },
 
-      locations: [],
+      locations: user.locations.map((l) => ({
+        id: l.id,
+        label: l.label,
+        lat: l.lat,
+          lng: l.lng,
+        address: l.address,
+        isDefault: l.isDefault,
+        createdAt: l.createdAt,
+        updatedAt: l.updatedAt,
+      })),
 
       bookings: bookings.map((b) => ({
         id: b.id,
         status: b.status,
-        liters: null,
-        price: null,
         createdAt: b.createdAt,
-
         slotId: b.slotId,
         slotStartTime: b.slot?.startTime,
         slotEndTime: b.slot?.endTime,
@@ -137,7 +129,178 @@ export async function meDetails(req, res) {
   }
 }
 
-// POST /profile/me/photo
+/*
+  POST /profile/locations
+*/
+export async function createLocation(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { label, address, isDefault, lat, lng } = req.body || {};
+
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+
+  if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+    return res.status(400).json({ error: "lat and lng are required and must be numbers" });
+  }
+  if (typeof label !== "string" || !label.trim()) {
+    return res.status(400).json({ error: "label is required" });
+  }
+  if (typeof address !== "string" || !address.trim()) {
+    return res.status(400).json({ error: "address is required" });
+  }
+
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      const makeDefault = isDefault === true;
+
+      if (makeDefault) {
+        await tx.savedLocation.updateMany({
+          where: { userId },
+          data: { isDefault: false },
+        });
+      }
+
+      return tx.savedLocation.create({
+        data: {
+          userId,
+          label: label.trim(),
+          address: address.trim(),
+          lat: latNum, // ✅ FIX
+          lng: lngNum, // ✅ FIX
+          isDefault: makeDefault,
+        },
+      });
+    });
+
+    return res.status(201).json({
+      id: created.id,
+      label: created.label,
+      address: created.address,
+      lat: created.lat,
+      lng: created.lng,
+      isDefault: created.isDefault,
+      createdAt: created.createdAt,
+      updatedAt: created.updatedAt,
+    });
+  } catch (e) {
+    console.error("createLocation error:", e);
+    return res.status(500).json({ error: "Failed to create location" });
+  }
+}
+
+/*
+  PATCH /profile/locations/:id
+*/
+export async function updateLocation(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const { label, address, lat, lng } = req.body || {};
+
+  if (label == null && address == null && lat == null && lng == null) {
+    return res.status(400).json({ error: "Nothing to update" });
+  }
+
+  let latUpdate = undefined;
+  let lngUpdate = undefined;
+
+  if (lat !== undefined) {
+    const n = Number(lat);
+    if (!Number.isFinite(n)) return res.status(400).json({ error: "lat must be a number" });
+    latUpdate = n;
+  }
+  if (lng !== undefined) {
+    const n = Number(lng);
+    if (!Number.isFinite(n)) return res.status(400).json({ error: "lng must be a number" });
+    lngUpdate = n;
+  }
+
+  try {
+    const existing = await prisma.savedLocation.findFirst({ where: { id, userId } });
+    if (!existing) return res.status(404).json({ error: "Location not found" });
+
+    const updated = await prisma.savedLocation.update({
+      where: { id },
+      data: {
+        label: typeof label === "string" && label.trim() ? label.trim() : undefined,
+        address: typeof address === "string" && address.trim() ? address.trim() : undefined,
+        lat: latUpdate,
+        lng: lngUpdate,
+      },
+    });
+
+    return res.json(updated);
+  } catch (e) {
+    console.error("updateLocation error:", e);
+    return res.status(500).json({ error: "Failed to update location" });
+  }
+}
+
+/*
+  DELETE /profile/locations/:id
+*/
+export async function deleteLocation(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+  try {
+    const existing = await prisma.savedLocation.findFirst({ where: { id, userId } });
+    if (!existing) return res.status(404).json({ error: "Location not found" });
+
+    await prisma.savedLocation.delete({ where: { id } });
+
+    if (existing.isDefault) {
+      const latest = await prisma.savedLocation.findFirst({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+      });
+      if (latest) {
+        await prisma.savedLocation.update({ where: { id: latest.id }, data: { isDefault: true } });
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error("deleteLocation error:", e);
+    return res.status(500).json({ error: "Failed to delete location" });
+  }
+}
+
+/*
+  PATCH /profile/locations/:id/default
+*/
+export async function setDefaultLocation(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+  try {
+    const existing = await prisma.savedLocation.findFirst({ where: { id, userId } });
+    if (!existing) return res.status(404).json({ error: "Location not found" });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.savedLocation.updateMany({ where: { userId }, data: { isDefault: false } });
+      await tx.savedLocation.update({ where: { id }, data: { isDefault: true } });
+    });
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error("setDefaultLocation error:", e);
+    return res.status(500).json({ error: "Failed to set default location" });
+  }
+}
+
+// Photo endpoints unchanged (keep your existing uploadMyPhoto/deleteMyPhoto implementations)
 export async function uploadMyPhoto(req, res) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -147,15 +310,12 @@ export async function uploadMyPhoto(req, res) {
     const me = await prisma.user.findUnique({ where: { id: userId } });
     if (!me) return res.status(404).json({ error: "User not found" });
 
-    // optional: only resident uses this endpoint
     if (me.role !== "RESIDENT") {
       return res.status(403).json({ error: "Only RESIDENT can upload photo here" });
     }
 
-    // delete old photo if any
     tryDeleteOldUpload(me.profileImageUrl);
 
-    // store PUBLIC path in DB (not /Users/... path)
     const publicPath = `/uploads/profile/${req.file.filename}`;
 
     const updated = await prisma.user.update({
@@ -174,7 +334,6 @@ export async function uploadMyPhoto(req, res) {
   }
 }
 
-// DELETE /profile/me/photo
 export async function deleteMyPhoto(req, res) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -199,21 +358,4 @@ export async function deleteMyPhoto(req, res) {
     console.error("deleteMyPhoto error:", e);
     return res.status(500).json({ error: "Failed to delete photo" });
   }
-}
-
-
-export async function createLocation(_req, res) {
-  return res.status(501).json({ error: "Saved locations are not available in ERD schema" });
-}
-
-export async function updateLocation(_req, res) {
-  return res.status(501).json({ error: "Saved locations are not available in ERD schema" });
-}
-
-export async function deleteLocation(_req, res) {
-  return res.status(501).json({ error: "Saved locations are not available in ERD schema" });
-}
-
-export async function setDefaultLocation(_req, res) {
-  return res.status(501).json({ error: "Saved locations are not available in ERD schema" });
 }

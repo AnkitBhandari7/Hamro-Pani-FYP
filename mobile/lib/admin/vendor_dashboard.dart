@@ -11,6 +11,8 @@ import 'package:fyp/notifications/notification_model.dart';
 import 'package:fyp/notifications/notification_service.dart';
 import 'package:fyp/admin/features/deliveries/history/vendor_delivery_history_screen.dart';
 
+// ✅ NEW: Route screen for vendor -> resident destination
+import 'package:fyp/maps/tracking/vendor_route_view.dart';
 
 class VendorDashboardScreen extends StatefulWidget {
   const VendorDashboardScreen({super.key});
@@ -19,8 +21,7 @@ class VendorDashboardScreen extends StatefulWidget {
   State<VendorDashboardScreen> createState() => _VendorDashboardScreenState();
 }
 
-class _VendorDashboardScreenState extends State<VendorDashboardScreen>
-    with WidgetsBindingObserver {
+class _VendorDashboardScreenState extends State<VendorDashboardScreen> with WidgetsBindingObserver {
   // Notifications
   List<AppNotification> notifications = [];
   bool loadingNotifications = true;
@@ -113,8 +114,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
     final s = start.toLocal();
     final e = end.toLocal();
 
-    return (now.isAfter(s) || now.isAtSameMomentAs(s)) &&
-        (now.isBefore(e) || now.isAtSameMomentAs(e));
+    return (now.isAfter(s) || now.isAtSameMomentAs(s)) && (now.isBefore(e) || now.isAtSameMomentAs(e));
   }
 
   /// show requests only within last 24 hours
@@ -265,96 +265,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
     }
   }
 
-  void _showNotifications() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (_, controller) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                margin: EdgeInsets.only(top: 12.h),
-                width: 60.w,
-                height: 6.h,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(3.r),
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Row(
-                  children: [
-                    Text(
-                      "Notifications",
-                      style: GoogleFonts.poppins(
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: fetchNotifications,
-                      icon: const Icon(Icons.refresh),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: loadingNotifications
-                    ? const Center(child: CircularProgressIndicator())
-                    : notifications.isEmpty
-                    ? Center(
-                  child: Text(
-                    "No notifications yet",
-                    style: GoogleFonts.poppins(
-                      fontSize: 16.sp,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                )
-                    : ListView.builder(
-                  controller: controller,
-                  itemCount: notifications.length,
-                  itemBuilder: (context, index) {
-                    final n = notifications[index];
-                    return ListTile(
-                      leading: const Icon(Icons.water_drop, color: Colors.blue),
-                      title: Text(
-                        n.title,
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text(
-                        n.message,
-                        style: GoogleFonts.poppins(color: Colors.grey[700]),
-                      ),
-                      trailing: Text(
-                        DateFormat('hh:mm a').format(n.createdAt),
-                        style: GoogleFonts.poppins(
-                          fontSize: 12.sp,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   // UI helpers
   Widget _statCard({required String value, required String label, required Color color}) {
     return Container(
@@ -435,9 +345,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                       radius: 28.w,
                       backgroundColor: Colors.blue[50],
                       backgroundImage: logoUrl.trim().isNotEmpty ? NetworkImage(logoUrl) : null,
-                      child: logoUrl.trim().isEmpty
-                          ? Icon(Icons.local_shipping, size: 28.w, color: Colors.blue)
-                          : null,
+                      child: logoUrl.trim().isEmpty ? Icon(Icons.local_shipping, size: 28.w, color: Colors.blue) : null,
                     ),
                     SizedBox(width: 12.w),
                     Expanded(
@@ -540,6 +448,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                       final dateChip = _dateChip(rq['createdAt']);
 
                       final isPending = status.toUpperCase() == "PENDING";
+                      final isConfirmed = status.toUpperCase() == "CONFIRMED";
                       final isUpdating = _updatingBookingIds.contains(bookingId);
 
                       return Container(
@@ -582,6 +491,8 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                                 Text(status, style: GoogleFonts.poppins(color: _statusColor(status))),
                               ],
                             ),
+
+                            // Confirm / Decline buttons (only for pending)
                             if (isPending) ...[
                               SizedBox(height: 12.h),
                               Row(
@@ -619,6 +530,32 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                                 ],
                               ),
                             ],
+
+                            // ✅ Route button (only for confirmed)
+                            if (isConfirmed) ...[
+                              SizedBox(height: 12.h),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => VendorRouteView(bookingId: bookingId),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.route, color: Colors.white),
+                                  label: Text("Route", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       );
@@ -650,7 +587,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
             _bottomItem(Icons.route, "Routes", false, onTap: () {}),
             SizedBox(width: 40.w),
 
-            // Open Delivery History screen
             _bottomItem(
               Icons.history,
               "History",
@@ -668,8 +604,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
               "Profile",
               false,
               onTap: () {
-                Navigator.pushNamed(context, AppRoutes.vendorProfile)
-                    .then((_) => _loadVendorDashboard());
+                Navigator.pushNamed(context, AppRoutes.vendorProfile).then((_) => _loadVendorDashboard());
               },
             ),
           ],
@@ -682,9 +617,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
     final wardName = (r['wardName'] ?? "-").toString();
     final location = (r['location'] ?? "-").toString();
 
-    // Since we only show active routes, status is always Active
     const status = "Active";
-
     final percent = (r['percentBooked'] ?? 0) is num ? (r['percentBooked'] as num).toInt() : 0;
 
     final start = _timeLabel(r['startTime']);
@@ -764,7 +697,6 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
     );
   }
 
-  // Empty info card
   Widget _emptyInfoCard({
     required IconData icon,
     required String title,

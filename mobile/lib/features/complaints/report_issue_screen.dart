@@ -5,6 +5,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import 'package:fyp/core/routes/routes.dart';
+
 import 'report_issue_controller.dart';
 
 class ReportIssueScreen extends StatelessWidget {
@@ -52,6 +54,18 @@ class _ReportIssueView extends StatelessWidget {
     );
   }
 
+  Future<void> _pickLocation(BuildContext context, ReportIssueController ctrl) async {
+    final picked = await Navigator.pushNamed(context, AppRoutes.locationPicker);
+
+    if (picked is! Map) return;
+
+    final lat = (picked['lat'] as num?)?.toDouble();
+    final lng = (picked['lng'] as num?)?.toDouble();
+    if (lat == null || lng == null) return;
+
+    ctrl.setPickedCoordinates(lat: lat, lng: lng);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ctrl = Provider.of<ReportIssueController>(context);
@@ -78,7 +92,6 @@ class _ReportIssueView extends StatelessWidget {
           children: [
             SizedBox(height: 16.h),
 
-            // WHAT'S THE PROBLEM?
             Text(
               "WHAT'S THE PROBLEM?",
               style: GoogleFonts.poppins(
@@ -132,7 +145,6 @@ class _ReportIssueView extends StatelessWidget {
 
             SizedBox(height: 32.h),
 
-            // Description
             Text(
               "Description",
               style: GoogleFonts.poppins(
@@ -160,7 +172,7 @@ class _ReportIssueView extends StatelessWidget {
 
             SizedBox(height: 32.h),
 
-            // ✅ Location (keep placeholder; later map integration)
+            // ✅ Location (map picker)
             Text(
               "Location",
               style: GoogleFonts.poppins(
@@ -170,54 +182,58 @@ class _ReportIssueView extends StatelessWidget {
               ),
             ),
             SizedBox(height: 8.h),
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16.r),
-                  child: Container(
-                    height: 180.h,
-                    color: Colors.blue[50],
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.map, size: 60.w, color: Colors.blue[300]),
-                          SizedBox(height: 8.h),
-                          Text(
-                            'Ward No. 4\nBaluwatar, Kathmandu',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.blue[800]),
-                          ),
-                        ],
+            GestureDetector(
+              onTap: () => _pickLocation(context, ctrl),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16.r),
+                    child: Container(
+                      height: 180.h,
+                      color: Colors.blue[50],
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.map, size: 60.w, color: Colors.blue[300]),
+                            SizedBox(height: 8.h),
+                            Text(
+                              ctrl.hasPickedLocation
+                                  ? 'Selected\n${ctrl.locationLabel}'
+                                  : 'Tap to pick location from map',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(fontSize: 14.sp, color: Colors.blue[800]),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Positioned(
-                  top: 12.h,
-                  right: 12.w,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      borderRadius: BorderRadius.circular(20.r),
-                    ),
-                    child: Text(
-                      'Auto-detected',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12.sp,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                  Positioned(
+                    top: 12.h,
+                    right: 12.w,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                      decoration: BoxDecoration(
+                        color: ctrl.hasPickedLocation ? Colors.green : Colors.blue,
+                        borderRadius: BorderRadius.circular(20.r),
+                      ),
+                      child: Text(
+                        ctrl.hasPickedLocation ? 'Selected' : 'Pick on map',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.sp,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
             SizedBox(height: 32.h),
 
-            // Photo Evidence
             Text(
               "Photo Evidence",
               style: GoogleFonts.poppins(
@@ -228,7 +244,6 @@ class _ReportIssueView extends StatelessWidget {
             ),
             SizedBox(height: 8.h),
 
-            // Multiple photos
             Wrap(
               spacing: 12.w,
               runSpacing: 12.h,
@@ -265,7 +280,6 @@ class _ReportIssueView extends StatelessWidget {
                       ),
                     ],
                   ),
-
                 if (ctrl.canAddMorePhotos)
                   GestureDetector(
                     onTap: () => _showPickPhotoSheet(context, ctrl),
@@ -300,7 +314,6 @@ class _ReportIssueView extends StatelessWidget {
 
             SizedBox(height: 16.h),
 
-            // Info note
             Container(
               padding: EdgeInsets.all(12.w),
               decoration: BoxDecoration(
@@ -323,7 +336,6 @@ class _ReportIssueView extends StatelessWidget {
 
             SizedBox(height: 32.h),
 
-            // Submit Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(

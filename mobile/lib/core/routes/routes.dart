@@ -17,7 +17,7 @@ class AppRoutes {
   static const String notifications = '/notifications';
   static const String bookingDetails = '/booking-details';
   static const String locationPicker = '/location-picker';
-
+  static const String languagePreference = '/language-preference';
   //manage tanker slots
   static const String manageSlots = '/vendor/manage-slots';
 

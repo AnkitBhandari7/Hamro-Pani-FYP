@@ -1,0 +1,154 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
+import 'app_localizations.dart';
+
+// ignore_for_file: type=lint
+
+/// The translations for English (`en`).
+class AppLocalizationsEn extends AppLocalizations {
+  AppLocalizationsEn([String locale = 'en']) : super(locale);
+
+  @override
+  String get myProfile => 'My Profile';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get menu => 'Menu';
+
+  @override
+  String get changePassword => 'Change Password';
+
+  @override
+  String get languagePreference => 'Language Preference';
+
+  @override
+  String get logOut => 'Log Out';
+
+  @override
+  String get savedLocations => 'Saved Locations';
+
+  @override
+  String get addNew => '+ Add New';
+
+  @override
+  String get recentActivity => 'Recent Activity';
+
+  @override
+  String get showRecentActivity => 'Show Recent Activity';
+
+  @override
+  String get hideRecentActivity => 'Hide Recent Activity';
+
+  @override
+  String get selectYourWard => 'Select Your Ward';
+
+  @override
+  String get pickLocation => 'Pick Location';
+
+  @override
+  String get confirmLocation => 'Confirm Location';
+
+  @override
+  String get moveMapToChoose => 'Move map to choose location';
+
+  @override
+  String get selectedLocation => 'Selected location';
+
+  @override
+  String get searchHint => 'Search (e.g. Baneshwor)';
+
+  @override
+  String get myLocation => 'My Location';
+
+  @override
+  String get reportIssue => 'Report Issue';
+
+  @override
+  String get description => 'Description';
+
+  @override
+  String get location => 'Location';
+
+  @override
+  String get tapToPickLocation => 'Tap to pick location from map';
+
+  @override
+  String get submitReport => 'Submit Report →';
+
+  @override
+  String get english => 'English';
+
+  @override
+  String get nepali => 'Nepali';
+
+  @override
+  String get saveLanguage => 'Save';
+
+  @override
+  String get noWardSelected => 'No ward selected';
+
+  @override
+  String get bookings => 'Bookings';
+
+  @override
+  String get reports => 'Reports';
+
+  @override
+  String get personalDetails => 'Personal Details';
+
+  @override
+  String get fullName => 'Full Name';
+
+  @override
+  String get phoneNumber => 'Phone Number';
+
+  @override
+  String get emailLabel => 'Email';
+
+  @override
+  String get wardLabel => 'Ward';
+
+  @override
+  String get selectYourWardHint => 'Select your ward';
+
+  @override
+  String get noSavedLocationsYet => 'No saved locations yet';
+
+  @override
+  String get defaultBadge => 'DEFAULT';
+
+  @override
+  String get setDefault => 'Set Default';
+
+  @override
+  String get delete => 'Delete';
+
+  @override
+  String get seeAll => 'See all';
+
+  @override
+  String get tabBookings => 'Bookings';
+
+  @override
+  String get tabComplaints => 'Complaints';
+
+  @override
+  String get noBookingsYet => 'No bookings yet';
+
+  @override
+  String get noComplaintsYet => 'No complaints yet';
+
+  @override
+  String get complaintsHistoryNotAdded => 'Complaints history screen not added yet';
+
+  @override
+  String get resident => 'Resident';
+
+  @override
+  String get vendor => 'Vendor';
+
+  @override
+  String get admin => 'Admin';
+}

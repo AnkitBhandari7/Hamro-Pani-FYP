@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { authenticateFirebase } from "../auth/auth.middleware.js";
 
+import { getBookingDestination } from "./vendor.tracking.controller.js";
+
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -105,4 +107,6 @@ router.get("/slots/ward/:ward", listSlotsByWardAndDate);
 router.patch("/requests/:bookingId", authenticateFirebase, updateBookingStatus);
 
 router.get("/deliveries", authenticateFirebase, getVendorDeliveries);
+
+router.get("/bookings/:bookingId/destination", authenticateFirebase, getBookingDestination);
 export default router;

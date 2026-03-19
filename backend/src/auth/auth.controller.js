@@ -297,19 +297,20 @@ export async function updateProfile(req, res) {
   const userId = Number(req.auth?.sub);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { name, phone, ward, wardId } = req.body || {};
+  const { name, phone, ward, wardId, language } = req.body || {};
 
   try {
+    // Student: get role because ward update rules depend on role
     const me = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     });
     if (!me) return res.status(401).json({ error: "Unauthorized" });
 
+    // 1) Ward update logic
     let wardIdUpdate = undefined;
 
     if (me.role === "RESIDENT") {
-      // Resident can set ward later (optional)
       if (isProvided(wardId)) {
         const n = Number(wardId);
         if (!Number.isFinite(n)) return res.status(400).json({ error: "wardId must be a number" });
@@ -322,12 +323,20 @@ export async function updateProfile(req, res) {
         const w = await prisma.$transaction((tx) => getOrCreateWardByNameTx(tx, ward));
         wardIdUpdate = w?.id;
       } else {
-        // no ward provided => do not change wardId
-        wardIdUpdate = undefined;
+        wardIdUpdate = undefined; // do not change ward
       }
     } else {
-      // WARD_ADMIN / others: always null
-      wardIdUpdate = null;
+      wardIdUpdate = null; // non-resident must always be null
+    }
+
+    // 2) Language update logic
+    let languageUpdate = undefined;
+    if (typeof language === "string" && language.trim()) {
+      const lang = language.trim().toUpperCase();
+      if (!["EN", "NP"].includes(lang)) {
+        return res.status(400).json({ error: "language must be EN or NP" });
+      }
+      languageUpdate = lang;
     }
 
     const updated = await prisma.user.update({
@@ -336,6 +345,7 @@ export async function updateProfile(req, res) {
         name: hasNonEmptyString(name) ? name.trim() : undefined,
         phoneNumber: hasNonEmptyString(phone) ? phone.trim() : undefined,
         wardId: wardIdUpdate,
+        language: languageUpdate,
       },
       include: { ward: true },
     });
@@ -349,6 +359,7 @@ export async function updateProfile(req, res) {
         name: updated.name,
         phone: updated.phoneNumber,
         role: updated.role,
+        language: updated.language,
         ward: updated.ward ? { id: updated.ward.id, name: updated.ward.wardName } : null,
       },
     });
