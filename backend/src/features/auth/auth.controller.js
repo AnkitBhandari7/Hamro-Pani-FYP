@@ -1,10 +1,9 @@
-// src/auth/auth.controller.js
-import prisma from "../prisma.js";
-import { admin } from "../firebaseAdmin.js";
+import prisma from "../../prisma.js";
+import { admin } from "../../firebaseAdmin.js";
 
-// -----------------------------
+
 // Role normalization
-// -----------------------------
+
 function normalizeRole(role) {
   const r = String(role || "").toLowerCase().trim();
 
@@ -16,9 +15,9 @@ function normalizeRole(role) {
   return "RESIDENT";
 }
 
-// -----------------------------
+
 // Ward name normalization helpers
-// -----------------------------
+
 function extractWardNumber(s) {
   const m = String(s || "").match(/\d+/);
   return m ? Number(m[0]) : null;
@@ -50,7 +49,7 @@ async function getOrCreateWardByNameTx(tx, wardName) {
   let ward = await tx.ward.findFirst({ where: { wardName: canonical } });
   if (ward) return ward;
 
-  // optional fuzzy match
+
   const n = extractWardNumber(canonical);
   const city = extractCity(canonical);
 
@@ -80,9 +79,9 @@ function isProvided(x) {
   return x !== undefined && x !== null && String(x).trim() !== "";
 }
 
-// -----------------------------
+
 // POST /auth/register
-// -----------------------------
+
 export async function register(req, res) {
   const authHeader = req.headers.authorization;
 
@@ -102,15 +101,12 @@ export async function register(req, res) {
     const roleEnum = normalizeRole(role);
 
     const user = await prisma.$transaction(async (tx) => {
-      // -------------------------------------------------------
-      // UPDATED RULE:
-      // - RESIDENT: ward is OPTIONAL at registration (can set later in profile)
-      // - WARD_ADMIN: ward MUST be NULL always
-      // - other roles: ward NULL
-      //
-      // Also: If user already has ward in DB and register is called again
+
+
+      // ward is OPTIONAL at registration (can set later in profile)
+      // Also If user already has ward in DB and register is called again
       // without ward info, we DO NOT overwrite their ward with null.
-      // -------------------------------------------------------
+
       let finalWardId = null;
       let wardInputProvided = false;
 
@@ -147,14 +143,14 @@ export async function register(req, res) {
         finalWardId = null;
         wardInputProvided = true; // we will force clear on update
       } else {
-        // vendor/admin etc -> keep null
+
         finalWardId = null;
         wardInputProvided = true; // force clear
       }
 
-      // -----------------------------
+
       // Find user by firebaseUid, else by email
-      // -----------------------------
+
       let u = await tx.user.findUnique({ where: { firebaseUid: uid } });
 
       if (!u && email) {
@@ -167,9 +163,9 @@ export async function register(req, res) {
         }
       }
 
-      // -----------------------------
+
       // Create or update
-      // -----------------------------
+
       if (!u) {
         u = await tx.user.create({
           data: {
@@ -182,11 +178,7 @@ export async function register(req, res) {
           },
         });
       } else {
-        // ward update behavior:
-        // - WARD_ADMIN / VENDOR / ADMIN: force wardId NULL
-        // - RESIDENT:
-        //    - if ward provided -> update wardId
-        //    - else -> keep existing wardId (do not overwrite with null)
+
         const wardIdUpdate =
           roleEnum === "RESIDENT"
             ? (wardInputProvided ? finalWardId : undefined)
@@ -259,9 +251,9 @@ export async function register(req, res) {
   }
 }
 
-// -----------------------------
+
 // GET /auth/me
-// -----------------------------
+
 export async function me(req, res) {
   const userId = Number(req.auth?.sub);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -290,9 +282,9 @@ export async function me(req, res) {
   }
 }
 
-// -----------------------------
+
 // PATCH /auth/update-profile
-// -----------------------------
+
 export async function updateProfile(req, res) {
   const userId = Number(req.auth?.sub);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -300,14 +292,14 @@ export async function updateProfile(req, res) {
   const { name, phone, ward, wardId, language } = req.body || {};
 
   try {
-    // Student: get role because ward update rules depend on role
+    //  get role because ward update rules depend on role
     const me = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     });
     if (!me) return res.status(401).json({ error: "Unauthorized" });
 
-    // 1) Ward update logic
+    //  Ward update logic
     let wardIdUpdate = undefined;
 
     if (me.role === "RESIDENT") {
@@ -323,13 +315,13 @@ export async function updateProfile(req, res) {
         const w = await prisma.$transaction((tx) => getOrCreateWardByNameTx(tx, ward));
         wardIdUpdate = w?.id;
       } else {
-        wardIdUpdate = undefined; // do not change ward
+        wardIdUpdate = undefined;
       }
     } else {
       wardIdUpdate = null; // non-resident must always be null
     }
 
-    // 2) Language update logic
+    // Language update logic
     let languageUpdate = undefined;
     if (typeof language === "string" && language.trim()) {
       const lang = language.trim().toUpperCase();
@@ -369,14 +361,12 @@ export async function updateProfile(req, res) {
   }
 }
 
-// keep for old Flutter calls
 export async function updateWard(req, res) {
   return updateProfile(req, res);
 }
 
-// -----------------------------
 // POST /auth/save-fcm-token
-// -----------------------------
+
 export async function saveFcmToken(req, res) {
   const userId = Number(req.auth?.sub);
   const { fcmToken, deviceInfo } = req.body || {};

@@ -1,4 +1,4 @@
-import prisma from "../../prisma.js";
+import prisma from "../../../prisma.js";
 
 function getUserId(req) {
   const id = Number(req.auth?.sub);

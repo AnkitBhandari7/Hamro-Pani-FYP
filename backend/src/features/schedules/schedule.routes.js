@@ -1,5 +1,3 @@
-
-
 import express from "express";
 import { authenticateFirebase } from "../auth/auth.middleware.js";
 import { createSchedule, getSchedules, getSchedule, deleteSchedule } from "./schedule.controller.js";

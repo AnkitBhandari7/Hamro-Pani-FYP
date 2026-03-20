@@ -1,4 +1,4 @@
-import prisma from "../prisma.js";
+import prisma from "../../prisma.js";
 import fcmService from "../notifications/fcmservice.js";
 import fs from "fs";
 import path from "path";
@@ -530,13 +530,13 @@ export async function createSlot(req, res) {
     const endDt = parseClientDateTimeOrThrow(endTime, "endTime");
     if (endDt <= startDt) return res.status(400).json({ error: "endTime must be after startTime" });
 
-    // ✅ enforce 2 hours delivery window
+    // enforce 2 hours delivery window
     const durMin = minutesDiff(startDt, endDt);
     if (durMin !== 120) {
       return res.status(400).json({ error: "Slot duration must be exactly 2 hours" });
     }
 
-    // ✅ block overlapping slot for same vendor + same ward
+    // block overlapping slot for same vendor + same ward
     const conflict = await findOverlappingSlot({
       vendorId: vendor.id,
       wardId: route.wardId,
@@ -709,7 +709,7 @@ export async function updateSlot(req, res) {
       return res.status(400).json({ error: "Invalid tankerCapacityLiters" });
     }
 
-    // ✅ NEW: compute final times for overlap + duration check
+    // compute final times for overlap + duration check
     const nextStart = startTime
       ? parseClientDateTimeOrThrow(startTime, "startTime")
       : slot.startTime;
@@ -722,13 +722,13 @@ export async function updateSlot(req, res) {
       return res.status(400).json({ error: "endTime must be after startTime" });
     }
 
-    // ✅ enforce 2 hours
+    // enforce 2 hours
     const durMin = minutesDiff(nextStart, nextEnd);
     if (durMin !== 120) {
       return res.status(400).json({ error: "Slot duration must be exactly 2 hours" });
     }
 
-    // ✅ block overlapping slot in same ward for same vendor
+    // block overlapping slot in same ward for same vendor
     const conflict = await findOverlappingSlot({
       vendorId: vendor.id,
       wardId: slot.route.wardId,
@@ -749,7 +749,7 @@ export async function updateSlot(req, res) {
       });
     }
 
-    // ✅ update after validation passed
+    // update after validation passed
     const updated = await prisma.slot.update({
       where: { id: slotId },
       data: {

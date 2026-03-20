@@ -1,4 +1,4 @@
-import prisma from "../prisma.js";
+import prisma from "../../prisma.js";
 import fs from "fs";
 import path from "path";
 
@@ -167,8 +167,8 @@ export async function createLocation(req, res) {
           userId,
           label: label.trim(),
           address: address.trim(),
-          lat: latNum, // ✅ FIX
-          lng: lngNum, // ✅ FIX
+          lat: latNum,
+          lng: lngNum,
           isDefault: makeDefault,
         },
       });
@@ -300,7 +300,7 @@ export async function setDefaultLocation(req, res) {
   }
 }
 
-// Photo endpoints unchanged (keep your existing uploadMyPhoto/deleteMyPhoto implementations)
+
 export async function uploadMyPhoto(req, res) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });

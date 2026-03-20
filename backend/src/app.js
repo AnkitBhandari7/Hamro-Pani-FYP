@@ -5,16 +5,16 @@ import morgan from "morgan";
 import path from "path";
 import multer from "multer";
 import config from "./config/config.js";
-import authRoutes from "./auth/auth.routes.js";
-import profileRoutes from "./profile/profile.routes.js";
-import wardAdminProfileRoutes from "./admin/ward_admin_profile.routes.js";
-import notificationRoutes from "./notifications/notification.routes.js";
-import scheduleRoutes from "./schedules/schedule.routes.js";
-import vendorRoutes from "./vendors/vendor.routes.js";
-import bookingRoutes from "./bookings/tankerBooking.routes.js";
-import tankerRoutes from "./bookings/tanker/tanker.routes.js";
-import complaintRouter from "./complaints/complaint.routes.js";
-import paymentRoutes from "./payments/payment.routes.js";
+import authRoutes from "./features/auth/auth.routes.js";
+import profileRoutes from "./features/profile/profile.routes.js";
+import wardAdminProfileRoutes from "./features/ward_admin/ward_admin_profile.routes.js";
+import notificationRoutes from "./features/notifications/notification.routes.js";
+import scheduleRoutes from "./features/schedules/schedule.routes.js";
+import vendorRoutes from "./features/vendors/vendor.routes.js";
+import bookingRoutes from "./features/bookings/tankerBooking.routes.js";
+import tankerRoutes from "./features/bookings/tanker/tanker.routes.js";
+import complaintRouter from "./features/complaints/complaint.routes.js";
+import paymentRoutes from "./features/payments/payment.routes.js";
 
 const app = express();
 

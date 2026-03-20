@@ -1,4 +1,4 @@
-import prisma from "../prisma.js";
+import prisma from "../../prisma.js";
 
 function getUserId(req) {
   const id = Number(req.auth?.sub);
@@ -95,7 +95,7 @@ export async function verifyEsewaPayment(req, res) {
   }
 }
 
-// ✅ GET /payments/receipt/:bookingId
+// GET /payments/receipt/:bookingId
 export async function getPaymentReceipt(req, res) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });

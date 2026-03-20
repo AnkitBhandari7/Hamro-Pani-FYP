@@ -1,4 +1,4 @@
-import { admin } from "../firebaseAdmin.js";
+import { admin } from "../../firebaseAdmin.js";
 
 function chunk(arr, size) {
   const out = [];
@@ -77,9 +77,6 @@ class FCMService {
 
     return { success: failureCount === 0, successCount, failureCount, errors };
   }
-
-  // ward topic must match Flutter subscription exactly.
-  // "Kathmandu Ward 4" => "ward_kathmandu_ward_4"
 
   wardToTopic(ward) {
     return `ward_${String(ward).toLowerCase().trim().replaceAll(" ", "_")}`;

@@ -1,6 +1,4 @@
-// Schedule APIs + push + in-app notifications
-
-import prisma from "../prisma.js";
+import prisma from "../../prisma.js";
 import fcmService from "../notifications/fcmservice.js";
 
 function normalizeRole(role) {
@@ -128,7 +126,7 @@ export async function createSchedule(req, res) {
       return res.status(400).json({ error: "Invalid startTime/endTime. Use HH:mm (24-hour)." });
     }
 
-    // IMPORTANT: save which ward admin created it
+    // save which ward admin created it
     const schedule = await prisma.schedule.create({
       data: {
         wardId: wardRow.id,
@@ -153,7 +151,7 @@ export async function createSchedule(req, res) {
         ? `Water supply scheduled for ${wardRow.wardName} (${affectedAreas}) on ${dateStr} from ${startTime} to ${endTime}`
         : `Water supply scheduled for ${wardRow.wardName} on ${dateStr} from ${startTime} to ${endTime}`;
 
-      // 1) Save in DB
+      //  Save in DB
       const notif = await prisma.notification.create({
         data: {
           senderId: me.id,
@@ -165,7 +163,7 @@ export async function createSchedule(req, res) {
       });
       notificationResults.inApp = notif;
 
-      // 2) Create recipients for in-app screen
+      // Create recipients for in-app screen
       const residentUsers = await prisma.user.findMany({
         where: { role: "RESIDENT", wardId: wardRow.id },
         select: { id: true },
@@ -180,7 +178,7 @@ export async function createSchedule(req, res) {
 
       notificationResults.recipients = { residents: rCount, vendors: vCount };
 
-      // 3) Push topic
+      // Push topic
       const data = {
         screen: "schedule",
         scheduleId: String(schedule.id),

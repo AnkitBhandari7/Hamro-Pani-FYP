@@ -1,9 +1,9 @@
 
-import prisma from "../prisma.js";
+import prisma from "../../prisma.js";
 import fs from "fs";
 import path from "path";
 
-// only ward admin/admin can access these endpoints
+// only ward admin can access these endpoints
 function isWardAdminOrAdmin(role) {
   return role === "WARD_ADMIN" || role === "ADMIN";
 }
@@ -17,7 +17,7 @@ function getUserId(req) {
 // build absolute URL for Flutter
 function toAbsoluteUrl(req, publicPath) {
   if (!publicPath) return "";
-  // if already absolute
+
   if (String(publicPath).startsWith("http://") || String(publicPath).startsWith("https://")) {
     return String(publicPath);
   }

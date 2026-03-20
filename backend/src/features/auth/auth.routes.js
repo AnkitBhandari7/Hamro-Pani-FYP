@@ -1,4 +1,3 @@
-// src/auth/auth.routes.js
 import express from "express";
 import { authenticateFirebase } from "./auth.middleware.js";
 import {
@@ -11,10 +10,10 @@ import {
 
 const router = express.Router();
 
-// Student note: register creates/updates user in our DB after Firebase login
+// register creates/updates user in our DB after Firebase login
 router.post("/register", register);
 
-// Student note: protected routes (need token)
+//  protected routes (need token)
 router.get("/me", authenticateFirebase, me);
 router.patch("/update-ward", authenticateFirebase, updateWard);
 router.patch("/update-profile", authenticateFirebase, updateProfile);

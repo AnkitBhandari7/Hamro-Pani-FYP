@@ -1,4 +1,3 @@
-
 import { Router } from "express";
 import { authenticateFirebase } from "../auth/auth.middleware.js";
 import { getNotifications, createNotification,markNotificationRead,
