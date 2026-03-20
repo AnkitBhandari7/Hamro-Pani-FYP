@@ -102,13 +102,13 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                   child: _loading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                    "Send Reset Link",
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                          "Send Reset Link",
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ],

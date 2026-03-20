@@ -1,26 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:fyp/core/routes/routes.dart';
 
-import 'package:fyp/screens/home_wrapper.dart';
-import 'package:fyp/profile/vendorProfile/vendor_profile_screen.dart';
-import 'package:fyp/booking/find_tankers_screen.dart';
-import 'package:fyp/admin/profile/ward_admin_profile_screen.dart';
+import 'package:fyp/features/resident/dashboard/views/home_wrapper.dart';
+import 'package:fyp/features/vendor/profile/views/vendor_profile_screen.dart';
+import 'package:fyp/features/resident/bookings/views/find_tankers_screen.dart';
+import 'package:fyp/features/ward_admin/profile/views/ward_admin_profile_screen.dart';
 
 import 'package:fyp/auth/login_view.dart';
 import 'package:fyp/auth/signup_view.dart';
 import 'package:fyp/auth/forgot_password_view.dart';
 
-import 'package:fyp/profile/profile_screen.dart';
-import 'package:fyp/profile/change_password_view.dart';
-import 'package:fyp/profile/language_preference_view.dart';
+import 'package:fyp/features/resident/profile/views/profile_screen.dart';
+import 'package:fyp/features/resident/profile/views/change_password_view.dart';
+import 'package:fyp/features/resident/profile/views/language_preference_view.dart';
 
-import 'package:fyp/notifications/notifications_screen.dart';
-import 'package:fyp/booking/new_schedule.dart';
-import 'package:fyp/booking/create_slot.dart';
+import 'package:fyp/features/shared/notifications/views/notifications_screen.dart';
+import 'package:fyp/features/ward_admin/schedules/views/new_schedule_screen.dart';
+import 'package:fyp/features/resident/bookings/views/create_slot.dart';
 import 'package:fyp/features/complaints/report_issue_screen.dart';
-import 'package:fyp/admin/send_notice.dart';
+import 'package:fyp/features/ward_admin/notices/views/send_notice.dart';
 
-import 'package:fyp/maps/location_picker_view.dart';
+import 'package:fyp/features/shared/maps/views/location_picker_view.dart';
 
 class AppNavigation {
   static String? wardNameFrom(Object? ward) {
@@ -93,7 +93,9 @@ class AppNavigation {
         return MaterialPageRoute(builder: (_) => const VendorProfileScreen());
 
       case AppRoutes.wardAdminProfile:
-        return MaterialPageRoute(builder: (_) => const WardAdminProfileScreen());
+        return MaterialPageRoute(
+          builder: (_) => const WardAdminProfileScreen(),
+        );
 
       case AppRoutes.sendNotice:
         return MaterialPageRoute(builder: (_) => const SendNoticeScreen());
@@ -105,8 +107,9 @@ class AppNavigation {
         return MaterialPageRoute(builder: (_) => const ChangePasswordView());
 
       case AppRoutes.languagePreference:
-        return MaterialPageRoute(builder: (_) => const LanguagePreferenceView());
-
+        return MaterialPageRoute(
+          builder: (_) => const LanguagePreferenceView(),
+        );
 
       case AppRoutes.locationPicker:
         return MaterialPageRoute(builder: (_) => const LocationPickerView());
@@ -114,31 +117,29 @@ class AppNavigation {
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
-            body: Center(
-              child: Text('No route defined for ${settings.name}'),
-            ),
+            body: Center(child: Text('No route defined for ${settings.name}')),
           ),
         );
     }
   }
 
   static Future<T?> push<T extends Object?>(
-      BuildContext context,
-      String route, {
-        Object? arguments,
-      }) {
+    BuildContext context,
+    String route, {
+    Object? arguments,
+  }) {
     return Navigator.pushNamed(context, route, arguments: arguments);
   }
 
   static Future<T?> offAll<T extends Object?>(
-      BuildContext context,
-      String route, {
-        Object? arguments,
-      }) {
+    BuildContext context,
+    String route, {
+    Object? arguments,
+  }) {
     return Navigator.pushNamedAndRemoveUntil(
       context,
       route,
-          (route) => false,
+      (route) => false,
       arguments: arguments,
     );
   }
@@ -146,13 +147,13 @@ class AppNavigation {
   static void pop(BuildContext context) => Navigator.pop(context);
 
   static Future<T?> pushHomeWithRole<T extends Object?>(
-      BuildContext context, {
-        required String role,
-        required String userName,
-        required String phone,
-        required String email,
-        Object? ward,
-      }) {
+    BuildContext context, {
+    required String role,
+    required String userName,
+    required String phone,
+    required String email,
+    Object? ward,
+  }) {
     return offAll(
       context,
       AppRoutes.home,

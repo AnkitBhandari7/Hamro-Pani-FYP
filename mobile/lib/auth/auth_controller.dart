@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:fyp/auth/auth_service.dart';
-import '../models/auth_user.dart';
+import 'package:fyp/core/models/auth_user.dart';
 
 class AuthController {
   final AuthService _service;
   final ValueNotifier<bool> isLoading = ValueNotifier(false);
 
   AuthController(this._service);
-
 
   // Email / Password
 
@@ -63,7 +62,6 @@ class AuthController {
     }
   }
 
-
   // Google Sign-In
 
   Future<AuthUser?> googleLogin({
@@ -85,7 +83,6 @@ class AuthController {
       isLoading.value = false;
     }
   }
-
 
   Future<void> forgotPassword(String email, BuildContext context) async {
     if (email.isEmpty) {

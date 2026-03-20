@@ -13,9 +13,8 @@ import 'firebase_options.dart';
 import 'app/config/app_config.dart';
 import 'core/routes/app_navigation.dart';
 import 'core/routes/routes.dart';
-import 'notifications/fcm_service.dart';
+import 'package:fyp/features/shared/notifications/services/fcm_service.dart';
 import 'core/localization/locale_controller.dart';
-
 
 import 'package:fyp/l10n/app_localizations.dart';
 
@@ -23,17 +22,13 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -56,7 +51,9 @@ Future<void> main() async {
     ProviderScope(
       child: pv.MultiProvider(
         providers: [
-          pv.ChangeNotifierProvider<LocaleController>(create: (_) => LocaleController()),
+          pv.ChangeNotifierProvider<LocaleController>(
+            create: (_) => LocaleController(),
+          ),
         ],
         child: const TankerTapApp(),
       ),

@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:fyp/auth/auth_controller.dart';
 import 'package:fyp/auth/auth_service.dart';
 import '../../core/routes/app_navigation.dart';
-import '../../core/routes/routes.dart';
 import 'login_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -81,9 +80,9 @@ class _SignUpViewState extends State<SignUpView> {
     }
 
     if (name.isEmpty || email.isEmpty || phone.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Please fill all fields")));
       return;
     }
 
@@ -95,9 +94,9 @@ class _SignUpViewState extends State<SignUpView> {
     }
 
     if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Passwords do not match")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Passwords do not match")));
       return;
     }
 
@@ -134,7 +133,9 @@ class _SignUpViewState extends State<SignUpView> {
       final idToken = await firebaseUser.getIdToken(true);
       if (idToken == null || idToken.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Signup failed: Firebase token is null")),
+          const SnackBar(
+            content: Text("Signup failed: Firebase token is null"),
+          ),
         );
         return;
       }
@@ -161,7 +162,9 @@ class _SignUpViewState extends State<SignUpView> {
 
       if (registerRes.statusCode != 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Backend register failed: ${registerRes.statusCode}")),
+          SnackBar(
+            content: Text("Backend register failed: ${registerRes.statusCode}"),
+          ),
         );
         return;
       }
@@ -236,7 +239,12 @@ class _SignUpViewState extends State<SignUpView> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 20)],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.1),
+                      blurRadius: 20,
+                    ),
+                  ],
                 ),
                 child: Image.asset(
                   'assets/images/hamropani_logo.png',
@@ -250,7 +258,11 @@ class _SignUpViewState extends State<SignUpView> {
             Center(
               child: Text(
                 "Hamro Pani",
-                style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: GoogleFonts.poppins(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
             ),
             Center(
@@ -264,14 +276,20 @@ class _SignUpViewState extends State<SignUpView> {
               alignment: Alignment.centerLeft,
               child: Text(
                 "Create Account",
-                style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold),
+                style: GoogleFonts.poppins(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const SizedBox(height: 20),
 
             // Role Tabs
             Container(
-              decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(30)),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(30),
+              ),
               child: Row(
                 children: roles.asMap().entries.map((entry) {
                   int idx = entry.key;
@@ -282,15 +300,21 @@ class _SignUpViewState extends State<SignUpView> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: selectedRole == idx ? Colors.white : Colors.transparent,
+                          color: selectedRole == idx
+                              ? Colors.white
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(30),
                         ),
                         child: Text(
                           role,
                           textAlign: TextAlign.center,
                           style: GoogleFonts.poppins(
-                            fontWeight: selectedRole == idx ? FontWeight.bold : FontWeight.normal,
-                            color: selectedRole == idx ? Colors.blue : Colors.grey[700],
+                            fontWeight: selectedRole == idx
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: selectedRole == idx
+                                ? Colors.blue
+                                : Colors.grey[700],
                           ),
                         ),
                       ),
@@ -302,7 +326,10 @@ class _SignUpViewState extends State<SignUpView> {
 
             const SizedBox(height: 30),
 
-            Text("Full Name", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            Text(
+              "Full Name",
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
@@ -310,14 +337,23 @@ class _SignUpViewState extends State<SignUpView> {
                 hintText: "Ram Bahadur",
                 filled: true,
                 fillColor: Colors.grey[100],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
               ),
             ),
 
             const SizedBox(height: 20),
 
-            Text("Email Address", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            Text(
+              "Email Address",
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _emailController,
@@ -326,14 +362,23 @@ class _SignUpViewState extends State<SignUpView> {
                 hintText: "example@email.com",
                 filled: true,
                 fillColor: Colors.grey[100],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
               ),
             ),
 
             const SizedBox(height: 20),
 
-            Text("Mobile Number", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            Text(
+              "Mobile Number",
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _phoneController,
@@ -342,14 +387,23 @@ class _SignUpViewState extends State<SignUpView> {
                 hintText: "+977 98XXXXXXXX",
                 filled: true,
                 fillColor: Colors.grey[100],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
               ),
             ),
 
             const SizedBox(height: 20),
 
-            Text("Password", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            Text(
+              "Password",
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _passwordController,
@@ -358,18 +412,30 @@ class _SignUpViewState extends State<SignUpView> {
                 hintText: "Enter your password",
                 filled: true,
                 fillColor: Colors.grey[100],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                 ),
               ),
             ),
 
             const SizedBox(height: 20),
 
-            Text("Confirm Password", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            Text(
+              "Confirm Password",
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _confirmPasswordController,
@@ -378,11 +444,23 @@ class _SignUpViewState extends State<SignUpView> {
                 hintText: "Enter your password again",
                 filled: true,
                 fillColor: Colors.grey[100],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                  icon: Icon(
+                    _obscureConfirmPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                  ),
+                  onPressed: () => setState(
+                    () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                  ),
                 ),
               ),
             ),
@@ -393,7 +471,8 @@ class _SignUpViewState extends State<SignUpView> {
               children: [
                 Checkbox(
                   value: _agreeToTerms,
-                  onChanged: (val) => setState(() => _agreeToTerms = val ?? false),
+                  onChanged: (val) =>
+                      setState(() => _agreeToTerms = val ?? false),
                   activeColor: Colors.blue,
                 ),
                 Expanded(
@@ -409,7 +488,10 @@ class _SignUpViewState extends State<SignUpView> {
                             decoration: TextDecoration.underline,
                           ),
                         ),
-                        TextSpan(text: " and ", style: GoogleFonts.poppins(color: Colors.black87)),
+                        TextSpan(
+                          text: " and ",
+                          style: GoogleFonts.poppins(color: Colors.black87),
+                        ),
                         TextSpan(
                           text: "Privacy Policy",
                           style: GoogleFonts.poppins(
@@ -434,11 +516,17 @@ class _SignUpViewState extends State<SignUpView> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   disabledBackgroundColor: Colors.grey[300],
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
                 ),
                 child: Text(
                   "Sign Up",
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -447,7 +535,8 @@ class _SignUpViewState extends State<SignUpView> {
 
             Center(
               child: GestureDetector(
-                onTap: () => Navigator.pushReplacementNamed(context, LoginView.route),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, LoginView.route),
                 child: RichText(
                   text: TextSpan(
                     text: "Already have an account? ",
@@ -455,7 +544,10 @@ class _SignUpViewState extends State<SignUpView> {
                     children: [
                       TextSpan(
                         text: "Log In",
-                        style: GoogleFonts.poppins(color: Colors.blue, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.poppins(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),

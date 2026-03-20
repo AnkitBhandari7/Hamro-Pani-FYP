@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:fyp/auth/auth_controller.dart';
 import 'package:fyp/auth/auth_service.dart';
-import 'package:fyp/notifications/fcm_service.dart';
+import 'package:fyp/features/shared/notifications/services/fcm_service.dart';
 import '../../core/routes/app_navigation.dart';
 import '../../core/routes/routes.dart';
 import 'signup_view.dart';
@@ -118,7 +118,9 @@ class _LoginViewState extends State<LoginView> {
       debugPrint("Body: ${registerResponse.body}");
 
       if (registerResponse.statusCode != 200) {
-        throw Exception("Failed to register user (HTTP ${registerResponse.statusCode})");
+        throw Exception(
+          "Failed to register user (HTTP ${registerResponse.statusCode})",
+        );
       }
 
       // retry /auth/me after register
@@ -133,7 +135,9 @@ class _LoginViewState extends State<LoginView> {
     debugPrint("Body: ${meResponse.body}");
 
     if (meResponse.statusCode != 200) {
-      throw Exception("Failed to load user profile (HTTP ${meResponse.statusCode})");
+      throw Exception(
+        "Failed to load user profile (HTTP ${meResponse.statusCode})",
+      );
     }
 
     final userData = json.decode(meResponse.body) as Map<String, dynamic>;
@@ -155,7 +159,9 @@ class _LoginViewState extends State<LoginView> {
     // 3) Role-based access check
     if (!_isRoleMatch(userRole, selectedRoleName)) {
       await FirebaseAuth.instance.signOut();
-      throw Exception("You are registered as '$userRole'. Please select the correct role tab.");
+      throw Exception(
+        "You are registered as '$userRole'. Please select the correct role tab.",
+      );
     }
 
     // 4) FCM setup (non-fatal)
@@ -263,8 +269,10 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
-
-  Future<void> _subscribeToTopics({required String role, String? wardName}) async {
+  Future<void> _subscribeToTopics({
+    required String role,
+    String? wardName,
+  }) async {
     final fcmService = FCMService();
     final normalizedRole = _normalizeBackendRole(role);
 
@@ -307,7 +315,12 @@ class _LoginViewState extends State<LoginView> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 20)],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.1),
+                        blurRadius: 20,
+                      ),
+                    ],
                   ),
                   child: Image.asset(
                     'assets/images/hamropani_logo.png',
@@ -315,7 +328,11 @@ class _LoginViewState extends State<LoginView> {
                     width: 60,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
-                      return const Icon(Icons.water_drop, size: 60, color: Colors.blue);
+                      return const Icon(
+                        Icons.water_drop,
+                        size: 60,
+                        color: Colors.blue,
+                      );
                     },
                   ),
                 ),
@@ -324,7 +341,11 @@ class _LoginViewState extends State<LoginView> {
 
                 Text(
                   "Hamro Pani",
-                  style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87),
+                  style: GoogleFonts.poppins(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                 ),
                 Text(
                   "Kathmandu's Smart Water Management",
@@ -337,7 +358,10 @@ class _LoginViewState extends State<LoginView> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     "Welcome Back",
-                    style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.poppins(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
 
@@ -345,7 +369,10 @@ class _LoginViewState extends State<LoginView> {
 
                 // Role Tabs
                 Container(
-                  decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(30)),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(30),
+                  ),
                   child: Row(
                     children: roles.asMap().entries.map((entry) {
                       int idx = entry.key;
@@ -356,15 +383,21 @@ class _LoginViewState extends State<LoginView> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
-                              color: selectedRole == idx ? Colors.white : Colors.transparent,
+                              color: selectedRole == idx
+                                  ? Colors.white
+                                  : Colors.transparent,
                               borderRadius: BorderRadius.circular(30),
                             ),
                             child: Text(
                               role,
                               textAlign: TextAlign.center,
                               style: GoogleFonts.poppins(
-                                fontWeight: selectedRole == idx ? FontWeight.bold : FontWeight.normal,
-                                color: selectedRole == idx ? Colors.blue : Colors.grey[700],
+                                fontWeight: selectedRole == idx
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: selectedRole == idx
+                                    ? Colors.blue
+                                    : Colors.grey[700],
                               ),
                             ),
                           ),
@@ -385,7 +418,10 @@ class _LoginViewState extends State<LoginView> {
                     prefixIcon: const Icon(Icons.email_outlined),
                     filled: true,
                     fillColor: Colors.grey[200],
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
 
@@ -399,12 +435,20 @@ class _LoginViewState extends State<LoginView> {
                     hintText: "Enter Your Password",
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                     filled: true,
                     fillColor: Colors.grey[200],
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
 
@@ -414,7 +458,10 @@ class _LoginViewState extends State<LoginView> {
                     onPressed: () {
                       Navigator.pushNamed(context, AppRoutes.forgotPassword);
                     },
-                    child: Text("Forgot?", style: GoogleFonts.poppins(color: Colors.blue)),
+                    child: Text(
+                      "Forgot?",
+                      style: GoogleFonts.poppins(color: Colors.blue),
+                    ),
                   ),
                 ),
 
@@ -428,14 +475,20 @@ class _LoginViewState extends State<LoginView> {
                     onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
                     ),
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
                         : Text(
-                      "Sign In →",
-                      style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
+                            "Sign In →",
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
 
@@ -447,7 +500,10 @@ class _LoginViewState extends State<LoginView> {
                     const Expanded(child: Divider()),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text("Or continue with", style: GoogleFonts.poppins(color: Colors.grey[600])),
+                      child: Text(
+                        "Or continue with",
+                        style: GoogleFonts.poppins(color: Colors.grey[600]),
+                      ),
                     ),
                     const Expanded(child: Divider()),
                   ],
@@ -460,11 +516,19 @@ class _LoginViewState extends State<LoginView> {
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: _isLoading ? null : _handleGoogleLogin,
-                    icon: Image.asset('assets/images/google_logo.webp', height: 24),
-                    label: Text("Google", style: GoogleFonts.poppins(fontSize: 16)),
+                    icon: Image.asset(
+                      'assets/images/google_logo.webp',
+                      height: 24,
+                    ),
+                    label: Text(
+                      "Google",
+                      style: GoogleFonts.poppins(fontSize: 16),
+                    ),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
                     ),
                   ),
                 ),
@@ -475,12 +539,19 @@ class _LoginViewState extends State<LoginView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("Don't have an account? ", style: GoogleFonts.poppins()),
+                    Text(
+                      "Don't have an account? ",
+                      style: GoogleFonts.poppins(),
+                    ),
                     GestureDetector(
-                      onTap: () => Navigator.pushNamed(context, SignUpView.route),
+                      onTap: () =>
+                          Navigator.pushNamed(context, SignUpView.route),
                       child: Text(
                         "Sign up now",
-                        style: GoogleFonts.poppins(color: Colors.blue, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.poppins(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
