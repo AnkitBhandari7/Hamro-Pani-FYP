@@ -5,45 +5,77 @@
 .env.*
 !.env.example
 
+# Secrets / keys (general)
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*.mobileprovision
+*.cer
+*.crt
+*.der
+
 # -------------------------
-# Node / Backend
+# Node / Backend (repo-wide)
 # -------------------------
 node_modules/
-backend/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 *.log
 
-# Prisma generated/cache (do NOT ignore migrations)
-backend/generated/prisma/
-backend/node_modules/.prisma/
-backend/prisma/.cache/
-
-# Uploaded files (do not commit)
+# Backend runtime generated
 backend/uploads/
 
+# Prisma local artifacts (keep schema + migrations tracked)
+backend/node_modules/.prisma/
+backend/prisma/.cache/
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
 # -------------------------
-# Flutter / Mobile
+# Flutter / Mobile (mobile/)
 # -------------------------
+# Dart/Flutter tooling
 mobile/.dart_tool/
-mobile/build/
 mobile/.flutter-plugins
 mobile/.flutter-plugins-dependencies
 mobile/.packages
-mobile/pubspec.lock
+mobile/build/
+mobile/coverage/
 
-# iOS / Android generated
+# (Recommended) commit pubspec.lock for apps.
+# If you really want to ignore it, keep this line.
+# mobile/pubspec.lock
+
+# Android
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/**/build/
+mobile/android/captures/
+mobile/android/key.properties
+mobile/android/.idea/
+
+# iOS / CocoaPods / Xcode
 mobile/ios/Pods/
 mobile/ios/.symlinks/
 mobile/ios/Flutter/ephemeral/
-mobile/android/.gradle/
-mobile/android/app/build/
-mobile/android/local.properties
-mobile/android/key.properties
-*.keystore
-*.jks
+mobile/ios/Podfile.lock
+mobile/ios/Runner.xcworkspace/
+mobile/ios/Runner.xcodeproj/xcuserdata/
+mobile/ios/Runner/DerivedData/
+DerivedData/
+
+# macOS / Xcode (if you have macos/)
+mobile/macos/Pods/
+mobile/macos/Flutter/ephemeral/
+mobile/macos/Podfile.lock
+
+# Firebase config (ONLY ignore if you do NOT want to commit them)
+# mobile/android/app/google-services.json
+# mobile/ios/Runner/GoogleService-Info.plist
 
 # -------------------------
 # OS / IDE
@@ -54,16 +86,9 @@ Thumbs.db
 .vscode/
 *.iml
 
-
-
-# Root flutter generated
-
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-
-
-mobile/android/build/
-mobile/build/
-**/build/mobile/assets/*.pdf
-/mobile/assets/*.pdf
+# -------------------------
+# Optional: PDFs (only if you truly want to ignore all pdf assets)
+# -------------------------
+# If PDFs in assets should be committed, REMOVE these lines.
+mobile/assets/*.pdf
+mobile/**/assets/**/*.pdf
