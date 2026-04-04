@@ -26,28 +26,45 @@ class _NewScheduleContent extends StatelessWidget {
 
   Future<void> _pickFile(BuildContext context) async {
     final t = AppLocalizations.of(context)!;
+    final c = context.read<NewScheduleController>();
 
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['csv', 'pdf'],
+      allowedExtensions: const ['csv', 'pdf'],
+      // Important: helps on platforms where `path` can be null
+      withData: true,
     );
 
-    if (result == null || result.files.single.path == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t.pleaseSelectAFile)));
+    if (result == null || result.files.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.pleaseSelectAFile)),
+      );
       return;
     }
 
-    // Upload not implemented (same behavior as your old screen)
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(t.fileUploadNotImplementedYet)));
+    final f = result.files.single;
+
+    // If both path and bytes are null, we can't upload
+    if (f.path == null && f.bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.pleaseSelectAFile)),
+      );
+      return;
+    }
+
+    c.setPickedFile(
+      fileName: f.name,
+      filePath: f.path,
+      fileBytes: f.bytes,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Selected: ${f.name}")),
+    );
   }
 
   void _showPreview(BuildContext context) {
     final c = context.read<NewScheduleController>();
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -127,7 +144,7 @@ class _NewScheduleContent extends StatelessWidget {
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    if (isUploadMode)
+                    if (isUploadMode) ...[
                       GestureDetector(
                         onTap: () => _pickFile(context),
                         child: DottedBorder(
@@ -171,6 +188,47 @@ class _NewScheduleContent extends StatelessWidget {
                           ),
                         ),
                       ),
+                      SizedBox(height: 16.h),
+
+                      // Selected file display
+                      if (c.fileName != null)
+                        Container(
+                          padding: EdgeInsets.all(16.w),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16.r),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 16,
+                                offset: Offset(0, 6.h),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.insert_drive_file, color: Colors.blue, size: 22.w),
+                              SizedBox(width: 10.w),
+                              Expanded(
+                                child: Text(
+                                  c.fileName!,
+                                  style: GoogleFonts.poppins(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: c.isPublishing ? null : () => _pickFile(context),
+                                child: Text("Change", style: GoogleFonts.poppins()),
+                              ),
+                              IconButton(
+                                tooltip: "Remove",
+                                onPressed: c.isPublishing ? null : c.clearPickedFile,
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
 
                     if (!isUploadMode) ...[
                       _card(
@@ -199,15 +257,11 @@ class _NewScheduleContent extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(16.r),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      c.wardDisplayForLocale(context) ??
-                                          t.selectWard,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16.sp,
-                                      ),
+                                      c.wardDisplayForLocale(context) ?? t.selectWard,
+                                      style: GoogleFonts.poppins(fontSize: 16.sp),
                                     ),
                                     const Icon(Icons.keyboard_arrow_down),
                                   ],
@@ -228,9 +282,7 @@ class _NewScheduleContent extends StatelessWidget {
                               maxLines: 4,
                               decoration: InputDecoration(
                                 hintText: t.affectedAreasHint,
-                                hintStyle: GoogleFonts.poppins(
-                                  color: Colors.grey[500],
-                                ),
+                                hintStyle: GoogleFonts.poppins(color: Colors.grey[500]),
                                 filled: true,
                                 fillColor: Colors.grey[100],
                                 border: OutlineInputBorder(
@@ -243,7 +295,6 @@ class _NewScheduleContent extends StatelessWidget {
                           ],
                         ),
                       ),
-
                       _card(
                         icon: Icons.access_time,
                         iconColor: Colors.orange,
@@ -270,14 +321,11 @@ class _NewScheduleContent extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(16.r),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       c.formatDatePreview(c.selectedDate),
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16.sp,
-                                      ),
+                                      style: GoogleFonts.poppins(fontSize: 16.sp),
                                     ),
                                     const Icon(Icons.calendar_today),
                                   ],
@@ -291,8 +339,7 @@ class _NewScheduleContent extends StatelessWidget {
                                   child: _timeField(
                                     label: t.startTimeUpper,
                                     value: c.formatTimePreview(c.startTime),
-                                    onTap: () =>
-                                        c.pickTime(context, isStart: true),
+                                    onTap: () => c.pickTime(context, isStart: true),
                                   ),
                                 ),
                                 SizedBox(width: 16.w),
@@ -300,8 +347,7 @@ class _NewScheduleContent extends StatelessWidget {
                                   child: _timeField(
                                     label: t.endTimeUpper,
                                     value: c.formatTimePreview(c.endTime),
-                                    onTap: () =>
-                                        c.pickTime(context, isStart: false),
+                                    onTap: () => c.pickTime(context, isStart: false),
                                   ),
                                 ),
                               ],
@@ -328,11 +374,7 @@ class _NewScheduleContent extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.notifications_outlined,
-                            color: Colors.purple[400],
-                            size: 24.w,
-                          ),
+                          Icon(Icons.notifications_outlined, color: Colors.purple[400], size: 24.w),
                           SizedBox(width: 16.w),
                           Expanded(
                             child: Column(
@@ -370,7 +412,9 @@ class _NewScheduleContent extends StatelessWidget {
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () => _showPreview(context),
+                            onPressed: isUploadMode
+                                ? null
+                                : () => _showPreview(context),
                             style: OutlinedButton.styleFrom(
                               padding: EdgeInsets.symmetric(vertical: 16.h),
                               side: BorderSide(color: Colors.grey[400]!),
@@ -399,47 +443,56 @@ class _NewScheduleContent extends StatelessWidget {
                           child: ElevatedButton(
                             onPressed: c.isPublishing
                                 ? null
-                                : isUploadMode
-                                ? () => _pickFile(context)
                                 : () async {
-                                    if (!c.isManualValid()) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            t.scheduleFillAllRequiredFields,
-                                          ),
-                                        ),
-                                      );
-                                      return;
-                                    }
+                              // UPLOAD MODE
+                              if (isUploadMode) {
+                                if (!c.isUploadValid()) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(t.pleaseSelectAFile)),
+                                  );
+                                  return;
+                                }
 
-                                    try {
-                                      await c.publishManualSchedule();
-                                      if (!context.mounted) return;
+                                try {
+                                  await c.publishUploadedSchedule();
+                                  if (!context.mounted) return;
 
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            t.schedulePublishedSuccessfully,
-                                          ),
-                                        ),
-                                      );
-                                      Navigator.pop(context);
-                                    } catch (e) {
-                                      if (!context.mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text("${t.errorLabel}: $e"),
-                                        ),
-                                      );
-                                    }
-                                  },
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(t.schedulePublishedSuccessfully)),
+                                  );
+                                  Navigator.pop(context);
+                                } catch (e) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("${t.errorLabel}: $e")),
+                                  );
+                                }
+                                return;
+                              }
+
+                              // MANUAL MODE
+                              if (!c.isManualValid()) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(t.scheduleFillAllRequiredFields)),
+                                );
+                                return;
+                              }
+
+                              try {
+                                await c.publishManualSchedule();
+                                if (!context.mounted) return;
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(t.schedulePublishedSuccessfully)),
+                                );
+                                Navigator.pop(context);
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("${t.errorLabel}: $e")),
+                                );
+                              }
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blue,
                               padding: EdgeInsets.symmetric(vertical: 16.h),
@@ -449,21 +502,21 @@ class _NewScheduleContent extends StatelessWidget {
                             ),
                             child: c.isPublishing
                                 ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
                                 : Text(
-                                    t.publishArrow,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16.sp,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
+                              t.publishArrow,
+                              style: GoogleFonts.poppins(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
                       ],
