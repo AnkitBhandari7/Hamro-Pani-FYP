@@ -11,7 +11,6 @@ enum UserRole {
   RESIDENT
   VENDOR
   WARD_ADMIN
-
 }
 
 enum AppLanguage {
@@ -22,6 +21,7 @@ enum AppLanguage {
 enum BookingStatus {
   PENDING
   CONFIRMED
+  DELIVERED
   CANCELLED
   COMPLETED
 }
@@ -45,6 +45,9 @@ enum NotificationType {
   SCHEDULE
   BOOKING
   ALERT
+  EMERGENCY
+  MAINTENANCE
+  COMPLAINT
 }
 
 model Ward {
@@ -73,8 +76,7 @@ model User {
 
   language     AppLanguage @default(EN) @map("language")
 
-    locations    SavedLocation[]
-
+  locations    SavedLocation[]
 
   // WARD_ADMIN => must be NULL
   wardId       Int?     @map("ward_id")
@@ -85,7 +87,6 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  // schedules posted by this user (WARD_ADMIN)
   schedulesCreated Schedule[] @relation("ScheduleCreator")
 
   fcmTokens       FcmToken[]
@@ -93,6 +94,9 @@ model User {
 
   bookings        Booking[]
   complaints      Complaint[]
+
+  // Ratings given by this resident
+  vendorRatings   VendorRating[] @relation("ResidentVendorRatings")
 
   sentNotifications      Notification[]          @relation("NotificationSender")
   notificationRecipients NotificationRecipient[] @relation("NotificationRecipientUser")
@@ -106,8 +110,8 @@ model SavedLocation {
 
   label     String   @map("label")
   address   String   @map("address")
-    lat       Float    @map("lat")
-    lng       Float    @map("lng")
+  lat       Float    @map("lat")
+  lng       Float    @map("lng")
   isDefault Boolean  @default(false) @map("is_default")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -142,8 +146,16 @@ model Vendor {
   phone       String?
   address     String? @map("address")
   tankerCount Int     @default(0) @map("tanker_count")
+
+  //rating aggregates
+  ratingAverage Float  @default(0) @map("rating_average")
+  ratingCount   Int    @default(0) @map("rating_count")
+
   user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   routes      Route[]
+
+  //ratings
+  ratings     VendorRating[]
 
   @@map("vendors")
 }
@@ -152,7 +164,6 @@ model Schedule {
   id           Int      @id @default(autoincrement()) @map("schedule_id")
   wardId       Int      @map("ward_id")
 
-  // REQUIRED: who posted the schedule (WARD_ADMIN user_id)
   createdById  Int      @map("created_by")
   createdBy    User     @relation("ScheduleCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
@@ -200,8 +211,9 @@ model Slot {
 
   capacity    Int
   bookedCount Int      @default(0) @map("booked_count")
-  price Int? @map("price")
+  price       Int?     @map("price")
   tankerCapacityLiters Int @default(12000) @map("tanker_capacity_liters")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -228,9 +240,35 @@ model Booking {
   statusHistory  StatusHistory[]
   complaints     Complaint[]
 
+  //one booking can have at most one rating
+  vendorRating   VendorRating?
+
   @@index([userId])
   @@index([slotId])
   @@map("bookings")
+}
+
+model VendorRating {
+  id         Int      @id @default(autoincrement()) @map("vendor_rating_id")
+
+  bookingId  Int      @unique @map("booking_id")
+  vendorId   Int      @map("vendor_id")
+  residentId Int      @map("resident_id")
+
+  rating     Int      @map("rating") // 1..5
+  comment    String?  @map("comment")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  vendor     Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  // relation name to avoid ambiguity
+  resident   User     @relation("ResidentVendorRatings", fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@index([residentId])
+  @@map("vendor_ratings")
 }
 
 model Payment {
@@ -271,7 +309,7 @@ model Complaint {
   userId    Int             @map("user_id")
   bookingId Int             @map("booking_id")
 
-  message   String
+  message   String   @db.Text
 
   lat       Float?          @map("lat")
   lng       Float?          @map("lng")
@@ -308,7 +346,7 @@ model Notification {
   senderRole UserRole         @map("sender_role")
 
   title      String
-  message    String
+  message    String   @db.Text
   type       NotificationType @default(GENERAL)
 
   createdAt  DateTime         @default(now()) @map("created_at")
