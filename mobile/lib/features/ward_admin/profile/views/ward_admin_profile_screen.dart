@@ -22,13 +22,17 @@ class WardAdminProfileScreen extends StatelessWidget {
 class _WardAdminProfileContent extends StatelessWidget {
   const _WardAdminProfileContent();
 
-  static const String kEditIconAsset = "assets/icons/pen.png";
   static const String kUserIconAsset = "assets/icons/user.png";
 
   void _showToast(BuildContext context, String msg, {Color? color}) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   Widget _imgIcon(String asset, {double? size, Color? color}) {
@@ -38,10 +42,10 @@ class _WardAdminProfileContent extends StatelessWidget {
       height: size ?? 22.w,
       fit: BoxFit.contain,
       color: color,
-      errorBuilder: (_, __, ___) => Icon(
-        Icons.image_not_supported,
+      errorBuilder: (c1, e1, s1) => Icon(
+        Icons.person_rounded,
         size: (size ?? 22.w),
-        color: Colors.grey,
+        color: const Color(0xFF94A3B8),
       ),
     );
   }
@@ -52,35 +56,84 @@ class _WardAdminProfileContent extends StatelessWidget {
     final t = AppLocalizations.of(context)!;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black, size: 28.w),
+          icon: Icon(Icons.arrow_back_ios_rounded,
+              color: const Color(0xFF0F172A), size: 20.w),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           t.wardAdminProfile,
           style: GoogleFonts.poppins(
-            fontSize: 20.sp,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF0F172A),
           ),
         ),
         centerTitle: true,
         actions: [
           if (controller.isEditing)
-            IconButton(
-              tooltip: t.save,
-              icon: Icon(Icons.check, color: Colors.green, size: 26.w),
-              onPressed: () => controller.saveProfile(context),
+            GestureDetector(
+              onTap: () => controller.saveProfile(context),
+              child: Container(
+                margin: EdgeInsets.only(right: 12.w),
+                padding:
+                    EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF16A34A),
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_rounded,
+                        size: 18.w, color: Colors.white),
+                    SizedBox(width: 4.w),
+                    Text(
+                      t.save,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             )
           else
-            IconButton(
-              tooltip: t.edit,
-              icon: _imgIcon(kEditIconAsset, size: 22.w, color: Colors.blue),
-              onPressed: controller.toggleEditMode,
+            GestureDetector(
+              onTap: controller.toggleEditMode,
+              child: Container(
+                margin: EdgeInsets.only(right: 12.w),
+                padding:
+                    EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10.r),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.edit_rounded,
+                        size: 16.w, color: const Color(0xFF2563EB)),
+                    SizedBox(width: 4.w),
+                    Text(
+                      t.edit,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF2563EB),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
         ],
       ),
@@ -88,203 +141,285 @@ class _WardAdminProfileContent extends StatelessWidget {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: controller.refreshProfile,
+              color: const Color(0xFF2563EB),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: EdgeInsets.symmetric(horizontal: 16.w),
                 child: Column(
                   children: [
-                    SizedBox(height: 24.h),
+                    SizedBox(height: 20.h),
 
-                    // Avatar + name + role + ward
-                    Column(
-                      children: [
-                        Stack(
-                          alignment: Alignment.bottomRight,
-                          children: [
-                            CircleAvatar(
-                              radius: 60.r,
-                              backgroundColor: Colors.grey[200],
-                              backgroundImage:
-                                  controller.profileImageUrl.isNotEmpty
-                                  ? NetworkImage(controller.profileImageUrl)
-                                  : null,
-                              child: controller.profileImageUrl.isEmpty
-                                  ? _imgIcon(
-                                      kUserIconAsset,
-                                      size: 60.w,
-                                      color: Colors.grey,
-                                    )
-                                  : null,
-                            ),
-
-                            // camera icon (upload only in edit mode)
-                            Positioned(
-                              bottom: 4.h,
-                              right: 4.w,
-                              child: GestureDetector(
-                                onTap: () {
-                                  if (!controller.isEditing) {
-                                    _showToast(
-                                      context,
-                                      t.tapEditFirstToChangePhoto,
-                                      color: Colors.orange,
-                                    );
-                                    return;
-                                  }
-                                  controller.pickAndUploadPhoto(context);
-                                },
-                                child: Container(
-                                  padding: EdgeInsets.all(8.w),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2.w,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.camera_alt,
-                                    color: Colors.white,
-                                    size: 20.w,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 16.h),
-
-                        controller.isEditing
-                            ? SizedBox(
-                                width: 240.w,
-                                child: TextField(
-                                  controller: controller.nameController,
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 22.sp,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  decoration: InputDecoration(
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12.r),
-                                    ),
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12.w,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : Text(
-                                controller.fullName.isEmpty
-                                    ? "—"
-                                    : controller.fullName,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 22.sp,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black87,
-                                ),
-                              ),
-
-                        SizedBox(height: 8.h),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 16.w,
-                            vertical: 6.h,
+                    // ─── Profile Card ───────────────
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(24.w),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22.r),
+                        border:
+                            Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.10),
-                            borderRadius: BorderRadius.circular(30.r),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // Avatar
+                          Stack(
+                            alignment: Alignment.bottomRight,
                             children: [
-                              Icon(
-                                Icons.security,
-                                color: Colors.blue,
-                                size: 18.w,
+                              Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                    width: 3.w,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black
+                                          .withValues(alpha: 0.08),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: CircleAvatar(
+                                  radius: 54.r,
+                                  backgroundColor:
+                                      const Color(0xFFF1F5F9),
+                                  backgroundImage: controller
+                                          .profileImageUrl.isNotEmpty
+                                      ? NetworkImage(
+                                          controller.profileImageUrl)
+                                      : null,
+                                  child:
+                                      controller.profileImageUrl.isEmpty
+                                          ? _imgIcon(kUserIconAsset,
+                                              size: 54.w,
+                                              color: const Color(
+                                                  0xFF94A3B8))
+                                          : null,
+                                ),
                               ),
-                              SizedBox(width: 6.w),
-                              Text(
-                                t.wardAdminUpper,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.blue[800],
+                              Positioned(
+                                bottom: 2.h,
+                                right: 2.w,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    if (!controller.isEditing) {
+                                      _showToast(
+                                        context,
+                                        t.tapEditFirstToChangePhoto,
+                                        color: const Color(0xFFF97316),
+                                      );
+                                      return;
+                                    }
+                                    controller
+                                        .pickAndUploadPhoto(context);
+                                  },
+                                  child: Container(
+                                    padding: EdgeInsets.all(8.w),
+                                    decoration: BoxDecoration(
+                                      color: controller.isEditing
+                                          ? const Color(0xFF2563EB)
+                                          : const Color(0xFF94A3B8),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.white,
+                                          width: 2.5.w),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                              alpha: 0.15),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                        Icons.camera_alt_rounded,
+                                        color: Colors.white,
+                                        size: 16.w),
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        SizedBox(height: 6.h),
-                        Text(
-                          controller.wardInfo.isEmpty
-                              ? t.noWardCanPostAll
-                              : controller.wardInfo,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14.sp,
-                            color: Colors.grey[700],
+                          SizedBox(height: 16.h),
+
+                          // Name (editable)
+                          controller.isEditing
+                              ? Container(
+                                  width: 240.w,
+                                  decoration: BoxDecoration(
+                                    borderRadius:
+                                        BorderRadius.circular(12.r),
+                                    border: Border.all(
+                                        color:
+                                            const Color(0xFF2563EB)),
+                                  ),
+                                  child: TextField(
+                                    controller:
+                                        controller.nameController,
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 20.sp,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF0F172A),
+                                    ),
+                                    decoration: InputDecoration(
+                                      border: InputBorder.none,
+                                      contentPadding:
+                                          EdgeInsets.symmetric(
+                                              horizontal: 12.w,
+                                              vertical: 8.h),
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  controller.fullName.isEmpty
+                                      ? "—"
+                                      : controller.fullName,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 22.sp,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                          SizedBox(height: 10.h),
+
+                          // Role badge
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 16.w, vertical: 6.h),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10.r),
+                              border: Border.all(
+                                  color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.shield_rounded,
+                                    color: const Color(0xFF2563EB),
+                                    size: 16.w),
+                                SizedBox(width: 6.w),
+                                Text(
+                                  t.wardAdminUpper,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13.sp,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF2563EB),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                          SizedBox(height: 8.h),
+
+                          // Ward info
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.location_city_rounded,
+                                  size: 14.w,
+                                  color: const Color(0xFF94A3B8)),
+                              SizedBox(width: 4.w),
+                              Text(
+                                controller.wardInfo.isEmpty
+                                    ? t.noWardCanPostAll
+                                    : controller.wardInfo,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13.sp,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
 
-                    SizedBox(height: 32.h),
+                    SizedBox(height: 24.h),
 
-                    _buildSectionHeader(t.personalDetailsUpper),
-                    SizedBox(height: 12.h),
+                    // ─── Personal Details ────────────
+                    _sectionHeader(
+                        t.personalDetailsUpper, Icons.person_outlined,
+                        const Color(0xFF2563EB)),
+                    SizedBox(height: 10.h),
 
-                    _buildEditableTile(
-                      icon: Icons.person_outline,
+                    _buildDetailCard(
+                      icon: Icons.person_outline_rounded,
+                      iconColor: const Color(0xFF2563EB),
                       label: t.fullName.toUpperCase(),
-                      controller: controller.nameController,
+                      editController: controller.nameController,
                       isEditing: controller.isEditing,
                     ),
-
-                    _buildEditableTile(
-                      icon: Icons.phone,
+                    SizedBox(height: 10.h),
+                    _buildDetailCard(
+                      icon: Icons.phone_rounded,
+                      iconColor: const Color(0xFF16A34A),
                       label: t.phoneNumber.toUpperCase(),
-                      controller: controller.phoneController,
+                      editController: controller.phoneController,
                       isEditing: controller.isEditing,
                     ),
-
-                    _buildEditableTile(
+                    SizedBox(height: 10.h),
+                    _buildDetailCard(
                       icon: Icons.email_outlined,
+                      iconColor: const Color(0xFFF97316),
                       label: t.emailAddressUpper,
-                      controller: controller.emailController,
+                      editController: controller.emailController,
                       isEditing: false,
                     ),
 
-                    SizedBox(height: 32.h),
+                    SizedBox(height: 28.h),
 
-                    // ✅ Menu like vendor profile
-                    _buildSectionHeader(t.menu),
-                    SizedBox(height: 12.h),
+                    // ─── Menu ────────────────────────
+                    _sectionHeader(
+                        t.menu, Icons.menu_rounded, const Color(0xFF7C3AED)),
+                    SizedBox(height: 10.h),
 
                     _buildMenuTile(
-                      icon: Icons.lock_outline,
+                      icon: Icons.lock_outline_rounded,
                       title: t.changePassword,
+                      iconColor: const Color(0xFF2563EB),
                       onTap: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.changePassword,
-                      ),
+                          context, AppRoutes.changePassword),
                     ),
+                    SizedBox(height: 10.h),
                     _buildMenuTile(
-                      icon: Icons.language,
+                      icon: Icons.help_outline_rounded,
+                      title: t.forgotPasswordTitle,
+                      iconColor: const Color(0xFFF59E0B),
+                      onTap: () => Navigator.pushNamed(
+                          context, AppRoutes.forgotPassword),
+                    ),
+                    SizedBox(height: 10.h),
+                    _buildMenuTile(
+                      icon: Icons.language_rounded,
                       title: t.languagePreference,
+                      iconColor: const Color(0xFF7C3AED),
                       onTap: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.languagePreference,
-                      ),
+                          context, AppRoutes.languagePreference),
                     ),
+                    SizedBox(height: 10.h),
                     _buildMenuTile(
-                      icon: Icons.logout,
+                      icon: Icons.logout_rounded,
                       title: t.logOut,
-                      color: Colors.red,
+                      iconColor: const Color(0xFFEF4444),
+                      isDestructive: true,
                       onTap: () => controller.onLogout(context),
                     ),
 
-                    SizedBox(height: 100.h),
+                    SizedBox(height: 80.h),
                   ],
                 ),
               ),
@@ -292,35 +427,54 @@ class _WardAdminProfileContent extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  // ─── Section Header ─────────────────────
+  Widget _sectionHeader(String title, IconData icon, Color color) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16.w),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          title,
-          style: GoogleFonts.poppins(
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[600],
+      padding: EdgeInsets.symmetric(horizontal: 4.w),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8.w),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Icon(icon, size: 18.w, color: color),
           ),
-        ),
+          SizedBox(width: 10.w),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF334155),
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _tileBase({required IconData icon, required Widget content}) {
+  // ─── Detail Card ────────────────────────
+  Widget _buildDetailCard({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required TextEditingController editController,
+    required bool isEditing,
+  }) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
       padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
-            offset: Offset(0, 2.h),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -329,95 +483,134 @@ class _WardAdminProfileContent extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(10.w),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.10),
+              color: iconColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12.r),
             ),
-            child: Icon(icon, color: Colors.blue, size: 24.w),
+            child: Icon(icon, color: iconColor, size: 22.w),
           ),
-          SizedBox(width: 16.w),
-          Expanded(child: content),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEditableTile({
-    required IconData icon,
-    required String label,
-    required TextEditingController controller,
-    required bool isEditing,
-  }) {
-    return _tileBase(
-      icon: icon,
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12.sp,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(height: 4.h),
-          isEditing
-              ? TextField(
-                  controller: controller,
+          SizedBox(width: 14.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
                   style: GoogleFonts.poppins(
-                    fontSize: 16.sp,
+                    fontSize: 11.sp,
                     fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12.w,
-                      vertical: 8.h,
-                    ),
-                  ),
-                )
-              : Text(
-                  controller.text.isEmpty ? "—" : controller.text,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    color: const Color(0xFF94A3B8),
+                    letterSpacing: 0.5,
                   ),
                 ),
+                SizedBox(height: 4.h),
+                isEditing
+                    ? TextField(
+                        controller: editController,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15.sp,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF0F172A),
+                        ),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12.w, vertical: 10.h),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10.r),
+                            borderSide: const BorderSide(
+                                color: Color(0xFF2563EB)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10.r),
+                            borderSide: const BorderSide(
+                                color: Color(0xFF2563EB)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10.r),
+                            borderSide: const BorderSide(
+                                color: Color(0xFF2563EB), width: 1.5),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        editController.text.isEmpty
+                            ? "—"
+                            : editController.text,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15.sp,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
+  // ─── Menu Tile ──────────────────────────
   Widget _buildMenuTile({
     required IconData icon,
     required String title,
-    Color? color,
+    required Color iconColor,
     VoidCallback? onTap,
+    bool isDestructive = false,
   }) {
-    final c = color ?? Colors.blue;
-    return ListTile(
-      leading: Container(
-        padding: EdgeInsets.all(10.w),
-        decoration: BoxDecoration(
-          color: c.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(12.r),
-        ),
-        child: Icon(icon, color: c, size: 24.w),
-      ),
-      title: Text(
-        title,
-        style: GoogleFonts.poppins(
-          fontSize: 16.sp,
-          fontWeight: FontWeight.w500,
-          color: color ?? Colors.black87,
-        ),
-      ),
-      trailing: Icon(Icons.chevron_right, color: Colors.grey[400], size: 28.w),
+    return GestureDetector(
       onTap: onTap,
-      contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 4.h),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(
+            color: isDestructive
+                ? const Color(0xFFFECACA)
+                : const Color(0xFFE2E8F0),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(10.w),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              child: Icon(icon, color: iconColor, size: 22.w),
+            ),
+            SizedBox(width: 14.w),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 15.sp,
+                  fontWeight: FontWeight.w600,
+                  color: isDestructive
+                      ? const Color(0xFFEF4444)
+                      : const Color(0xFF334155),
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                size: 22.w,
+                color: isDestructive
+                    ? const Color(0xFFFCA5A5)
+                    : const Color(0xFFCBD5E1)),
+          ],
+        ),
+      ),
     );
   }
 }
