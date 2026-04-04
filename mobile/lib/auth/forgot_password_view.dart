@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'package:fyp/auth/auth_controller.dart';
 import 'package:fyp/auth/auth_service.dart';
+import 'package:fyp/l10n/app_localizations.dart';
 
 class ForgotPasswordView extends StatefulWidget {
   const ForgotPasswordView({super.key});
@@ -35,8 +37,6 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
     setState(() => _loading = true);
     try {
       await _authController.forgotPassword(email, context);
-
-      // After sending reset email, go back to Login screen
       if (!mounted) return;
       Navigator.pop(context);
     } finally {
@@ -46,10 +46,12 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text("Forgot Password", style: GoogleFonts.poppins()),
+        title: Text(t.forgotPasswordTitle, style: GoogleFonts.poppins()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -61,7 +63,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Reset your password",
+                t.resetYourPassword,
                 style: GoogleFonts.poppins(
                   fontSize: 22,
                   fontWeight: FontWeight.w600,
@@ -69,7 +71,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
               ),
               const SizedBox(height: 8),
               Text(
-                "Enter your email and we will send a reset link to your email.",
+                t.resetPasswordInstruction,
                 style: GoogleFonts.poppins(color: Colors.grey[700]),
               ),
               const SizedBox(height: 20),
@@ -77,7 +79,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                  hintText: "name@example.com",
+                  hintText: t.emailExampleHint,
                   prefixIcon: const Icon(Icons.email_outlined),
                   filled: true,
                   fillColor: Colors.grey[200],
@@ -102,13 +104,13 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                   child: _loading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
-                          "Send Reset Link",
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
+                    t.sendResetLink,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             ],
