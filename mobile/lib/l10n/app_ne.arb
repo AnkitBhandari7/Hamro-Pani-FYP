@@ -128,6 +128,664 @@
     "notSpecified": "उल्लेख गरिएको छैन",
     "residentsWillBeNotified": "आवासीयलाई सूचना पठाइनेछ",
     "noNotificationsWillBeSent": "कुनै सूचना पठाइने छैन",
-    "closePreview": "पूर्वावलोकन बन्द"
+    "closePreview": "पूर्वावलोकन बन्द",
+    "sendNotice": "सूचना पठाउनुहोस्",
+      "reset": "रिसेट",
+
+      "noticeTypeHeader": "सूचनाको प्रकार",
+      "noticeTypeGeneral": "सामान्य",
+      "noticeTypeEmergency": "आपतकालीन",
+      "noticeTypeMaintenance": "मर्मतसम्भार",
+
+      "noticeContent": "सूचनाको विवरण",
+      "noticeTitleHeader": "सूचनाको शीर्षक",
+      "noticeTitleLabel": "शीर्षक",
+      "noticeTitleHint": "जस्तै: साप्ताहिक ट्यांकर तालिका अपडेट",
+
+      "messageHeader": "सन्देश",
+      "message": "सन्देश",
+      "noticeMessageHint": "यहाँ सूचनाको विवरण लेख्नुहोस्...",
+
+      "highPriority": "उच्च प्राथमिकता",
+      "noticeHighPrioritySubtitle": "सूचनालाई जरुरी रूपमा चिन्ह लगाउनुहोस्",
+
+      "pushNotification": "पुष सूचना",
+      "noticePushNotificationSubtitle": "डिभाइसमा तुरुन्त अलर्ट पठाउनुहोस्",
+
+      "preview": "पूर्वावलोकन",
+      "confirmAndSend": "पुष्टि गरेर पठाउनुहोस्",
+      "sendArrow": "पठाउनुहोस् →",
+      "sending": "पठाउँदै...",
+
+      "type": "प्रकार",
+      "audience": "लक्षित समूह",
+      "noticeAudienceEveryone": "सबै (बासिन्दा + विक्रेता)",
+
+      "yes": "हो",
+      "no": "होइन",
+
+      "noticeValidationRequired": "शीर्षक र सन्देश अनिवार्य छन्",
+      "noticeSentToEveryone": "सूचना सबैलाई पठाइयो",
+
+      "noticeFailedToSend": "पठाउन असफल: {msg}",
+      "@noticeFailedToSend": {
+        "placeholders": {
+          "msg": { "type": "String" }
+        }
+      },
+
+      "noticeErrorSending": "सूचना पठाउँदा त्रुटि: {error}",
+      "@noticeErrorSending": {
+        "placeholders": {
+          "error": { "type": "String" }
+        }
+      },
+
+  "appName": "हाम्रो पानी",
+  "wardAdmin": "वडा प्रशासक",
+
+  "namaste": "नमस्ते, {name}",
+  "@namaste": { "placeholders": { "name": { "type": "String" } } },
+
+  "recentOverview": "यहाँ तपाईंको हालको विवरण छ।",
+  "supplyStatus": "आपूर्ति स्थिति",
+  "normalFlow": "सामान्य प्रवाह",
+  "activeDistribution": "वितरण सक्रिय",
+
+  "quickActions": "छिटो कार्यहरू",
+  "postSchedule": "तालिका पोस्ट गर्नुहोस्",
+  "updateTimings": "समय अपडेट गर्नुहोस्",
+  "announceUpdates": "अपडेट सूचना दिनुहोस्",
+
+  "recentUpdatesMySchedules": "हालका अपडेटहरू (मेरो तालिकाहरू)",
+  "noSchedulesPostedYet": "तपाईंले अहिलेसम्म कुनै तालिका पोस्ट गर्नुभएको छैन।",
+
+  "schedulePostedWard": "तालिका पोस्ट भयो – {wardName}",
+  "@schedulePostedWard": { "placeholders": { "wardName": { "type": "String" } } },
+
+  "postedByYouTapToOpen": "तपाईंले पोस्ट गर्नुभयो • हेर्न ट्याप गर्नुहोस्",
+
+  "scheduleDetails": "तालिकाको विवरण",
+  "scheduleId": "तालिका आईडी",
+  "ward": "वडा",
+  "date": "मिति",
+  "time": "समय",
+  "createdAt": "बनाइएको समय",
+  "updatedAt": "अपडेट गरिए��ो समय",
+
+  "postedBy": "पोस्ट गर्ने",
+  "name": "नाम",
+  "email": "इमेल",
+
+  "fullPostData": "पूर्ण पोस्ट डाटा",
+  "close": "बन्द गर्नुहोस्",
+
+  "dashboardLoadFailed": "ड्यासबोर्ड लोड हुन असफल: {error}",
+  "@dashboardLoadFailed": { "placeholders": { "error": { "type": "String" } } },
+
+  "openingReports": "रिपोर्टहरू खोलिँदै...",
+
+  "home": "होम",
+  "reports": "रिपोर्ट",
+  "schedules": "तालिका",
+  "profile": "प्रोफाइल",
+   "technicalDetails": "प्राविधिक विवरण",
+    "show": "देखाउनुहोस्",
+    "hide": "लुकाउनुहोस्",
+
+
+      "vendorCompany": "विक्रेता कम्पनी",
+      "vendor": "विक्रेता",
+      "notifications": "सूचनाहरू",
+      "newNotification": "नयाँ सूचना",
+
+      "todaysJobs": "आजका काम",
+      "success": "सफलता",
+      "rating": "रेटिङ",
+
+      "activeRoutes": "सक्रिय रुटहरू",
+      "refresh": "रिफ्रेस",
+      "noActiveRoutes": "कुनै सक्रिय रुट छैन",
+      "noActiveRoutesSubtitle": "तपाईंको समय (slot) को समयमा मात्र यहाँ देखिन्छ।",
+
+      "recentRequests": "हालका अनुरोधहरू",
+      "noRequests": "कुनै अनुरोध छैन",
+      "noRequestsSubtitle": "पछिल्ला २४ घण्टाका अनुरोधहरू मात्र यहाँ देखिन्छन्।",
+
+      "resident": "बासिन्दा",
+      "confirm": "स्वीकार गर्नुहोस्",
+      "decline": "अस्वीकार गर्नुहोस्",
+      "route": "रुट",
+      "add": "थप्नुहोस्",
+
+      "home": "होम",
+      "routes": "रुट",
+      "history": "इतिहास",
+      "profile": "प्रोफाइल",
+
+      "active": "सक्रिय",
+
+      "bookingUpdated": "बुकिङ अपडेट भयो: {status}",
+      "@bookingUpdated": { "placeholders": { "status": { "type": "String" } } },
+
+      "updateFailed": "अपडेट असफल: {error}",
+      "@updateFailed": { "placeholders": { "error": { "type": "String" } } },
+
+      "locationLabel": "स्थान: {location}",
+      "@locationLabel": { "placeholders": { "location": { "type": "String" } } },
+
+      "startLabel": "सुरु: {time}",
+      "@startLabel": { "placeholders": { "time": { "type": "String" } } },
+
+      "endLabel": "अन्त्य: {time}",
+      "@endLabel": { "placeholders": { "time": { "type": "String" } } },
+
+      "percentBooked": "{percent}% बुक भयो",
+      "@percentBooked": { "placeholders": { "percent": { "type": "int" } } },
+
+
+        "deliveryHistory": "डेलिभरी इतिहास",
+        "back": "पछाडि",
+
+        "totalDeliveries": "कुल डेलिभरी",
+        "totalEarnings": "कुल आम्दानी",
+        "avgRating": "औसत रेटिङ",
+
+        "nprAmount": "रु {amount}",
+        "@nprAmount": { "placeholders": { "amount": { "type": "String" } } },
+
+        "statusDelivered": "पुगेको",
+        "statusCancelled": "रद्द",
+        "statusPending": "प्रतीक्षामा",
+
+        "notApplicable": "लागु हुँदैन",
+
+        "liters": "{liters} लि.",
+        "@liters": { "placeholders": { "liters": { "type": "int" } } },
+
+        "loadFailed": "लोड असफल: {error}",
+        "@loadFailed": { "placeholders": { "error": { "type": "String" } } },
+
+
+
+          "manageSlots": "स्लट व्यवस्थापन",
+          "openNewSlot": "नयाँ स्लट खोल्नुहोस्",
+          "selectDate": "मिति छान्नुहोस्",
+          "today": "आज",
+          "tomorrow": "भोलि",
+          "endTime": "अन्त्य समय",
+          "tankerCapacityLiters": "ट्यांकर क्षमता (लिटर)",
+          "totalBookingSlots": "कुल बुकिङ स्लट",
+          "bookingSlots": "बुकिङ स्लट",
+          "priceNpr": "मूल्य (रु)",
+          "deliveryRouteArea": "डेलिभरी रुट / क्षेत्र",
+          "deliveryRouteHint": "जस्तै: मैतिदेवी, वडा २९",
+          "publishSlotArrow": "स्लट प्रकाशित गर्नुहोस् →",
+          "slotPublishedSuccessfully": "स्लट सफलतापूर्वक प्रकाशित भयो",
+          "cannotPublishSlot": "स्लट प्रकाशित गर्न सकिएन",
+          "ok": "ठीक छ",
+
+          "activeSlots": "सक्रिय स्लटहरू",
+          "noActiveSlots": "कुनै सक्रिय स्लट छैन",
+
+          "open": "खुला",
+          "full": "भरिएको",
+
+          "editSlot": "स्लट सम्पादन",
+          "change": "फेर्नुहोस्",
+          "startTimeLabel": "सुरु: {time}",
+          "@startTimeLabel": { "placeholders": { "time": { "type": "String" } } },
+
+          "save": "सेभ",
+          "cancel": "रद्द",
+          "invalidInputs": "इनपुट गलत छ",
+          "slotUpdated": "स्लट अपडेट भयो",
+
+          "edit": "सम्पादन",
+          "markFull": "भरियो भनेर चिन्ह लगाउनुहोस्",
+          "markedFull": "भरियो भनेर चिन्ह लगाइयो",
+          "slotCancelled": "स्लट रद्द गरियो",
+
+          "slotsLabel": "स्लट: {count}",
+          "@slotsLabel": { "placeholders": { "count": { "type": "int" } } },
+
+          "tankerLabel": "ट्यांकर: {liters}L",
+          "@tankerLabel": { "placeholders": { "liters": { "type": "int" } } },
+
+          "priceLabel": "मूल्य: {priceText}",
+          "@priceLabel": { "placeholders": { "priceText": { "type": "String" } } },
+
+          "bookedCount": "{booked}/{total} बुक भयो",
+          "@bookedCount": {
+            "placeholders": {
+              "booked": { "type": "int" },
+              "total": { "type": "int" }
+            }
+          },
+
+          "availablePercent": "{percent}% उपलब्ध",
+          "@availablePercent": { "placeholders": { "percent": { "type": "int" } } },
+          "startTime": "सुरु समय",
+            "endTime": "अन्त्य समय",
+
+
+              "notificationsTitle": "सूचनाहरू",
+              "markAllAsRead": "सबै पढिएको बनाउनुहोस्",
+              "markedAllAsRead": "सबै पढिएको बनाइयो",
+              "failedWithError": "असफल: {error}",
+              "@failedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+              "tabAll": "सबै",
+              "tabUnread": "नपढिएको ({count})",
+              "@tabUnread": { "placeholders": { "count": { "type": "int" } } },
+              "tabOrders": "अर्डर",
+              "tabSystem": "सिस्टम",
+
+              "noNotificationsYet": "अहिलेसम्म कुनै सूचना छैन",
+              "notificationsEmptySubtitle": "केही नयाँ आएपछि हामी तपाईंलाई सूचना दिनेछौं",
+              "notificationsEnd": "तपाईंका सबै सूचनाहरू सकिए",
+
+              "wardNameLabel": "वडा: {ward}",
+              "@wardNameLabel": { "placeholders": { "ward": { "type": "String" } } },
+
+              "justNow": "भर्खरै",
+              "minutesAgo": "{count} मिनेट अघि",
+              "@minutesAgo": { "placeholders": { "count": { "type": "int" } } },
+              "hoursAgo": "{count} घण्टा अघि",
+              "@hoursAgo": { "placeholders": { "count": { "type": "int" } } },
+              "yesterday": "हिजो",
+              "daysAgo": "{count} दिन अघि",
+              "@daysAgo": { "placeholders": { "count": { "type": "int" } } },
+
+              "back": "पछाडि",
+              "close": "बन्द गर्नुहोस्",
+              "loadFailed": "लोड असफल: {error}",
+              "@loadFailed": { "placeholders": { "error": { "type": "String" } } },
+
+
+                "wardNotSet": "वडा सेट गरिएको छैन",
+                "cityWard": "{city}, वडा {number}",
+                "@cityWard": {
+                  "placeholders": {
+                    "city": { "type": "String" },
+                    "number": { "type": "String" }
+                  }
+                },
+
+                "todaysSupply": "आजको आपूर्ति",
+                "onSchedule": "तालिका अनुसार",
+                "nextSupply": "अर्को आपूर्ति",
+                "expectedDurationHours": "अपेक्षित अवधि: {hours} घण्टा",
+                "@expectedDurationHours": { "placeholders": { "hours": { "type": "int" } } },
+                "normalFlow": "सामान्य प्रवाह",
+
+                "bookTanker": "ट्यांकर बुक गर्नुहोस्",
+                "reportIssue": "समस्या रिपोर्ट गर्नुहोस्",
+                "nearbyTankers": "नजिकका ट्यांकरहरू",
+                "viewAll": "सबै हेर्नुहोस्",
+                "noTankersAvailableNow": "अहिले कुनै ट्यांकर उपलब्ध छैन",
+
+                "yourReports": "तपाईंका रिपोर्टहरू",
+                "noReportsYet": "अहिलेसम्म कुनै रिपोर्ट छैन",
+                "issue": "समस्या",
+                "inReview": "जाँच हुँदै",
+
+                "ticketWithDate": "टिकट #{ticket} • {dateLabel}",
+                "@ticketWithDate": {
+                  "placeholders": {
+                    "ticket": { "type": "String" },
+                    "dateLabel": { "type": "String" }
+                  }
+                },
+
+                "bookings": "बुकिङ",
+                "reports": "रिपोर्ट",
+
+                "noNotifications": "कुनै सूचना छैन",
+
+
+                  "findTankersTitle": "ट्यांकर खोज्नुहोस्",
+                  "searchTankersHint": "क्षेत्र वा विक्रेताको नामले खोज्नुहोस्...",
+
+                  "filterAll": "सबै",
+                  "filterAvailableNow": "अहिले उपलब्ध",
+                  "filterLowStock": "कम स्टक",
+
+                  "currentDemandHigh": "अहिले माग धेरै छ",
+                  "demandMessageAvailableNow": "धेरै बासिन्दाहरू अहिले बुक गर्दैछन्।\nछिट्टै आफ्नो स्लट सुरक्षित गर्नुहोस्।",
+                  "peakHoursLabel": "पिक समय: {range}",
+                  "@peakHoursLabel": { "placeholders": { "range": { "type": "String" } } },
+
+                  "nearbyVendors": "नजिकका विक्रेताहरू",
+                  "viewMap": "नक्सा हेर्नुहोस्",
+
+                  "noVendorsFound": "कुनै विक्रेता भेटिएन",
+                  "tryDifferentSearch": "खोज वा फिल्टर परिवर्तन गरेर फेरि प्रयास गर्नुहोस्।",
+
+                  "tankerStatusAvailable": "उपलब्ध",
+                  "tankerStatusBusy": "व्यस्त",
+                  "tankerStatusLowStock": "कम स्टक",
+
+                  "slotsUsedLabel": "{used}/{total} स्लट",
+                  "@slotsUsedLabel": {
+                    "placeholders": {
+                      "used": { "type": "int" },
+                      "total": { "type": "int" }
+                    }
+                  },
+
+                  "nextLabel": "अर्को: {time}",
+                  "@nextLabel": { "placeholders": { "time": { "type": "String" } } },
+
+                  "viewDetails": "विवरण हेर्नुहोस्",
+                  "bookedSuccessfully": "सफलतापूर्वक बुक भयो",
+
+                  "vendor": "विक्रेता",
+                  "back": "पछाडि",
+
+
+                    "vendorDetailsTitle": "विक्रेता विवरण",
+                    "verified": "प्रमाणित",
+
+                    "slotDetailsTitle": "स्लट विवरण",
+                    "paymentMethodTitle": "भुक्तानी विधि",
+
+                    "time": "समय",
+                    "booking": "बुकिङ",
+                    "tanker": "ट्यांकर",
+                    "price": "मूल्य",
+
+                    "cash": "नगद",
+                    "esewa": "इसेवा",
+
+                    "confirmBookingArrow": "बुकिङ पुष्टि गर्नुहोस् →",
+                    "noSlotAvailable": "स्लट उपलब्ध छैन",
+
+                    "immediateDispatchAvailable": "���त्काल पठाउन मिल्छ",
+
+                    "paymentCancelled": "भुक्तानी रद्द भयो",
+                    "bookingFailedWithError": "बुकिङ असफल: {error}",
+                    "@bookingFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                    "esewaProductName": "हाम्रो पानी ट्यांकर बुकिङ",
+
+                    "pricePerTanker": "रु {price}/ट्यांकर",
+                    "@pricePerTanker": { "placeholders": { "price": { "type": "int" } } },
+
+
+                      "paymentReceiptTitle": "भुक्तानी रसिद",
+                      "failedToLoadReceipt": "रसिद लोड गर्न असफल भयो",
+
+                      "paymentSuccessful": "भुक्तानी सफल भयो",
+                      "thankYouForPurchase": "खरिदका लागि धन्यवाद!",
+
+                      "transactionId": "कारोबार आईडी",
+                      "dateAndTime": "मिति र समय",
+                      "paymentMethod": "भुक्तानी विधि",
+                      "recipient": "प्राप्तकर्ता",
+                      "service": "सेवा",
+                      "quantity": "परिमाण",
+
+                      "downloadPdf": "पीडीएफ डाउनलोड",
+                      "saveCopyForRecords": "रेकर्डका लागि प्रतिलिपि सेभ गर्नुहोस्।",
+
+                      "downloadReceipt": "रसिद डाउनलोड गर्नुहोस्",
+
+                      "saveCancelled": "सेभ रद्द गरियो",
+                      "receiptSaved": "रसिद सेभ भयो: {path}",
+                      "@receiptSaved": { "placeholders": { "path": { "type": "String" } } },
+
+                      "saveFailedWithError": "सेभ असफल: {error}",
+                      "@saveFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                      "backToHome": "होममा फर्कनुहोस्",
+
+                      "litersShort": "{liters} लि.",
+                      "@litersShort": { "placeholders": { "liters": { "type": "int" } } },
+
+
+                        "whatsTheProblem": "समस्या के हो?",
+                        "description": "विवरण",
+                        "describeIssueHint": "समस्याबारे विस्तारमा लेख्नुहोस्...",
+
+                        "location": "स्थान",
+                        "tapToPickLocation": "नक्साबाट स्थान छान्न ट्याप गर्नुहोस्",
+                        "selectedLocationLabel": "छानिएको\n{location}",
+                        "@selectedLocationLabel": { "placeholders": { "location": { "type": "String" } } },
+
+                        "selected": "छानियो",
+                        "pickOnMap": "नक्सामा छान्नुहोस्",
+                        "locationNotSet": "स्थान सेट गरिएको छैन",
+
+                        "photoEvidence": "फोटो प्रमाण",
+                        "addPhoto": "फोटो थप्नुहोस्",
+                        "photosCount": "{count}/{max}",
+                        "@photosCount": {
+                          "placeholders": {
+                            "count": { "type": "int" },
+                            "max": { "type": "int" }
+                          }
+                        },
+
+                        "chooseFromGallery": "ग्यालर���बाट छान्नुहोस्",
+                        "takePhoto": "फोटो खिच्नुहोस्",
+
+                        "reportInfoHint": "सबमिट गरेपछि, History ट्याबबाट तपाईंको टिकट स्थिति हेर्न सकिन्छ।",
+
+                        "submitReportArrow": "रिपोर्ट सबमिट गर्नुहोस् →",
+
+                        "issueMissedDelivery": "डेलिभरी छुट्यो",
+                        "issuePoorQuality": "गुणस्तर खराब",
+                        "issueSevereDelay": "धेरै ढिला भयो",
+
+                        "selectIssueAndDescription": "कृपया समस्या प्रकार छान्नुहोस् र विवरण लेख्नुहोस्।",
+                        "pickLocationFromMap": "कृपया नक्साबाट स्थान छान्नुहोस्।",
+                        "reportSubmittedSuccessfully": "रिपोर्ट सफलतापूर्वक सबमिट भयो",
+                        "submitFailedWithError": "सबमिट असफल: {error}",
+                        "@submitFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+
+                          "myBookingsTitle": "मेरो बुकिङ",
+                          "history": "इतिहास",
+                          "noBookingsYet": "अहिलेसम्म कुनै ब��किङ छैन",
+
+                          "bookingStatusCompleted": "सम्पन्न",
+                          "bookingStatusCancelled": "रद्द",
+                          "bookingStatusConfirmed": "पुष्टि",
+                          "bookingStatusPending": "प्रतीक्षामा",
+
+                          "rebook": "फेरि बुक गर्नुहोस्",
+                          "viewDetails": "विवरण हेर्नुहोस्",
+
+
+                            "bookingDetailTitle": "बुकिङ विवरण",
+                            "complaintDetailTitle": "गुनासो विवरण",
+                            "failedToLoad": "लोड गर्न असफल",
+
+                            "bookingNumberTitle": "बुकिङ #{id}",
+                            "@bookingNumberTitle": { "placeholders": { "id": { "type": "int" } } },
+
+                            "complaintNumberTitle": "गुनासो #{id}",
+                            "@complaintNumberTitle": { "placeholders": { "id": { "type": "int" } } },
+
+                            "bookingNumberLine": "बुकिङ #{id}",
+                            "@bookingNumberLine": { "placeholders": { "id": { "type": "int" } } },
+
+                            "tankerLabel": "ट्यांकर: {liters}L",
+                            "@tankerLabel": { "placeholders": { "liters": { "type": "int" } } },
+
+                            "priceLabel": "मूल्य: {priceText}",
+                            "@priceLabel": { "placeholders": { "priceText": { "type": "String" } } },
+
+                            "bookingSlotsLabel": "बुकिङ स्लट: {used}/{total}",
+                            "@bookingSlotsLabel": {
+                              "placeholders": {
+                                "used": { "type": "int" },
+                                "total": { "type": "int" }
+                              }
+                            },
+
+                            "trackingTitle": "ट्र्याकिङ",
+                            "noTrackingHistoryYet": "अहिलेसम्म ट्र्याकिङ इतिहास छैन।",
+
+                            "statusWithWhen": "{status} • {when}",
+                            "@statusWithWhen": {
+                              "placeholders": {
+                                "status": { "type": "String" },
+                                "when": { "type": "String" }
+                              }
+                            },
+
+                            "complaintStatusResolved": "समाधान भयो",
+                            "complaintStatusInReview": "जाँच हुँदै",
+                            "complaintStatusRejected": "अस्वीकृत",
+                            "complaintStatusOpen": "खुला",
+
+                            "photos": "फोटोहरू",
+
+
+                                "appName": "हाम्रो पानी",
+                                "appTagline": "काठमाडौंको स्मार्ट पानी व्यवस्थापन",
+
+                                "roleResident": "बासिन्दा",
+                                "roleVendor": "विक्रेता",
+                                "roleWardAdmin": "वडा एडमिन",
+
+                                "langEnglishShort": "EN",
+                                "langNepaliShort": "NP",
+
+                                "welcomeBack": "फेरि स्वागत छ",
+                                "emailHint": "इमेल लेख्नुहोस्",
+                                "passwordHint": "पासवर्ड लेख्नुहोस्",
+                                "forgotPasswordShort": "बिर्सनुभयो?",
+                                "signInArrow": "लगइन गर्नुहोस् →",
+                                "orContinueWith": "अथवा यससँग जारी राख्नुहोस्",
+                                "google": "गुगल",
+                                "noAccount": "खाता छैन? ",
+                                "signUpNow": "अहिले साइन अप",
+
+                                "enterEmailAndPassword": "कृपया इमेल र पासवर्ड लेख्नुहोस्",
+                                "firebaseUserNotFound": "फायरबेस प्रयोगकर्ता भेटिएन",
+                                "failedToGetIdToken": "फायरबेस टोकन प्राप्त गर्न असफल",
+
+                                "signupTitle": "दर्ता",
+                                "createAccount": "खाता बनाउ���ुहोस्",
+
+                                "fullName": "पूरा नाम",
+                                "fullNameHint": "आफ्नो नाम लेख्नुहोस्",
+
+                                "emailLabel": "इमेल ठेगाना",
+                                "phoneLabel": "मोबाइल नम्बर",
+                                "phoneHint": "+977 98XXXXXXXX",
+
+                                "passwordLabel": "पासवर्ड",
+                                "confirmPasswordLabel": "पासवर्ड पुष्टि",
+                                "confirmPasswordHint": "पासवर्ड फेरि लेख्नुहोस्",
+
+                                "fillAllFields": "कृपया सबै फाँट भर्नुहोस्",
+                                "invalidEmailAddress": "कृपया मान्य इमेल ठेगाना लेख्नुहोस्",
+                                "passwordsDoNotMatchMsg": "पासवर्ड मिलेन",
+                                "agreeToTermsRequired": "कृपया नियम तथा सर्तहरूमा सहमत हुनुहोस्",
+
+                                "signupFailedFirebaseNull": "दर्ता असफल: फायरबेस प्रयोगकर्ता खाली छ",
+                                "signupFailedTokenNull": "दर्ता असफल: फायरबेस टोकन खाली छ",
+
+                                "backendRegisterFailed": "ब्याकएन्ड दर्ता असफल: {code}",
+                                "@backendRegisterFailed": { "placeholders": { "code": { "type": "int" } } },
+
+                                "signupFailedWithError": "दर्ता असफल: {error}",
+                                "@signupFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                                "agreeToTermsText": "म नियम तथा सर्त र गोपनीयता नीतिमा सहमत छु।",
+                                "haveAccount": "पहिले नै खाता छ? ",
+                                "loginNow": "लगइन",
+                                "signupButton": "साइन अप",
+
+                                "forgotPasswordTitle": "पासवर्ड बिर्सनुभयो?",
+                                "resetYourPassword": "पासवर्ड रिसेट गर्नुहोस्",
+                                "resetPasswordInstruction": "आफ्नो इमेल लेख्नुहोस्, हामी रिसेट लिंक पठाउनेछौं।",
+                                "emailExampleHint": "name@example.com",
+                                "sendResetLink": "रिसेट लिंक पठाउनुहोस्",
+
+                                  "loginSuccess": "सफलतापूर्वक लगइन भयो",
+                                  "loginFailedWithError": "लगइन असफल: {error}",
+                                  "@loginFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                                  "accountCreatedSuccess": "खाता सफलतापूर्वक बन्यो",
+
+                                  "googleLoginSuccess": "गुगलबाट लगइन भयो",
+                                  "googleLoginFailedWithError": "गुगल लगइन असफल: {error}",
+                                  "@googleLoginFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                                  "loginCancelled": "लगइन रद्द गरियो",
+
+                                  "enterEmailToReset": "पासवर्ड रिसेट गर्न इमेल लेख्नुहोस्",
+                                  "passwordResetEmailSent": "पासवर्ड रिसेट इमेल पठाइयो",
+                                  "failedToSendResetEmail": "रिसेट इमेल पठाउन असफल",
+
+
+                                    "bookingStatusDelivered": "डेलिभरी भयो",
+                                    "confirmDeliveryTitle": "डेलिभरी पुष्टि",
+                                    "confirmDeliveryAndRate": "डेलिभरी पुष्टि र रेटिङ",
+                                    "rateVendorPrompt": "के तपाईंले पानी प्राप्त गर्नुभयो? कृपया विक्रेतालाई रेटिङ दिनुहोस्।",
+                                    "optionalCommentHint": "ऐच्छिक टिप्पणी...",
+                                    "thankYouForRating": "रेटिङका लागि धन्यवाद!",
+                                    "yourRatingLabel": "तपाईंको रेटिङ: {rating}/5",
+                                    "@yourRatingLabel": { "placeholders": { "rating": { "type": "int" } } },
+                                    "submit": "सबमिट",
+                                    "actionFailed": "कार्य असफल",
+
+
+                                      "vendorBookingsTitle": "विक्रेताका बुकिङहरू",
+                                      "vendorTabToDeliver": "डेलिभर गर्न बाँकी",
+                                      "vendorTabDelivered": "डेलिभरी भयो",
+                                      "vendorTabCompleted": "पूरा भयो",
+                                      "vendorTabCancelled": "रद्द भयो",
+                                      "noBookingsFound": "कुनै बुकिङ भेटिएन",
+                                      "refresh": "रिफ्रेस",
+
+                                      "residentLabel": "बासिन्दा",
+                                      "locationLabel": "स्थान",
+                                      "timeLabel": "समय",
+
+                                      "markDelivered": "डेलिभरी भयो भनेर चिन्ह लगाउनुहोस्",
+                                      "markedAsDelivered": "डेलिभरी भयो भनेर चिन्ह लगाइयो",
+                                      "actionFailed": "कार्य असफल",
+                                      "delivered": "डेलिभरी",
+                                      "complaintNumber": "गुनासो #{id}",
+                                      "fromPerson": "बाट: {name}",
+                                      "noComplaintsYet": "अहिलेसम्म कुनै गुनासो छैन",
+                                      "viewComplaint": "गुनासो हेर्नुहोस्",
+                                      "complaintStatusLabel": "स्थिति",
+                                      "reportsSearchHint": "खोज्नुहोस् (विक्रेता / वडा / बासिन्दा / सन्देश / आईडी)",
+                                      "reportsAllStatus": "सबै स्थिति",
+                                      "reportsAllWards": "सबै वडा",
+                                      "reportsAllVendors": "सबै विक्रेता",
+                                      "reportsClear": "हटाउनुहोस्",
+                                      "reportsRefresh": "रिफ्रेस",
+
+                                      "reportsTakeActionTitle": "कारबाही गर्नुहोस् (वडा प्रशासक)",
+                                      "reportsStatusLabel": "स्थिति",
+                                      "reportsSaveStatus": "स्थिति सुरक्षित गर्नुहोस्",
+
+                                      "reportsPhotosTitle": "तस्बिरहरू",
+                                      "reportsFailedToLoadImage": "तस्बिर लोड गर्न असफल"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 }
