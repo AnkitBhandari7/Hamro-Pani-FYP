@@ -4,12 +4,33 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:fyp/l10n/app_localizations.dart';
 import '../services/report_issue_service.dart';
+
+class ReportIssueType {
+  final String code; // stable backend code
+  final IconData icon;
+
+  const ReportIssueType({required this.code, required this.icon});
+
+  String labelFor(AppLocalizations t) {
+    switch (code) {
+      case 'MISSED_DELIVERY':
+        return t.issueMissedDelivery;
+      case 'POOR_QUALITY':
+        return t.issuePoorQuality;
+      case 'SEVERE_DELAY':
+        return t.issueSevereDelay;
+      default:
+        return code;
+    }
+  }
+}
 
 class ReportIssueController extends ChangeNotifier {
   static const int maxPhotos = 5;
 
-  String? selectedIssue;
+  String? selectedIssueCode;
   final descriptionController = TextEditingController();
 
   final List<String> photoPaths = [];
@@ -19,20 +40,20 @@ class ReportIssueController extends ChangeNotifier {
   double? lat;
   double? lng;
 
-  // Display labels (you can later reverse-geocode)
+  // Display labels
   String wardLabel = 'Ward 4';
-  String locationLabel = 'Tap to pick from map';
+  String locationLabel = '';
 
-  final List<Map<String, dynamic>> issueTypes = [
-    {'label': 'Missed Delivery', 'icon': Icons.local_shipping_outlined},
-    {'label': 'Poor Quality', 'icon': Icons.water_drop_outlined},
-    {'label': 'Severe Delay', 'icon': Icons.timer_off_outlined},
+  final List<ReportIssueType> issueTypes = const [
+    ReportIssueType(code: 'MISSED_DELIVERY', icon: Icons.local_shipping_outlined),
+    ReportIssueType(code: 'POOR_QUALITY', icon: Icons.water_drop_outlined),
+    ReportIssueType(code: 'SEVERE_DELAY', icon: Icons.timer_off_outlined),
   ];
 
   final ImagePicker _picker = ImagePicker();
 
-  void selectIssue(String issue) {
-    selectedIssue = issue;
+  void selectIssue(String code) {
+    selectedIssueCode = code;
     notifyListeners();
   }
 
@@ -43,13 +64,14 @@ class ReportIssueController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// ✅ Called after map picker returns lat/lng
-  void setPickedCoordinates({required double lat, required double lng}) {
+  /// Called after map picker returns lat/lng (and optional resolved address)
+  void setPickedCoordinates({required double lat, required double lng, String? address}) {
     this.lat = lat;
     this.lng = lng;
 
-    // simple label for now (free). Later you can reverse geocode.
-    locationLabel = "${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}";
+    locationLabel = (address != null && address.trim().isNotEmpty)
+        ? address.trim()
+        : "${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}";
     notifyListeners();
   }
 
@@ -117,24 +139,25 @@ class ReportIssueController extends ChangeNotifier {
   }
 
   Future<void> submitReport(BuildContext context) async {
-    final issue = selectedIssue;
+    final t = AppLocalizations.of(context)!;
+
+    final issueCode = selectedIssueCode;
     final desc = descriptionController.text.trim();
 
-    if (issue == null || desc.isEmpty) {
+    if (issueCode == null || desc.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please select an issue type and enter description."),
+        SnackBar(
+          content: Text(t.selectIssueAndDescription),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    // ✅ require user to pick location
     if (!hasPickedLocation) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please pick a location from map."),
+        SnackBar(
+          content: Text(t.pickLocationFromMap),
           backgroundColor: Colors.red,
         ),
       );
@@ -151,31 +174,31 @@ class ReportIssueController extends ChangeNotifier {
 
       await ReportIssueService.submitIssue(
         token: token,
-        issueType: issue,
+        issueType: issueCode, // ✅ send stable code to backend
         description: desc,
         ward: wardLabel,
-        location: locationLabel,
-        lat: lat!, // ✅
-        lng: lng!, // ✅
+        location: locationLabel.isEmpty ? t.locationNotSet : locationLabel,
+        lat: lat!,
+        lng: lng!,
         photoPaths: photoPaths,
       );
 
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Report submitted successfully"),
+        SnackBar(
+          content: Text(t.reportSubmittedSuccessfully),
           backgroundColor: Colors.green,
         ),
       );
 
       // reset
-      selectedIssue = null;
+      selectedIssueCode = null;
       descriptionController.clear();
       photoPaths.clear();
       lat = null;
       lng = null;
-      locationLabel = 'Tap to pick from map';
+      locationLabel = '';
       notifyListeners();
 
       Navigator.pop(context);
@@ -183,7 +206,7 @@ class ReportIssueController extends ChangeNotifier {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Submit failed: $e"),
+          content: Text(t.submitFailedWithError(e.toString())),
           backgroundColor: Colors.red,
         ),
       );
