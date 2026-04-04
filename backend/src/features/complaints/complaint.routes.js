@@ -9,11 +9,12 @@ import {
   getMyComplaints,
   getComplaintDetail,
   updateComplaintStatus,
+  getVendorComplaints, //
+  getWardComplaints,   //
 } from "./complaint.controller.js";
 
 const router = Router();
 
-// uploads folder
 const uploadDir = path.resolve("uploads/complaints");
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -30,14 +31,14 @@ const upload = multer({
   limits: { fileSize: 4 * 1024 * 1024 }, // 4MB
 });
 
-router.post(
-  "/",
-  authenticateFirebase,
-  upload.array("photos", 5),
-  createComplaint
-);
+router.post("/", authenticateFirebase, upload.array("photos", 5), createComplaint);
 
 router.get("/my", authenticateFirebase, getMyComplaints);
+
+
+router.get("/vendor", authenticateFirebase, getVendorComplaints);
+router.get("/ward", authenticateFirebase, getWardComplaints);
+
 router.get("/:id", authenticateFirebase, getComplaintDetail);
 router.patch("/:id/status", authenticateFirebase, updateComplaintStatus);
 
