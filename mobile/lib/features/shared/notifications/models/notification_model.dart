@@ -40,6 +40,8 @@ class AppNotification {
         return Icons.calendar_month_outlined;
       case "ALERT":
         return Icons.warning_amber_rounded;
+      case "COMPLAINT":
+        return Icons.report_outlined;
       case "GENERAL":
       default:
         return Icons.notifications_outlined;
@@ -54,6 +56,8 @@ class AppNotification {
         return Colors.blue;
       case "ALERT":
         return Colors.orange;
+      case "COMPLAINT":
+        return Colors.red;
       case "GENERAL":
       default:
         return Colors.blueGrey;
