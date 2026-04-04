@@ -5,8 +5,8 @@ import 'package:fyp/services/api_service.dart';
 class BookingSummary {
   final int bookingId;
   final String vendorName;
-  final String location; // can include ward
-  final String status; // PENDING/CONFIRMED/CANCELLED/COMPLETED
+  final String location;
+  final String status;
   final DateTime slotStart;
   final int liters;
   final int? price;
@@ -24,13 +24,24 @@ class BookingSummary {
   });
 
   static BookingSummary fromApi(Map<String, dynamic> b) {
-    final slot = (b['slot'] ?? {}) as Map<String, dynamic>;
-    final route = (slot['route'] ?? {}) as Map<String, dynamic>;
-    final vendor = (route['vendor'] ?? {}) as Map<String, dynamic>;
-    final user = (vendor['user'] ?? {}) as Map<String, dynamic>;
-    final ward = (route['ward'] ?? {}) as Map<String, dynamic>;
+    final slot = (b['slot'] is Map)
+        ? Map<String, dynamic>.from(b['slot'] as Map)
+        : <String, dynamic>{};
+    final route = (slot['route'] is Map)
+        ? Map<String, dynamic>.from(slot['route'] as Map)
+        : <String, dynamic>{};
+    final vendor = (route['vendor'] is Map)
+        ? Map<String, dynamic>.from(route['vendor'] as Map)
+        : <String, dynamic>{};
+    final user = (vendor['user'] is Map)
+        ? Map<String, dynamic>.from(vendor['user'] as Map)
+        : <String, dynamic>{};
+    final ward = (route['ward'] is Map)
+        ? Map<String, dynamic>.from(route['ward'] as Map)
+        : <String, dynamic>{};
 
     final vendorName = (user['name'] ?? 'Vendor').toString();
+
     final loc = (route['location'] ?? '').toString();
     final wardName = (ward['wardName'] ?? '').toString();
 
@@ -40,7 +51,8 @@ class BookingSummary {
     ].whereType<String>().join(" • ");
 
     final startRaw = slot['startTime']?.toString();
-    final slotStart = DateTime.tryParse(startRaw ?? '') ?? DateTime.now();
+    final slotStart =
+    (DateTime.tryParse(startRaw ?? '') ?? DateTime.now()).toLocal();
 
     final liters = (slot['tankerCapacityLiters'] is num)
         ? (slot['tankerCapacityLiters'] as num).toInt()
@@ -57,7 +69,7 @@ class BookingSummary {
     return BookingSummary(
       bookingId: (b['id'] as num).toInt(),
       vendorName: vendorName,
-      location: location.isEmpty ? "-" : location,
+      location: location.trim().isEmpty ? "-" : location,
       status: status,
       slotStart: slotStart,
       liters: liters,
@@ -67,9 +79,34 @@ class BookingSummary {
   }
 }
 
+class MyRating {
+  final int id;
+  final int rating;
+  final String? comment;
+  final DateTime createdAt;
+
+  MyRating({
+    required this.id,
+    required this.rating,
+    required this.comment,
+    required this.createdAt,
+  });
+
+  static MyRating fromApi(Map<String, dynamic> m) {
+    return MyRating(
+      id: (m['id'] as num).toInt(),
+      rating: (m['rating'] as num).toInt(),
+      comment: m['comment']?.toString(),
+      createdAt: DateTime.parse(m['createdAt'].toString()).toLocal(),
+    );
+  }
+}
+
 class BookingDetail {
   final int bookingId;
   final String status;
+
+  final int? vendorId;
 
   final String vendorName;
   final String location;
@@ -79,18 +116,19 @@ class BookingDetail {
   final DateTime? endTime;
 
   final int liters;
-  final int bookingSlotsUsed; // slot.bookedCount
-  final int bookingSlotsTotal; // slot.capacity
+  final int bookingSlotsUsed;
+  final int bookingSlotsTotal;
   final int? price;
 
   final Map<String, dynamic>? payment;
-
-  /// backend: statusHistory[] with fields oldStatus/newStatus/changedAt
   final List<Map<String, dynamic>> history;
+
+  final MyRating? myRating;
 
   BookingDetail({
     required this.bookingId,
     required this.status,
+    required this.vendorId,
     required this.vendorName,
     required this.location,
     required this.wardName,
@@ -102,23 +140,39 @@ class BookingDetail {
     required this.price,
     required this.payment,
     required this.history,
+    required this.myRating,
   });
 
   static BookingDetail fromApi(Map<String, dynamic> d) {
-    final slot = (d['slot'] ?? {}) as Map<String, dynamic>;
-    final route = (slot['route'] ?? {}) as Map<String, dynamic>;
-    final ward = (route['ward'] ?? {}) as Map<String, dynamic>;
-    final vendor = (route['vendor'] ?? {}) as Map<String, dynamic>;
-    final user = (vendor['user'] ?? {}) as Map<String, dynamic>;
+    final slot = (d['slot'] is Map)
+        ? Map<String, dynamic>.from(d['slot'] as Map)
+        : <String, dynamic>{};
+    final route = (slot['route'] is Map)
+        ? Map<String, dynamic>.from(slot['route'] as Map)
+        : <String, dynamic>{};
+    final ward = (route['ward'] is Map)
+        ? Map<String, dynamic>.from(route['ward'] as Map)
+        : <String, dynamic>{};
+    final vendor = (route['vendor'] is Map)
+        ? Map<String, dynamic>.from(route['vendor'] as Map)
+        : <String, dynamic>{};
+    final user = (vendor['user'] is Map)
+        ? Map<String, dynamic>.from(vendor['user'] as Map)
+        : <String, dynamic>{};
 
     DateTime? parseDt(dynamic v) {
       if (v == null) return null;
-      return DateTime.tryParse(v.toString());
+      return DateTime.tryParse(v.toString())?.toLocal();
     }
 
     final vendorName = (user['name'] ?? 'Vendor').toString();
     final location = (route['location'] ?? '').toString();
     final wardName = (ward['wardName'] ?? '').toString();
+
+    final vendorIdRaw = route['vendorId'];
+    final int? vendorId = vendorIdRaw is num
+        ? vendorIdRaw.toInt()
+        : int.tryParse(vendorIdRaw?.toString() ?? '');
 
     final liters = (slot['tankerCapacityLiters'] is num)
         ? (slot['tankerCapacityLiters'] as num).toInt()
@@ -143,11 +197,24 @@ class BookingDetail {
 
     final statusHistory = (d['statusHistory'] as List? ?? const [])
         .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+        .toList()
+      ..sort((a, b) {
+        final adt = DateTime.tryParse(a['changedAt']?.toString() ?? '');
+        final bdt = DateTime.tryParse(b['changedAt']?.toString() ?? '');
+        if (adt == null && bdt == null) return 0;
+        if (adt == null) return 1;
+        if (bdt == null) return -1;
+        return bdt.compareTo(adt);
+      });
+
+    final myRating = (d['myRating'] is Map)
+        ? MyRating.fromApi(Map<String, dynamic>.from(d['myRating'] as Map))
+        : null;
 
     return BookingDetail(
-      bookingId: (d['id'] as num).toInt(), // backend sends id
-      status: (d['status'] ?? 'PENDING').toString(),
+      bookingId: (d['id'] as num).toInt(),
+      status: (d['status'] ?? 'PENDING').toString().toUpperCase(),
+      vendorId: vendorId,
       vendorName: vendorName,
       location: location,
       wardName: wardName,
@@ -159,8 +226,13 @@ class BookingDetail {
       price: priceInt,
       payment: payment,
       history: statusHistory,
+      myRating: myRating,
     );
   }
+
+  bool get canConfirmDelivery =>
+      (status.toUpperCase() == "DELIVERED" || status.toUpperCase() == "COMPLETED") &&
+          myRating == null;
 }
 
 class BookingService {
@@ -171,8 +243,11 @@ class BookingService {
       throw Exception('GET /bookings/my failed: ${res.statusCode} ${res.body}');
     }
 
-    final list = (jsonDecode(res.body) as List).cast<dynamic>();
-    return list
+    final decoded = jsonDecode(res.body);
+    if (decoded is! List) return [];
+
+    return decoded
+        .cast<dynamic>()
         .map((e) => BookingSummary.fromApi(Map<String, dynamic>.from(e as Map)))
         .toList();
   }
@@ -187,5 +262,26 @@ class BookingService {
     }
 
     return BookingDetail.fromApi(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  static Future<void> confirmDeliveryAndRate({
+    required int bookingId,
+    required int rating,
+    String? comment,
+  }) async {
+    final res = await ApiService.post(
+      '/bookings/$bookingId/confirm-delivery',
+      {
+        'rating': rating,
+        if (comment != null && comment.trim().isNotEmpty)
+          'comment': comment.trim(),
+      },
+    );
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw Exception(
+        'POST /bookings/$bookingId/confirm-delivery failed: ${res.statusCode} ${res.body}',
+      );
+    }
   }
 }
