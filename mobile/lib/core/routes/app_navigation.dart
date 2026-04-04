@@ -21,6 +21,7 @@ import 'package:fyp/features/complaints/report_issue_screen.dart';
 import 'package:fyp/features/ward_admin/notices/views/send_notice.dart';
 
 import 'package:fyp/features/shared/maps/views/location_picker_view.dart';
+import 'package:fyp/features/vendor/bookings/views/vendor_bookings_screen.dart';
 
 class AppNavigation {
   static String? wardNameFrom(Object? ward) {
@@ -113,6 +114,12 @@ class AppNavigation {
 
       case AppRoutes.locationPicker:
         return MaterialPageRoute(builder: (_) => const LocationPickerView());
+
+
+    // vendor bookings screen
+      case AppRoutes.vendorBookings:
+        return MaterialPageRoute(builder: (_) => const VendorBookingsScreen());
+
 
       default:
         return MaterialPageRoute(
