@@ -208,7 +208,7 @@ export async function getVendorDashboard(req, res) {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { vendor, error } = await getVendorByUserId(userId);
+  const { vendor: vendorBase, error } = await getVendorByUserId(userId);
   if (error) return res.status(error.status).json({ error: error.message });
 
   try {
@@ -216,6 +216,17 @@ export async function getVendorDashboard(req, res) {
       where: { id: userId },
       select: { name: true, profileImageUrl: true },
     });
+
+    // Fetch vendor info (company + id)
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vendorBase.id },
+      select: {
+        id: true,
+        companyName: true,
+      },
+    });
+
+    if (!vendor) return res.status(403).json({ error: "Vendor profile not found" });
 
     const rawRoutes = await prisma.route.findMany({
       where: {
@@ -244,7 +255,6 @@ export async function getVendorDashboard(req, res) {
         routeDate: r.routeDate,
         status: isActiveRoute(r.routeDate) ? "Active" : "Scheduled",
 
-        // Use latest slot's time range
         startTime: latest?.startTime ?? null,
         endTime: latest?.endTime ?? null,
         startTimeLabel: toTimeLabel(latest?.startTime),
@@ -288,6 +298,7 @@ export async function getVendorDashboard(req, res) {
     }));
 
     const today = startOfToday();
+
     const todaysJobs = await prisma.booking.count({
       where: {
         createdAt: { gte: today },
@@ -295,6 +306,24 @@ export async function getVendorDashboard(req, res) {
         NOT: { status: "CANCELLED" },
       },
     });
+
+    // Delivered count = COMPLETED only (vendor delivered => completed )
+    const deliveredCount = await prisma.booking.count({
+      where: {
+        slot: { route: { vendorId: vendor.id } },
+        status: "COMPLETED",
+      },
+    });
+
+    // Rating stats (avg + count)
+    const ratingAgg = await prisma.vendorRating.aggregate({
+      where: { vendorId: vendor.id },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
+
+    const ratingAverage = ratingAgg._avg.rating ?? 0;
+    const ratedCount = ratingAgg._count.rating ?? 0;
 
     return res.json({
       vendor: {
@@ -307,8 +336,9 @@ export async function getVendorDashboard(req, res) {
       },
       stats: {
         todaysJobs,
-        successPercent: 0,
-        rating: 0,
+        deliveredCount,
+        ratingAverage,
+        ratedCount,
       },
       routes,
       requests,
@@ -362,10 +392,13 @@ export async function getVendorDeliveries(req, res) {
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, limitRaw)) : 100;
 
   try {
-
     const vendor = await prisma.vendor.findUnique({
       where: { userId },
-      select: { id: true },
+      select: {
+        id: true,
+        ratingAverage: true,
+        ratingCount: true,
+      },
     });
 
     if (!vendor) return res.status(403).json({ error: "Vendor profile not found" });
@@ -393,8 +426,6 @@ export async function getVendorDeliveries(req, res) {
 
     const totalEarnings = deliveredBookings.reduce((sum, b) => {
       const amt = b.payment?.amount;
-
-      // Prisma Decimal handling
       const n =
         amt && typeof amt.toNumber === "function"
           ? amt.toNumber()
@@ -407,7 +438,10 @@ export async function getVendorDeliveries(req, res) {
       stats: {
         totalDeliveries,
         totalEarnings,
-        avgRating: 4.8,
+
+        // use real rating
+        avgRating: vendor.ratingAverage ?? 0,
+        ratingCount: vendor.ratingCount ?? 0,
       },
       deliveries,
     });
