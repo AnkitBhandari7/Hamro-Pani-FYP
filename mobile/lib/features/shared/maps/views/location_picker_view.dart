@@ -27,6 +27,9 @@ class _LocationPickerViewState extends State<LocationPickerView> {
   Timer? _debounce;
 
   bool _locLoading = false;
+  String _addressLabel = '';
+  bool _geocoding = false;
+  Timer? _geocodeDebounce;
 
   @override
   void initState() {
@@ -45,6 +48,7 @@ class _LocationPickerViewState extends State<LocationPickerView> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _geocodeDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -77,8 +81,9 @@ class _LocationPickerViewState extends State<LocationPickerView> {
       if (!enabled) throw Exception("Location service is disabled");
 
       var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied)
+      if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
+      }
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
         throw Exception("Location permission denied");
@@ -102,6 +107,23 @@ class _LocationPickerViewState extends State<LocationPickerView> {
     } finally {
       if (mounted) setState(() => _locLoading = false);
     }
+  }
+
+  void _triggerReverseGeocode(LatLng pos) {
+    _geocodeDebounce?.cancel();
+    _geocodeDebounce = Timer(const Duration(milliseconds: 600), () async {
+      if (!mounted) return;
+      setState(() => _geocoding = true);
+      try {
+        final addr = await _searchService.reverseGeocode(pos.latitude, pos.longitude);
+        if (!mounted) return;
+        setState(() => _addressLabel = addr ?? '${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}');
+      } catch (_) {
+        if (mounted) setState(() => _addressLabel = '${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}');
+      } finally {
+        if (mounted) setState(() => _geocoding = false);
+      }
+    });
   }
 
   void _selectSearchPlace(NominatimPlace p) {
@@ -130,6 +152,7 @@ class _LocationPickerViewState extends State<LocationPickerView> {
               onPositionChanged: (pos, hasGesture) {
                 final c = pos.center;
                 setState(() => _center = c);
+                _triggerReverseGeocode(c);
               },
             ),
             children: [
@@ -168,7 +191,7 @@ class _LocationPickerViewState extends State<LocationPickerView> {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
+                                color: Colors.black.withValues(alpha: 0.08),
                                 blurRadius: 10,
                               ),
                             ],
@@ -240,7 +263,7 @@ class _LocationPickerViewState extends State<LocationPickerView> {
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                             blurRadius: 10,
                           ),
                         ],
@@ -249,7 +272,7 @@ class _LocationPickerViewState extends State<LocationPickerView> {
                       child: ListView.separated(
                         shrinkWrap: true,
                         itemCount: _results.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (context, i) => const Divider(height: 1),
                         itemBuilder: (context, i) {
                           final p = _results[i];
                           return ListTile(
@@ -294,7 +317,7 @@ class _LocationPickerViewState extends State<LocationPickerView> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.12),
+                    color: Colors.black.withValues(alpha: 0.12),
                     blurRadius: 18,
                   ),
                 ],
@@ -322,10 +345,20 @@ class _LocationPickerViewState extends State<LocationPickerView> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      "${_center.latitude.toStringAsFixed(6)}, ${_center.longitude.toStringAsFixed(6)}",
-                      style: TextStyle(color: Colors.grey[700]),
-                    ),
+                    _geocoding
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            _addressLabel.isNotEmpty
+                                ? _addressLabel
+                                : '${_center.latitude.toStringAsFixed(5)}, ${_center.longitude.toStringAsFixed(5)}',
+                            style: TextStyle(color: Colors.grey[700]),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
@@ -335,6 +368,9 @@ class _LocationPickerViewState extends State<LocationPickerView> {
                           Navigator.pop(context, {
                             'lat': _center.latitude,
                             'lng': _center.longitude,
+                            'address': _addressLabel.isNotEmpty
+                                ? _addressLabel
+                                : '${_center.latitude.toStringAsFixed(5)}, ${_center.longitude.toStringAsFixed(5)}',
                           });
                         },
                         style: ElevatedButton.styleFrom(
