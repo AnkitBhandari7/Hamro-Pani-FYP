@@ -29,8 +29,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // Create + preload locale BEFORE runApp
+  final localeController = LocaleController();
+  await localeController.loadFromDevice();
 
   try {
     await FCMService().initialize(
@@ -51,8 +54,8 @@ Future<void> main() async {
     ProviderScope(
       child: pv.MultiProvider(
         providers: [
-          pv.ChangeNotifierProvider<LocaleController>(
-            create: (_) => LocaleController(),
+          pv.ChangeNotifierProvider<LocaleController>.value(
+            value: localeController,
           ),
         ],
         child: const TankerTapApp(),
@@ -84,7 +87,7 @@ class TankerTapApp extends StatelessWidget {
             scaffoldBackgroundColor: Colors.white,
           ),
 
-          //  Localization
+          // Localization now uses persisted locale
           locale: localeCtrl.locale,
           supportedLocales: AppLocalizations.supportedLocales,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
