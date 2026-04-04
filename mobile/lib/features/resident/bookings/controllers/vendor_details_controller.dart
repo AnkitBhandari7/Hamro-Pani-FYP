@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:fyp/l10n/app_localizations.dart';
 import '../services/vendor_service.dart';
 
 class VendorDetailsController extends ChangeNotifier {
@@ -13,7 +14,9 @@ class VendorDetailsController extends ChangeNotifier {
       'https://images.unsplash.com/photo-1601581875039-e8c26e3e88fe?w=800&auto=format&fit=crop&q=80';
 
   String vendorName = 'Vendor';
-  String statusLabel = 'Available Now';
+
+  /// raw backend-ish status (AVAILABLE/BUSY/LOW_STOCK/...)
+  String statusRaw = 'AVAILABLE';
 
   String wardName = '';
   String location = '';
@@ -33,30 +36,32 @@ class VendorDetailsController extends ChangeNotifier {
     _init(vendor, slotId);
   }
 
-  String get priceLabel => price == null ? '—' : 'NPR $price/tanker';
+  String priceLabel(AppLocalizations t) {
+    if (price == null) return '—';
+    return t.pricePerTanker(price!);
+  }
 
-  String get timeRangeLabel {
-    if (startTime == null || endTime == null) return '—';
+  String? get timeRangeLabel {
+    if (startTime == null || endTime == null) return null;
     final fmt = DateFormat('hh:mm a');
     return '${fmt.format(startTime!.toLocal())} - ${fmt.format(endTime!.toLocal())}';
   }
 
-  String get bookingLabel {
+  String bookingLabel(AppLocalizations t) {
     if (bookingSlotsTotal <= 0) return '—';
-    return '$bookingSlotsUsed/$bookingSlotsTotal booked';
+    return t.bookedCount(bookingSlotsUsed, bookingSlotsTotal);
   }
 
   Future<void> _init(Map<String, dynamic> vendor, int? slotId) async {
     // 1) Fill quick from passed vendor map
     vendorName = (vendor['name'] ?? vendorName).toString();
 
-    final st = (vendor['status'] ?? '').toString().toUpperCase();
-    statusLabel = st.isEmpty
-        ? statusLabel
-        : (st == 'AVAILABLE' ? 'Available Now' : st);
+    final st = (vendor['status'] ?? '').toString();
+    if (st.trim().isNotEmpty) statusRaw = st.trim();
 
     final vPrice = vendor['price'];
     if (vPrice is num) price = vPrice.toInt();
+
     tankerCapacityLiters = (vendor['tankerCapacityLiters'] is num)
         ? (vendor['tankerCapacityLiters'] as num).toInt()
         : tankerCapacityLiters;
@@ -80,7 +85,7 @@ class VendorDetailsController extends ChangeNotifier {
           );
 
           vendorName = (data['vendor']?['name'] ?? vendorName).toString();
-          statusLabel = (data['status'] ?? statusLabel).toString();
+          statusRaw = (data['status'] ?? statusRaw).toString();
 
           wardName = (data['route']?['wardName'] ?? '').toString();
           location = (data['route']?['location'] ?? '').toString();
