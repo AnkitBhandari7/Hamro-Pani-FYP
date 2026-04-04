@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -129,26 +130,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loadingProfile = true;
   bool _isSaving = false;
 
-  // Recent activity toggle (button)
   bool _showRecentActivity = false;
   int selectedTab = 0;
 
-  // Pagination
   static const int _pageSize = 2;
   int _bookingPage = 0;
   int _issuePage = 0;
 
-  // Profile photo
   String _profileImageUrl = "";
   bool _uploadingPhoto = false;
   final ImagePicker _picker = ImagePicker();
 
-  // Ward
   String? selectedWard;
   String? _originalWard;
 
-  // Language
-  String _language = "EN"; // EN/NP from backend
+
 
   String _roleLabel = "Resident";
 
@@ -160,14 +156,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<IssueModel> _issues = [];
   List<SavedLocationModel> _locations = [];
 
-  // English wards
   final List<String> wards = [
     ...List.generate(32, (i) => "Kathmandu Ward ${i + 1}"),
     ...List.generate(29, (i) => "Lalitpur Ward ${i + 1}"),
     ...List.generate(10, (i) => "Bhaktapur Ward ${i + 1}"),
   ];
 
-  //  Nepali wards
   final List<String> _wardsNe = [
     ...List.generate(32, (i) => "काठमाडौं वडा ${i + 1}"),
     ...List.generate(29, (i) => "ललितपुर वडा ${i + 1}"),
@@ -210,42 +204,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _formatTimeRange(DateTime? start, DateTime? end) {
     if (start == null || end == null) return "-";
     final fmt = DateFormat('hh:mm a');
-    return "${fmt.format(start.toLocal())} - ${fmt.format(end.toLocal())}";
+    return "${fmt.format(start.toLocal())} – ${fmt.format(end.toLocal())}";
   }
 
   Color _bookingStatusColor(String status) {
     final s = status.toUpperCase();
-    if (s == "COMPLETED") return Colors.green;
-    if (s == "CONFIRMED") return Colors.blue;
-    if (s == "CANCELLED") return Colors.red;
-    return Colors.orange;
+    if (s == "COMPLETED" || s == "DELIVERED") return const Color(0xFF16A34A);
+    if (s == "CONFIRMED") return const Color(0xFF2563EB);
+    if (s == "CANCELLED") return const Color(0xFFDC2626);
+    return const Color(0xFFF59E0B);
   }
 
   Color _issueStatusColor(String status) {
     final s = status.toUpperCase();
-    if (s == "RESOLVED") return Colors.green;
-    if (s == "IN_REVIEW") return Colors.blue;
-    return Colors.orange;
+    if (s == "RESOLVED") return const Color(0xFF16A34A);
+    if (s == "IN_REVIEW") return const Color(0xFF2563EB);
+    return const Color(0xFFF97316);
   }
 
   String _roleToLabel(String role) {
     final r = role.toUpperCase();
     if (r == "VENDOR") return "Vendor";
-    // if (r == "WARD_ADMIN") return "Ward Admin";
     if (r == "ADMIN") return "Admin";
     return "Resident";
   }
 
-  //  localized role label
   String _roleLocalized(AppLocalizations t) {
     final r = _roleLabel.toUpperCase().trim();
     if (r == "VENDOR") return t.vendor;
-    // if (r == "WARD_ADMIN" || r == "WARD ADMIN") return t.wardAdmin;
     if (r == "ADMIN") return t.admin;
     return t.resident;
   }
 
-  // display ward in Nepali while keeping backend value in English
   String? _displayWardLabel(BuildContext context, String? wardFromBackend) {
     if (wardFromBackend == null) return null;
 
@@ -277,8 +267,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return "$_baseUrl$u";
   }
 
-  // Photo upload / delete
-
   Future<void> _pickAndUploadPhoto() async {
     try {
       final picked = await _picker.pickImage(
@@ -288,8 +276,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (picked == null) return;
 
       final idToken = await _getFirebaseToken();
-      if (idToken == null)
+      if (idToken == null) {
         throw Exception("Not authenticated. Please login again.");
+      }
 
       setState(() => _uploadingPhoto = true);
 
@@ -311,17 +300,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
-
-      // backend returns { profileImageUrl: "http://..." }
       final newUrl = (data['profileImageUrl'] ?? '').toString();
-
-      // cache bust so updated image shows immediately
       final refreshedUrl = newUrl.contains("?")
           ? newUrl
           : "$newUrl?t=${DateTime.now().millisecondsSinceEpoch}";
 
       setState(() => _profileImageUrl = refreshedUrl);
-
       _snack("Profile photo updated!", isError: false);
     } catch (e) {
       _snack("Photo upload failed: $e", isError: true);
@@ -347,17 +331,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              "Cancel",
-              style: GoogleFonts.poppins(color: Colors.grey),
-            ),
+            child: Text("Cancel", style: GoogleFonts.poppins(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              "Remove",
-              style: GoogleFonts.poppins(color: Colors.red),
-            ),
+            child: Text("Remove", style: GoogleFonts.poppins(color: Colors.red)),
           ),
         ],
       ),
@@ -367,8 +345,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final idToken = await _getFirebaseToken();
-      if (idToken == null)
+      if (idToken == null) {
         throw Exception("Not authenticated. Please login again.");
+      }
 
       setState(() => _uploadingPhoto = true);
 
@@ -390,11 +369,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Pagination
-
-  int _totalPages(int totalItems) => ((totalItems / _pageSize).ceil() <= 0)
-      ? 1
-      : (totalItems / _pageSize).ceil();
+  int _totalPages(int totalItems) =>
+      ((totalItems / _pageSize).ceil() <= 0) ? 1 : (totalItems / _pageSize).ceil();
 
   List<BookingModel> get _visibleBookings {
     final start = _bookingPage * _pageSize;
@@ -419,36 +395,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final totalPages = _totalPages(totalItems);
 
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: EdgeInsets.only(top: 6.h),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
             onPressed: page > 0 ? onPrev : null,
-            icon: const Icon(Icons.chevron_left),
+            icon: Icon(Icons.chevron_left_rounded, size: 24.w),
           ),
           Text(
             "Page ${page + 1} of $totalPages",
-            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[700]),
+            style: GoogleFonts.poppins(
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF64748B)),
           ),
           IconButton(
             onPressed: (page + 1) < totalPages ? onNext : null,
-            icon: const Icon(Icons.chevron_right),
+            icon: Icon(Icons.chevron_right_rounded, size: 24.w),
           ),
         ],
       ),
     );
   }
 
-  //  Save profile
-
   Future<void> _loadProfile() async {
     setState(() => _loadingProfile = true);
 
     try {
       final idToken = await _getFirebaseToken();
-      if (idToken == null)
+      if (idToken == null) {
         throw Exception("Not authenticated. Please login again.");
+      }
 
       final res = await http.get(
         Uri.parse("$_baseUrl/profile/me"),
@@ -471,7 +449,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         selectedWard = (user['ward'] ?? widget.ward)?.toString();
         _originalWard = selectedWard;
 
-        _language = (user['language'] ?? 'EN').toString();
 
         _profileImageUrl = (user['profileImageUrl'] ?? '').toString();
 
@@ -504,7 +481,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _snack("Please select your ward", isError: true);
       return;
     }
-
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
 
@@ -512,13 +488,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _snack("Please enter your full name", isError: true);
       return;
     }
-
     setState(() => _isSaving = true);
-
     try {
       final idToken = await _getFirebaseToken();
-      if (idToken == null)
+      if (idToken == null) {
         throw Exception("Not authenticated. Please login again.");
+      }
 
       final oldWardName = _originalWard;
 
@@ -595,10 +570,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Saved Locations API
-
   Future<void> _addLocationDialog() async {
-    // open map picker first
     final picked = await Navigator.pushNamed(context, AppRoutes.locationPicker);
 
     if (picked is! Map) {
@@ -614,33 +586,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    //  ask label + set default
     final labelCtrl = TextEditingController();
     bool makeDefault = false;
+
+    if (!mounted) return;
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
         title: Text(
           "Save Location",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: labelCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: "Label (Home/Office)",
+                hintStyle: GoogleFonts.poppins(color: const Color(0xFF94A3B8)),
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                    borderSide: BorderSide.none),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 12.h),
             StatefulBuilder(
               builder: (ctx, setSt) => CheckboxListTile(
                 value: makeDefault,
+                activeColor: const Color(0xFF2563EB),
                 onChanged: (v) => setSt(() => makeDefault = v == true),
-                title: Text("Set as default", style: GoogleFonts.poppins()),
+                title: Text("Set as default",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
                 controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
               ),
             ),
           ],
@@ -648,11 +633,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
+            child: Text("Cancel",
+                style: GoogleFonts.poppins(color: const Color(0xFF64748B))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Save"),
+            child: Text("Save",
+                style: GoogleFonts.poppins(color: const Color(0xFF2563EB))),
           ),
         ],
       ),
@@ -660,7 +647,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (ok != true) return;
 
-    // send to backend
     try {
       final token = await _getFirebaseToken();
       if (token == null) throw Exception("Not authenticated");
@@ -672,18 +658,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'label': labelCtrl.text.trim().isEmpty
-              ? "Home"
-              : labelCtrl.text.trim(),
-          'address': "Pinned location", //
+          'label':
+              labelCtrl.text.trim().isEmpty ? "Home" : labelCtrl.text.trim(),
+          'address': "Pinned location",
           'lat': lat,
           'lng': lng,
           'isDefault': makeDefault,
         }),
       );
 
-      if (res.statusCode != 201)
+      if (res.statusCode != 201) {
         throw Exception("HTTP ${res.statusCode}: ${res.body}");
+      }
 
       await _loadProfile();
       _snack("Location saved!", isError: false);
@@ -702,8 +688,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         headers: {'Authorization': 'Bearer $token'},
       );
 
-      if (res.statusCode != 200)
+      if (res.statusCode != 200) {
         throw Exception("HTTP ${res.statusCode}: ${res.body}");
+      }
       await _loadProfile();
     } catch (e) {
       _snack("Failed: $e", isError: true);
@@ -720,92 +707,136 @@ class _ProfileScreenState extends State<ProfileScreen> {
         headers: {'Authorization': 'Bearer $token'},
       );
 
-      if (res.statusCode != 200)
+      if (res.statusCode != 200) {
         throw Exception("HTTP ${res.statusCode}: ${res.body}");
+      }
       await _loadProfile();
     } catch (e) {
       _snack("Delete failed: $e", isError: true);
     }
   }
 
-  // UI helpers
-
   void _snack(String msg, {required bool isError}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: isError ? Colors.red : Colors.green,
+        backgroundColor:
+            isError ? const Color(0xFFEF4444) : const Color(0xFF16A34A),
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
       ),
     );
   }
 
-  Widget _sectionTitle(String t) => Text(
-    t,
-    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
-  );
+  Widget _sectionHeader(String title, IconData icon, Color color) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 4.w),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8.w),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Icon(icon, size: 18.w, color: color),
+          ),
+          SizedBox(width: 10.w),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF334155),
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _card({required Widget child}) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-      ],
-    ),
-    child: child,
-  );
+        child: child,
+      );
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-
     final displayName = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : widget.userName;
     final photoUrl = _absPhotoUrl(_profileImageUrl);
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back_ios_rounded,
+              color: const Color(0xFF0F172A), size: 20.w),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           t.myProfile,
           style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF0F172A),
           ),
         ),
+        centerTitle: true,
         actions: [
           _isSaving
-              ? const Padding(
-                  padding: EdgeInsets.all(16.0),
+              ? Padding(
+                  padding: EdgeInsets.only(right: 16.w),
                   child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    width: 20.w,
+                    height: 20.w,
+                    child: const CircularProgressIndicator(
+                        strokeWidth: 2, color: Color(0xFF2563EB)),
                   ),
                 )
-              : TextButton(
-                  onPressed: _saveProfile,
-                  child: Text(
-                    t.save,
-                    style: GoogleFonts.poppins(
-                      color: Colors.blue,
-                      fontWeight: FontWeight.w600,
+              : GestureDetector(
+                  onTap: _saveProfile,
+                  child: Container(
+                    margin: EdgeInsets.only(right: 12.w),
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF16A34A),
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_rounded,
+                            size: 18.w, color: Colors.white),
+                        SizedBox(width: 4.w),
+                        Text(
+                          t.save,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -815,212 +846,303 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadProfile,
+              color: const Color(0xFF2563EB),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(16.w),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
+                    // ─── Profile Header ──────────────
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(24.w),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22.r),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
                       child: Column(
                         children: [
                           Stack(
+                            alignment: Alignment.bottomRight,
                             children: [
-                              CircleAvatar(
-                                radius: 50,
-                                backgroundColor: Colors.blue[100],
-                                backgroundImage: photoUrl.isNotEmpty
-                                    ? NetworkImage(photoUrl)
-                                    : null,
-                                child: photoUrl.isEmpty
-                                    ? Text(
-                                        displayName.isNotEmpty
-                                            ? displayName[0].toUpperCase()
-                                            : "U",
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 40,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.blue,
-                                        ),
-                                      )
-                                    : null,
+                              Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                    width: 3.w,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.08),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: CircleAvatar(
+                                  radius: 54.r,
+                                  backgroundColor: const Color(0xFFF1F5F9),
+                                  backgroundImage: photoUrl.isNotEmpty
+                                      ? NetworkImage(photoUrl)
+                                      : null,
+                                  child: photoUrl.isEmpty
+                                      ? Text(
+                                          displayName.isNotEmpty
+                                              ? displayName[0].toUpperCase()
+                                              : "U",
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 40.sp,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF94A3B8),
+                                          ),
+                                        )
+                                      : null,
+                                ),
                               ),
-
-                              // Upload photo
                               Positioned(
-                                right: 2,
-                                bottom: 2,
+                                right: 0,
+                                bottom: 0,
                                 child: InkWell(
                                   onTap: _uploadingPhoto
                                       ? null
                                       : _pickAndUploadPhoto,
                                   child: Container(
-                                    padding: const EdgeInsets.all(8),
+                                    padding: EdgeInsets.all(8.w),
                                     decoration: BoxDecoration(
-                                      color: Colors.blue,
+                                      color: const Color(0xFF2563EB),
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
-                                      ),
+                                          color: Colors.white, width: 2.5),
+                                      boxShadow: [
+                                        BoxShadow(
+                                            color: Colors.black
+                                                .withValues(alpha: 0.15),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2))
+                                      ],
                                     ),
                                     child: _uploadingPhoto
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
+                                        ? SizedBox(
+                                            width: 16.w,
+                                            height: 16.w,
+                                            child:
+                                                const CircularProgressIndicator(
                                               strokeWidth: 2,
                                               color: Colors.white,
                                             ),
                                           )
-                                        : const Icon(
-                                            Icons.camera_alt,
-                                            color: Colors.white,
-                                            size: 18,
-                                          ),
+                                        : Icon(Icons.camera_alt_rounded,
+                                            color: Colors.white, size: 16.w),
                                   ),
                                 ),
                               ),
-
-                              // Delete photo
                               if (photoUrl.isNotEmpty)
                                 Positioned(
-                                  left: 2,
-                                  bottom: 2,
+                                  left: 0,
+                                  bottom: 0,
                                   child: InkWell(
-                                    onTap: _uploadingPhoto
-                                        ? null
-                                        : _deletePhoto,
+                                    onTap: _uploadingPhoto ? null : _deletePhoto,
                                     child: Container(
-                                      padding: const EdgeInsets.all(8),
+                                      padding: EdgeInsets.all(8.w),
                                       decoration: BoxDecoration(
-                                        color: Colors.red,
+                                        color: const Color(0xFFEF4444),
                                         shape: BoxShape.circle,
                                         border: Border.all(
-                                          color: Colors.white,
-                                          width: 2,
-                                        ),
+                                            color: Colors.white, width: 2.5),
+                                        boxShadow: [
+                                          BoxShadow(
+                                              color: Colors.black
+                                                  .withValues(alpha: 0.15),
+                                              blurRadius: 6,
+                                              offset: const Offset(0, 2))
+                                        ],
                                       ),
-                                      child: const Icon(
-                                        Icons.delete,
-                                        color: Colors.white,
-                                        size: 18,
-                                      ),
+                                      child: Icon(Icons.delete_rounded,
+                                          color: Colors.white, size: 16.w),
                                     ),
                                   ),
                                 ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 16.h),
                           Text(
                             displayName,
                             style: GoogleFonts.poppins(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 22.sp,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF0F172A),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 10.h),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 16.w, vertical: 6.h),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10.r),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.person_rounded,
+                                    color: const Color(0xFF2563EB), size: 16.w),
+                                SizedBox(width: 6.w),
+                                Text(
+                                  _roleLocalized(t).toUpperCase(),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13.sp,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF2563EB),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          Text(
-                            "${_roleLocalized(t)} • ${_displayWardLabel(context, selectedWard) ?? t.noWardSelected}",
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
+                          SizedBox(height: 8.h),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.location_city_rounded,
+                                  size: 14.w, color: const Color(0xFF94A3B8)),
+                              SizedBox(width: 4.w),
+                              Text(
+                                _displayWardLabel(context, selectedWard) ??
+                                    t.noWardSelected,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13.sp,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24.h),
 
-                    // Stats
+                    // ─── Stats ───────────────────────
                     Row(
                       children: [
                         Expanded(
                           child: _statCard(
                             "${_bookings.length}",
                             t.bookings,
-                            Colors.blue[50]!,
+                            const Color(0xFFEFF6FF),
+                            const Color(0xFF2563EB),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12.w),
                         Expanded(
                           child: _statCard(
                             "${_issues.length}",
                             t.reports,
-                            Colors.orange[50]!,
+                            const Color(0xFFFFF7ED),
+                            const Color(0xFFF97316),
                           ),
                         ),
                       ],
                     ),
+                    SizedBox(height: 32.h),
 
-                    const SizedBox(height: 32),
-
-                    _sectionTitle(t.personalDetails),
-                    const SizedBox(height: 12),
+                    // ─── Personal Details ────────────
+                    _sectionHeader(t.personalDetailsUpper, Icons.person_outlined,
+                        const Color(0xFF2563EB)),
+                    SizedBox(height: 12.h),
                     _card(
                       child: Column(
                         children: [
                           _field(
                             t.fullName.toUpperCase(),
                             _nameController,
-                            Icons.person,
+                            Icons.person_outline_rounded,
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16.h),
                           _field(
                             t.phoneNumber.toUpperCase(),
                             _phoneController,
-                            Icons.phone,
+                            Icons.phone_rounded,
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16.h),
                           _field(
                             t.emailLabel.toUpperCase(),
                             _emailController,
-                            Icons.email,
+                            Icons.email_outlined,
                             enabled: false,
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16.h),
                           _wardSelector(),
                         ],
                       ),
                     ),
+                    SizedBox(height: 32.h),
 
-                    const SizedBox(height: 32),
-
-                    // Saved locations
+                    // ─── Saved Locations ─────────────
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _sectionTitle(t.savedLocations),
-                        TextButton(
-                          onPressed: _addLocationDialog,
-                          child: Text(
-                            t.addNew,
-                            style: GoogleFonts.poppins(
-                              color: Colors.blue,
-                              fontWeight: FontWeight.w600,
+                        _sectionHeader(t.savedLocations,
+                            Icons.location_on_outlined, const Color(0xFF16A34A)),
+                        GestureDetector(
+                          onTap: _addLocationDialog,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 12.w, vertical: 6.h),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0FDF4),
+                              borderRadius: BorderRadius.circular(8.r),
+                              border: Border.all(color: const Color(0xFFBBF7D0)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.add_rounded,
+                                    size: 16.w, color: const Color(0xFF16A34A)),
+                                SizedBox(width: 4.w),
+                                Text(
+                                  t.addNew,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF16A34A),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12.h),
                     if (_locations.isEmpty)
                       _card(
                         child: Text(
                           t.noSavedLocationsYet,
-                          style: GoogleFonts.poppins(color: Colors.grey[700]),
+                          style: GoogleFonts.poppins(
+                              color: const Color(0xFF64748B), fontSize: 13.sp),
                         ),
                       )
                     else
                       ..._locations.map(
                         (l) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
+                          padding: EdgeInsets.only(bottom: 12.h),
                           child: _locationCard(l),
                         ),
                       ),
+                    SizedBox(height: 24.h),
 
-                    const SizedBox(height: 20),
-
-                    // Recent activity toggle button
+                    // ─── Recent Activity Toggle ──────
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
@@ -1028,9 +1150,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           () => _showRecentActivity = !_showRecentActivity,
                         ),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: EdgeInsets.symmetric(vertical: 14.h),
+                          side: const BorderSide(color: Color(0xFFBFDBFE)),
+                          backgroundColor: _showRecentActivity
+                              ? const Color(0xFFEFF6FF)
+                              : Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(12.r),
                           ),
                         ),
                         child: Text(
@@ -1039,18 +1165,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               : t.showRecentActivity,
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w600,
-                            color: Colors.blue,
+                            color: const Color(0xFF2563EB),
                           ),
                         ),
                       ),
                     ),
 
                     if (_showRecentActivity) ...[
-                      const SizedBox(height: 20),
+                      SizedBox(height: 20.h),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _sectionTitle(t.recentActivity),
+                          _sectionHeader(t.recentActivity, Icons.history_rounded,
+                              const Color(0xFF7C3AED)),
                           TextButton(
                             onPressed: () {
                               if (selectedTab == 0) {
@@ -1062,27 +1189,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                 );
                               } else {
-                                _snack(
-                                  t.complaintsHistoryNotAdded,
-                                  isError: false,
-                                );
+                                _snack(t.complaintsHistoryNotAdded,
+                                    isError: false);
                               }
                             },
                             child: Text(
                               t.seeAll,
                               style: GoogleFonts.poppins(
-                                color: Colors.blue,
+                                color: const Color(0xFF2563EB),
                                 fontWeight: FontWeight.w600,
+                                fontSize: 13.sp,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12.h),
                       Container(
+                        padding: EdgeInsets.all(4.w),
                         decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(30),
+                          color: const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(30.r),
                         ),
                         child: Row(
                           children: [
@@ -1091,23 +1218,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16.h),
                       if (selectedTab == 0) ...[
                         if (_bookings.isEmpty)
                           _card(
                             child: Text(
                               t.noBookingsYet,
                               style: GoogleFonts.poppins(
-                                color: Colors.grey[700],
+                                color: const Color(0xFF64748B),
                               ),
                             ),
                           )
                         else ...[
                           ..._visibleBookings.map(
                             (b) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
+                              padding: EdgeInsets.only(bottom: 12.h),
                               child: _activityItem(
-                                icon: Icons.local_shipping,
+                                icon: Icons.local_shipping_rounded,
                                 title: "Booking #${b.id}",
                                 subtitle:
                                     "${b.routeLocation ?? "-"} • ${_formatTimeRange(b.slotStartTime, b.slotEndTime)} • ${_formatDate(b.createdAt)}",
@@ -1136,16 +1263,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Text(
                               t.noComplaintsYet,
                               style: GoogleFonts.poppins(
-                                color: Colors.grey[700],
+                                color: const Color(0xFF64748B),
                               ),
                             ),
                           )
                         else ...[
                           ..._visibleIssues.map(
                             (i) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
+                              padding: EdgeInsets.only(bottom: 12.h),
                               child: _activityItem(
-                                icon: Icons.warning,
+                                icon: Icons.warning_amber_rounded,
                                 title: i.title,
                                 subtitle:
                                     "Complaint #${i.id} • ${_formatDate(i.createdAt)}",
@@ -1171,13 +1298,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ],
                     ],
+                    SizedBox(height: 32.h),
 
-                    const SizedBox(height: 32),
-
+                    // ─── Menu Items ──────────────────
                     ProfileMenuSection(
                       onChangePassword: () => Navigator.pushNamed(
                         context,
                         AppRoutes.changePassword,
+                      ),
+                      onForgotPassword: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.forgotPassword,
                       ),
                       onLanguage: () => Navigator.pushNamed(
                         context,
@@ -1185,8 +1316,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       onLogout: _logout,
                     ),
-
-                    const SizedBox(height: 100),
+                    SizedBox(height: 100.h),
                   ],
                 ),
               ),
@@ -1194,27 +1324,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // small UI widgets
-  Widget _statCard(String value, String label, Color color) {
+  // ─── UI Helpers ──────────────────────────────
+  Widget _statCard(String value, String label, Color bgColor, Color textColor) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(16),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: textColor.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
           Text(
             value,
             style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+              fontSize: 24.sp,
+              fontWeight: FontWeight.w700,
+              color: textColor,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4.h),
           Text(
             label,
-            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[700]),
+            style: GoogleFonts.poppins(
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w600,
+                color: textColor.withValues(alpha: 0.8)),
           ),
         ],
       ),
@@ -1232,19 +1367,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Text(
           label,
-          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+          style: GoogleFonts.poppins(
+            fontSize: 11.sp,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF94A3B8),
+            letterSpacing: 0.5,
+          ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         TextField(
           controller: controller,
           enabled: enabled,
+          style: GoogleFonts.poppins(
+            fontSize: 15.sp,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF0F172A),
+          ),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: Colors.grey),
+            prefixIcon:
+                Icon(icon, color: const Color(0xFF94A3B8), size: 20.w),
             filled: true,
-            fillColor: enabled ? Colors.grey[100] : Colors.grey[200],
+            fillColor:
+                enabled ? const Color(0xFFF8FAFC) : const Color(0xFFE2E8F0),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: BorderSide(
+                  color: enabled ? const Color(0xFFCBD5E1) : Colors.transparent),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
             ),
           ),
         ),
@@ -1260,57 +1417,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Text(
           t.wardLabel.toUpperCase(),
-          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+          style: GoogleFonts.poppins(
+            fontSize: 11.sp,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF94A3B8),
+            letterSpacing: 0.5,
+          ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         GestureDetector(
           onTap: () async {
             final String? picked = await showModalBottomSheet<String>(
               context: context,
               isScrollControlled: true,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
+              backgroundColor: Colors.transparent,
               builder: (context) => DraggableScrollableSheet(
                 initialChildSize: 0.6,
                 minChildSize: 0.3,
                 maxChildSize: 0.9,
-                expand: false,
-                builder: (context, scrollController) => Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        t.selectYourWard,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                builder: (context, scrollController) => Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        margin: EdgeInsets.only(top: 12.h),
+                        width: 40.w,
+                        height: 4.h,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
-                        itemCount: _wardsByLocale.length,
-                        itemBuilder: (context, index) {
-                          final wardLabel = _wardsByLocale[index];
-                          return ListTile(
-                            title: Text(
-                              wardLabel,
-                              style: GoogleFonts.poppins(),
-                            ),
-                            trailing: selectedWard == wardLabel
-                                ? const Icon(
-                                    Icons.check_circle,
-                                    color: Colors.blue,
-                                  )
-                                : null,
-                            onTap: () => Navigator.pop(context, wardLabel),
-                          );
-                        },
+                      Container(
+                        padding: EdgeInsets.all(20.w),
+                        child: Text(
+                          t.selectYourWard,
+                          style: GoogleFonts.poppins(
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: ListView.builder(
+                          controller: scrollController,
+                          itemCount: _wardsByLocale.length,
+                          itemBuilder: (context, index) {
+                            final wardLabel = _wardsByLocale[index];
+                            final isSelected = selectedWard == wardLabel;
+                            return ListTile(
+                              title: Text(
+                                wardLabel,
+                                style: GoogleFonts.poppins(
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: isSelected
+                                      ? const Color(0xFF2563EB)
+                                      : const Color(0xFF334155),
+                                ),
+                              ),
+                              trailing: isSelected
+                                  ? Icon(Icons.check_circle_rounded,
+                                      color: const Color(0xFF2563EB), size: 24.w)
+                                  : null,
+                              onTap: () => Navigator.pop(context, wardLabel),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -1318,13 +1499,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (picked != null) setState(() => selectedWard = picked);
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-              border: (selectedWard != _originalWard)
-                  ? Border.all(color: Colors.blue, width: 2)
-                  : null,
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(
+                color: (selectedWard != _originalWard)
+                    ? const Color(0xFF2563EB)
+                    : const Color(0xFFCBD5E1),
+                width: (selectedWard != _originalWard) ? 1.5 : 1.0,
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1336,20 +1520,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       return Text(
                         wardText ?? t.selectYourWardHint,
                         style: GoogleFonts.poppins(
-                          fontSize: 16,
+                          fontSize: 15.sp,
+                          fontWeight: FontWeight.w600,
                           color: selectedWard != null
-                              ? Colors.black
-                              : Colors.grey,
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF94A3B8),
                         ),
                       );
                     },
                   ),
                 ),
                 Icon(
-                  Icons.keyboard_arrow_down,
+                  Icons.keyboard_arrow_down_rounded,
                   color: (selectedWard != _originalWard)
-                      ? Colors.blue
-                      : Colors.grey,
+                      ? const Color(0xFF2563EB)
+                      : const Color(0xFF94A3B8),
+                  size: 24.w,
                 ),
               ],
             ),
@@ -1361,20 +1547,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _locationCard(SavedLocationModel loc) {
     final t = AppLocalizations.of(context)!;
-    final icon = loc.label.toLowerCase().contains("home")
-        ? Icons.home
-        : Icons.storefront;
+    final isHome = loc.label.toLowerCase().contains("home");
+    final icon = isHome ? Icons.home_rounded : Icons.storefront_rounded;
+    final iconColor = isHome ? const Color(0xFF2563EB) : const Color(0xFFF97316);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1382,15 +1569,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 38,
-            height: 38,
+            padding: EdgeInsets.all(10.w),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12.r),
             ),
-            child: Icon(icon, color: Colors.blue),
+            child: Icon(icon, color: iconColor, size: 24.w),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 14.w),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1399,53 +1585,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Text(
                       loc.label,
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                      style: GoogleFonts.poppins(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF0F172A),
+                      ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8.w),
                     if (loc.isDefault)
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 8.w, vertical: 3.h),
                         decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(20),
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(20.r),
                         ),
                         child: Text(
                           t.defaultBadge,
                           style: GoogleFonts.poppins(
-                            fontSize: 10,
+                            fontSize: 10.sp,
                             fontWeight: FontWeight.w600,
-                            color: Colors.green[800],
+                            color: const Color(0xFF16A34A),
                           ),
                         ),
                       ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4.h),
                 Text(
                   loc.address,
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey[700],
+                    fontSize: 13.sp,
+                    color: const Color(0xFF64748B),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 10.h),
                 Row(
                   children: [
-                    TextButton(
-                      onPressed: () => _setDefaultLocation(loc.id),
+                    GestureDetector(
+                      onTap: () => _setDefaultLocation(loc.id),
                       child: Text(
                         t.setDefault,
-                        style: GoogleFonts.poppins(color: Colors.blue),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF2563EB),
+                        ),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => _deleteLocation(loc.id),
+                    SizedBox(width: 20.w),
+                    GestureDetector(
+                      onTap: () => _deleteLocation(loc.id),
                       child: Text(
                         t.delete,
-                        style: GoogleFonts.poppins(color: Colors.red),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFEF4444),
+                        ),
                       ),
                     ),
                   ],
@@ -1459,22 +1656,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _activityTab(String title, int index) {
+    final isSelected = selectedTab == index;
     return GestureDetector(
       onTap: () => setState(() => selectedTab = index),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(vertical: 10.h),
         decoration: BoxDecoration(
-          color: selectedTab == index ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(24.r),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  )
+                ]
+              : null,
         ),
         child: Text(
           title,
           textAlign: TextAlign.center,
           style: GoogleFonts.poppins(
-            fontWeight: selectedTab == index
-                ? FontWeight.w600
-                : FontWeight.normal,
-            color: selectedTab == index ? Colors.blue : Colors.grey[700],
+            fontSize: 13.sp,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF64748B),
           ),
         ),
       ),
@@ -1489,48 +1695,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required Color statusColor,
     required VoidCallback onTap,
   }) {
-    final lightBg = statusColor.withOpacity(0.1);
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.all(10.w),
               decoration: BoxDecoration(
-                color: lightBg,
-                borderRadius: BorderRadius.circular(12),
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12.r),
               ),
-              child: Icon(icon, color: statusColor, size: 24),
+              child: Icon(icon, color: statusColor, size: 24.w),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 14.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF0F172A),
+                    ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2.h),
                   Text(
                     subtitle,
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                      fontSize: 12.sp,
+                      color: const Color(0xFF64748B),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1539,15 +1748,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
               decoration: BoxDecoration(
-                color: lightBg,
-                borderRadius: BorderRadius.circular(20),
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20.r),
+                border: Border.all(color: statusColor.withValues(alpha: 0.2)),
               ),
               child: Text(
                 status,
                 style: GoogleFonts.poppins(
-                  fontSize: 10,
+                  fontSize: 10.sp,
                   fontWeight: FontWeight.w600,
                   color: statusColor,
                 ),
