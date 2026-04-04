@@ -1,5 +1,6 @@
 import prisma from "../../prisma.js";
 import { admin } from "../../firebaseAdmin.js";
+import bcrypt from "bcrypt";
 
 
 // Role normalization
@@ -91,7 +92,7 @@ export async function register(req, res) {
 
   const idToken = authHeader.split("Bearer ")[1];
 
-  const { phone, name, role, ward, wardId, companyName } = req.body || {};
+  const { phone, name, role, ward, wardId, companyName, password } = req.body || {};
 
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
@@ -100,12 +101,17 @@ export async function register(req, res) {
 
     const roleEnum = normalizeRole(role);
 
+    let hashedPassword = undefined;
+    if (hasNonEmptyString(password)) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+
     const user = await prisma.$transaction(async (tx) => {
 
 
-      // ward is OPTIONAL at registration (can set later in profile)
+      // ward is optional at registration (can set later in profile)
       // Also If user already has ward in DB and register is called again
-      // without ward info, we DO NOT overwrite their ward with null.
+      // without ward info,  DO NOT overwrite their ward with null.
 
       let finalWardId = null;
       let wardInputProvided = false;
@@ -141,11 +147,11 @@ export async function register(req, res) {
       } else if (roleEnum === "WARD_ADMIN") {
         // ward admin never has ward in user table
         finalWardId = null;
-        wardInputProvided = true; // we will force clear on update
+        wardInputProvided = true; // force ward input to  clear on update
       } else {
 
         finalWardId = null;
-        wardInputProvided = true; // force clear
+        wardInputProvided = true;
       }
 
 
@@ -164,7 +170,7 @@ export async function register(req, res) {
       }
 
 
-      // Create or update
+      // Create user if not found, else update
 
       if (!u) {
         u = await tx.user.create({
@@ -174,6 +180,7 @@ export async function register(req, res) {
             phoneNumber: hasNonEmptyString(phone) ? phone.trim() : null,
             name: hasNonEmptyString(name) ? name.trim() : null,
             role: roleEnum,
+            passwordHash: hashedPassword,
             wardId: roleEnum === "RESIDENT" ? finalWardId : null,
           },
         });
@@ -191,6 +198,7 @@ export async function register(req, res) {
             phoneNumber: hasNonEmptyString(phone) ? phone.trim() : u.phoneNumber,
             name: hasNonEmptyString(name) ? name.trim() : u.name,
             role: roleEnum,
+            passwordHash: hashedPassword ?? u.passwordHash,
             wardId: wardIdUpdate,
           },
         });
@@ -299,7 +307,7 @@ export async function updateProfile(req, res) {
     });
     if (!me) return res.status(401).json({ error: "Unauthorized" });
 
-    //  Ward update logic
+
     let wardIdUpdate = undefined;
 
     if (me.role === "RESIDENT") {
@@ -321,7 +329,7 @@ export async function updateProfile(req, res) {
       wardIdUpdate = null; // non-resident must always be null
     }
 
-    // Language update logic
+    // Language  logic
     let languageUpdate = undefined;
     if (typeof language === "string" && language.trim()) {
       const lang = language.trim().toUpperCase();
