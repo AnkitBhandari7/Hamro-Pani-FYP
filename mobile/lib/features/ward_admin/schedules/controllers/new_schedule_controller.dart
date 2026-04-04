@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -16,13 +18,15 @@ class NewScheduleController extends ChangeNotifier {
   TimeOfDay? startTime;
   TimeOfDay? endTime;
 
-  // ✅ canonical value stored for backend (English always)
+  // canonical value stored for backend (English always)
   String? selectedWardEnglish;
 
   final TextEditingController affectedAreasController = TextEditingController();
 
-  // Upload mode (not implemented)
+  // Upload mode fields (IMPLEMENTED)
   String? fileName;
+  String? filePath;
+  Uint8List? fileBytes;
 
   // Canonical English wards (backend/db)
   final List<String> wardsEn = [
@@ -54,6 +58,29 @@ class NewScheduleController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setPickedFile({
+    required String fileName,
+    required String? filePath,
+    required Uint8List? fileBytes,
+  }) {
+    this.fileName = fileName;
+    this.filePath = filePath;
+    this.fileBytes = fileBytes;
+    notifyListeners();
+  }
+
+  void clearPickedFile() {
+    fileName = null;
+    filePath = null;
+    fileBytes = null;
+    notifyListeners();
+  }
+
+  bool isUploadValid() {
+    // at least one should exist to upload
+    return fileName != null && (filePath != null || fileBytes != null);
+  }
+
   void reset() {
     selectedTab = 0;
     notifyResidents = true;
@@ -62,7 +89,7 @@ class NewScheduleController extends ChangeNotifier {
     endTime = null;
     selectedWardEnglish = null;
     affectedAreasController.clear();
-    fileName = null;
+    clearPickedFile();
     isPublishing = false;
     notifyListeners();
   }
@@ -179,14 +206,20 @@ class NewScheduleController extends ChangeNotifier {
     );
   }
 
-  Future<void> publishManualSchedule() async {
-    if (!isManualValid()) throw Exception("VALIDATION_FAILED");
-
+  Future<String> _getIdTokenOrThrow() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception("NOT_AUTHENTICATED");
 
     final String? idToken = await user.getIdToken(true);
     if (idToken == null || idToken.isEmpty) throw Exception("TOKEN_MISSING");
+
+    return idToken;
+  }
+
+  Future<void> publishManualSchedule() async {
+    if (!isManualValid()) throw Exception("VALIDATION_FAILED");
+
+    final idToken = await _getIdTokenOrThrow();
 
     isPublishing = true;
     notifyListeners();
@@ -195,6 +228,28 @@ class NewScheduleController extends ChangeNotifier {
       await SchedulesService.publishSchedule(
         idToken: idToken,
         payload: buildPayload(),
+      );
+    } finally {
+      isPublishing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> publishUploadedSchedule() async {
+    if (!isUploadValid()) throw Exception("FILE_MISSING");
+
+    final idToken = await _getIdTokenOrThrow();
+
+    isPublishing = true;
+    notifyListeners();
+
+    try {
+      await SchedulesService.uploadScheduleFile(
+        idToken: idToken,
+        fileName: fileName!,
+        filePath: filePath,
+        fileBytes: fileBytes,
+        notifyResidents: notifyResidents,
       );
     } finally {
       isPublishing = false;
