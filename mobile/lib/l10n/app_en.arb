@@ -129,5 +129,661 @@
     "notSpecified": "Not specified",
     "residentsWillBeNotified": "Residents will be notified",
     "noNotificationsWillBeSent": "No notifications will be sent",
-    "closePreview": "Close Preview"
+    "closePreview": "Close Preview",
+     "sendNotice": "Send Notice",
+      "reset": "Reset",
+
+      "noticeTypeHeader": "NOTICE TYPE",
+      "noticeTypeGeneral": "General",
+      "noticeTypeEmergency": "Emergency",
+      "noticeTypeMaintenance": "Maintenance",
+
+      "noticeContent": "Notice Content",
+      "noticeTitleHeader": "NOTICE TITLE",
+      "noticeTitleLabel": "Title",
+      "noticeTitleHint": "e.g. Weekly Tanker Schedule Update",
+
+      "messageHeader": "MESSAGE",
+      "message": "Message",
+      "noticeMessageHint": "Type your announcement details here...",
+
+      "highPriority": "High Priority",
+      "noticeHighPrioritySubtitle": "Mark notice as urgent",
+
+      "pushNotification": "Push Notification",
+      "noticePushNotificationSubtitle": "Send instant alert to devices",
+
+      "preview": "Preview",
+      "confirmAndSend": "Confirm & Send",
+      "sendArrow": "Send →",
+      "sending": "Sending...",
+
+      "type": "Type",
+      "audience": "Audience",
+      "noticeAudienceEveryone": "Everyone (Residents + Vendors)",
+
+      "yes": "Yes",
+      "no": "No",
+
+      "noticeValidationRequired": "Title and message are required",
+      "noticeSentToEveryone": "Notice sent to everyone",
+
+      "noticeFailedToSend": "Failed to send: {msg}",
+      "@noticeFailedToSend": {
+        "placeholders": {
+          "msg": { "type": "String" }
+        }
+      },
+
+      "noticeErrorSending": "Error sending notice: {error}",
+      "@noticeErrorSending": {
+        "placeholders": {
+          "error": { "type": "String" }
+        }
+      },
+    "appName": "Hamro Pani",
+    "wardAdmin": "Ward Admin",
+
+    "namaste": "Namaste, {name}",
+    "@namaste": { "placeholders": { "name": { "type": "String" } } },
+
+    "recentOverview": "Here is your recent overview.",
+    "supplyStatus": "Supply Status",
+    "normalFlow": "Normal Flow",
+    "activeDistribution": "Active Distribution",
+
+    "quickActions": "Quick Actions",
+    "postSchedule": "Post Schedule",
+    "updateTimings": "Update timings",
+    "announceUpdates": "Announce updates",
+
+    "recentUpdatesMySchedules": "Recent Updates (My Schedules)",
+    "noSchedulesPostedYet": "No schedules posted by you yet.",
+
+    "schedulePostedWard": "Schedule Posted – {wardName}",
+    "@schedulePostedWard": { "placeholders": { "wardName": { "type": "String" } } },
+
+    "postedByYouTapToOpen": "Posted by you • Tap to open",
+
+    "scheduleDetails": "Schedule Details",
+    "scheduleId": "Schedule ID",
+    "ward": "Ward",
+    "date": "Date",
+    "time": "Time",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+
+    "postedBy": "Posted by",
+    "name": "Name",
+    "email": "Email",
+
+    "fullPostData": "Full post data",
+    "close": "Close",
+
+    "dashboardLoadFailed": "Dashboard load failed: {error}",
+    "@dashboardLoadFailed": { "placeholders": { "error": { "type": "String" } } },
+
+    "openingReports": "Opening Reports...",
+
+    "home": "Home",
+    "reports": "Reports",
+    "schedules": "Schedules",
+    "profile": "Profile",
+    "technicalDetails": "Technical details",
+      "show": "Show",
+      "hide": "Hide",
+
+        "vendorCompany": "Vendor Company",
+        "vendor": "Vendor",
+        "notifications": "Notifications",
+        "newNotification": "New notification",
+
+        "todaysJobs": "Today's jobs",
+        "success": "Success",
+        "rating": "Rating",
+
+        "activeRoutes": "Active Routes",
+        "refresh": "Refresh",
+        "noActiveRoutes": "No active routes",
+        "noActiveRoutesSubtitle": "Your slot will appear here only during its time window.",
+
+        "recentRequests": "Recent Requests",
+        "noRequests": "No requests",
+        "noRequestsSubtitle": "Only requests from the last 24 hours will appear here.",
+
+        "resident": "Resident",
+        "confirm": "Confirm",
+        "decline": "Decline",
+        "route": "Route",
+        "add": "Add",
+
+        "home": "Home",
+        "routes": "Routes",
+        "history": "History",
+        "profile": "Profile",
+
+        "active": "Active",
+
+        "bookingUpdated": "Booking updated: {status}",
+        "@bookingUpdated": { "placeholders": { "status": { "type": "String" } } },
+
+        "updateFailed": "Update failed: {error}",
+        "@updateFailed": { "placeholders": { "error": { "type": "String" } } },
+
+        "locationLabel": "Location: {location}",
+        "@locationLabel": { "placeholders": { "location": { "type": "String" } } },
+
+        "startLabel": "Start: {time}",
+        "@startLabel": { "placeholders": { "time": { "type": "String" } } },
+
+        "endLabel": "End: {time}",
+        "@endLabel": { "placeholders": { "time": { "type": "String" } } },
+
+        "percentBooked": "{percent}% Booked",
+        "@percentBooked": { "placeholders": { "percent": { "type": "int" } } },
+
+
+          "deliveryHistory": "Delivery History",
+          "back": "Back",
+
+          "totalDeliveries": "Total deliveries",
+          "totalEarnings": "Total earnings",
+          "avgRating": "Avg rating",
+
+          "nprAmount": "NPR {amount}",
+          "@nprAmount": { "placeholders": { "amount": { "type": "String" } } },
+
+          "statusDelivered": "Delivered",
+          "statusCancelled": "Cancelled",
+          "statusPending": "Pending",
+
+          "notApplicable": "Not applicable",
+
+          "liters": "{liters} L",
+          "@liters": { "placeholders": { "liters": { "type": "int" } } },
+
+          "loadFailed": "Load failed: {error}",
+          "@loadFailed": { "placeholders": { "error": { "type": "String" } } },
+
+
+            "manageSlots": "Manage Slots",
+            "openNewSlot": "Open New Slot",
+            "selectDate": "Select date",
+            "today": "Today",
+            "tomorrow": "Tomorrow",
+            "endTime": "End time",
+            "tankerCapacityLiters": "Tanker capacity (liters)",
+            "totalBookingSlots": "Total booking slots",
+            "bookingSlots": "Booking slots",
+            "priceNpr": "Price (NPR)",
+            "deliveryRouteArea": "Delivery route / area",
+            "deliveryRouteHint": "e.g. Maitidevi, Ward 29",
+            "publishSlotArrow": "Publish Slot →",
+            "slotPublishedSuccessfully": "Slot published successfully",
+            "cannotPublishSlot": "Cannot Publish Slot",
+            "ok": "OK",
+
+            "activeSlots": "Active Slots",
+            "noActiveSlots": "No active slots",
+
+            "open": "OPEN",
+            "full": "FULL",
+
+            "editSlot": "Edit Slot",
+            "change": "Change",
+            "startTimeLabel": "Start: {time}",
+            "@startTimeLabel": { "placeholders": { "time": { "type": "String" } } },
+
+            "save": "Save",
+            "cancel": "Cancel",
+            "invalidInputs": "Invalid inputs",
+            "slotUpdated": "Slot updated",
+
+            "edit": "Edit",
+            "markFull": "Mark Full",
+            "markedFull": "Marked full",
+            "slotCancelled": "Slot cancelled",
+
+            "slotsLabel": "Slots: {count}",
+            "@slotsLabel": { "placeholders": { "count": { "type": "int" } } },
+
+            "tankerLabel": "Tanker: {liters}L",
+            "@tankerLabel": { "placeholders": { "liters": { "type": "int" } } },
+
+            "priceLabel": "Price: {priceText}",
+            "@priceLabel": { "placeholders": { "priceText": { "type": "String" } } },
+
+            "bookedCount": "{booked}/{total} booked",
+            "@bookedCount": {
+              "placeholders": {
+                "booked": { "type": "int" },
+                "total": { "type": "int" }
+              }
+            },
+
+            "availablePercent": "{percent}% available",
+            "@availablePercent": { "placeholders": { "percent": { "type": "int" } } },
+              "startTime": "Start time",
+              "endTime": "End time",
+
+
+                "notificationsTitle": "Notifications",
+                "markAllAsRead": "Mark all as read",
+                "markedAllAsRead": "Marked all as read",
+                "failedWithError": "Failed: {error}",
+                "@failedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                "tabAll": "All",
+                "tabUnread": "Unread ({count})",
+                "@tabUnread": { "placeholders": { "count": { "type": "int" } } },
+                "tabOrders": "Orders",
+                "tabSystem": "System",
+
+                "noNotificationsYet": "No notifications yet",
+                "notificationsEmptySubtitle": "We'll notify you when something new arrives",
+                "notificationsEnd": "You've reached the end of your notifications",
+
+                "wardNameLabel": "Ward: {ward}",
+                "@wardNameLabel": { "placeholders": { "ward": { "type": "String" } } },
+
+                "justNow": "Just now",
+                "minutesAgo": "{count} min ago",
+                "@minutesAgo": { "placeholders": { "count": { "type": "int" } } },
+                "hoursAgo": "{count} hrs ago",
+                "@hoursAgo": { "placeholders": { "count": { "type": "int" } } },
+                "yesterday": "Yesterday",
+                "daysAgo": "{count} days ago",
+                "@daysAgo": { "placeholders": { "count": { "type": "int" } } },
+
+                "back": "Back",
+                "close": "Close",
+                "loadFailed": "Load failed: {error}",
+                "@loadFailed": { "placeholders": { "error": { "type": "String" } } },
+
+
+                  "wardNotSet": "Ward not set",
+                  "cityWard": "{city}, Ward {number}",
+                  "@cityWard": {
+                    "placeholders": {
+                      "city": { "type": "String" },
+                      "number": { "type": "String" }
+                    }
+                  },
+
+                  "todaysSupply": "Today's Supply",
+                  "onSchedule": "On Schedule",
+                  "nextSupply": "Next Supply",
+                  "expectedDurationHours": "Expected duration: {hours} hours",
+                  "@expectedDurationHours": { "placeholders": { "hours": { "type": "int" } } },
+                  "normalFlow": "Normal Flow",
+
+                  "bookTanker": "Book Tanker",
+                  "reportIssue": "Report Issue",
+                  "nearbyTankers": "Nearby Tankers",
+                  "viewAll": "View All",
+                  "noTankersAvailableNow": "No tankers available right now",
+
+                  "yourReports": "Your Reports",
+                  "noReportsYet": "No reports yet",
+                  "issue": "Issue",
+                  "inReview": "In Review",
+
+                  "ticketWithDate": "Ticket #{ticket} • {dateLabel}",
+                  "@ticketWithDate": {
+                    "placeholders": {
+                      "ticket": { "type": "String" },
+                      "dateLabel": { "type": "String" }
+                    }
+                  },
+
+                  "bookings": "Bookings",
+                  "reports": "Reports",
+
+                  "noNotifications": "No notifications",
+
+
+                    "findTankersTitle": "Find Tankers",
+                    "searchTankersHint": "Search by area or vendor name...",
+
+                    "filterAll": "All",
+                    "filterAvailableNow": "Available Now",
+                    "filterLowStock": "Low Stock",
+
+                    "currentDemandHigh": "Current Demand is High",
+                    "demandMessageAvailableNow": "Many residents are booking now.\nReserve your slot early.",
+                    "peakHoursLabel": "Peak Hours: {range}",
+                    "@peakHoursLabel": { "placeholders": { "range": { "type": "String" } } },
+
+                    "nearbyVendors": "Nearby Vendors",
+                    "viewMap": "View Map",
+
+                    "noVendorsFound": "No vendors found",
+                    "tryDifferentSearch": "Try changing your search or filter and try again.",
+
+                    "tankerStatusAvailable": "Available",
+                    "tankerStatusBusy": "Busy",
+                    "tankerStatusLowStock": "Low stock",
+
+                    "slotsUsedLabel": "{used}/{total} Slots",
+                    "@slotsUsedLabel": {
+                      "placeholders": {
+                        "used": { "type": "int" },
+                        "total": { "type": "int" }
+                      }
+                    },
+
+                    "nextLabel": "Next: {time}",
+                    "@nextLabel": { "placeholders": { "time": { "type": "String" } } },
+
+                    "viewDetails": "View Details",
+                    "bookedSuccessfully": "Booked successfully",
+
+                    "vendor": "Vendor",
+                    "back": "Back",
+
+
+                      "vendorDetailsTitle": "Vendor Details",
+                      "verified": "Verified",
+
+                      "slotDetailsTitle": "Slot Details",
+                      "paymentMethodTitle": "Payment Method",
+
+                      "time": "Time",
+                      "booking": "Booking",
+                      "tanker": "Tanker",
+                      "price": "Price",
+
+                      "cash": "Cash",
+                      "esewa": "eSewa",
+
+                      "confirmBookingArrow": "Confirm Booking →",
+                      "noSlotAvailable": "No Slot Available",
+
+                      "immediateDispatchAvailable": "Immediate dispatch available",
+
+                      "paymentCancelled": "Payment cancelled",
+                      "bookingFailedWithError": "Booking failed: {error}",
+                      "@bookingFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                      "esewaProductName": "Hamro Pani Tanker Booking",
+
+                      "pricePerTanker": "NPR {price}/tanker",
+                      "@pricePerTanker": { "placeholders": { "price": { "type": "int" } } },
+
+
+                        "paymentReceiptTitle": "Payment Receipt",
+                        "failedToLoadReceipt": "Failed to load receipt",
+
+                        "paymentSuccessful": "Payment Successful",
+                        "thankYouForPurchase": "Thank you for your purchase!",
+
+                        "transactionId": "Transaction ID",
+                        "dateAndTime": "Date & Time",
+                        "paymentMethod": "Payment Method",
+                        "recipient": "Recipient",
+                        "service": "Service",
+                        "quantity": "Quantity",
+
+                        "downloadPdf": "Download PDF",
+                        "saveCopyForRecords": "Save a copy for your records.",
+
+                        "downloadReceipt": "Download Receipt",
+
+                        "saveCancelled": "Save cancelled",
+                        "receiptSaved": "Receipt saved: {path}",
+                        "@receiptSaved": { "placeholders": { "path": { "type": "String" } } },
+
+                        "saveFailedWithError": "Save failed: {error}",
+                        "@saveFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                        "backToHome": "Back to Home",
+
+                        "litersShort": "{liters} Ltr",
+                        "@litersShort": { "placeholders": { "liters": { "type": "int" } } },
+
+
+                          "whatsTheProblem": "What's the problem?",
+                          "description": "Description",
+                          "describeIssueHint": "Please describe the issue in detail...",
+
+                          "location": "Location",
+                          "tapToPickLocation": "Tap to pick location from map",
+                          "selectedLocationLabel": "Selected\n{location}",
+                          "@selectedLocationLabel": { "placeholders": { "location": { "type": "String" } } },
+
+                          "selected": "Selected",
+                          "pickOnMap": "Pick on map",
+                          "locationNotSet": "Location not set",
+
+                          "photoEvidence": "Photo Evidence",
+                          "addPhoto": "Add Photo",
+                          "photosCount": "{count}/{max}",
+                          "@photosCount": {
+                            "placeholders": {
+                              "count": { "type": "int" },
+                              "max": { "type": "int" }
+                            }
+                          },
+
+                          "chooseFromGallery": "Choose from Gallery",
+                          "takePhoto": "Take Photo",
+
+                          "reportInfoHint": "Once submitted, your ticket status will be trackable in the History tab.",
+
+                          "submitReportArrow": "Submit Report →",
+
+                          "issueMissedDelivery": "Missed Delivery",
+                          "issuePoorQuality": "Poor Quality",
+                          "issueSevereDelay": "Severe Delay",
+
+                          "selectIssueAndDescription": "Please select an issue type and enter description.",
+                          "pickLocationFromMap": "Please pick a location from map.",
+                          "reportSubmittedSuccessfully": "Report submitted successfully",
+                          "submitFailedWithError": "Submit failed: {error}",
+                          "@submitFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+
+                            "myBookingsTitle": "My Bookings",
+                            "history": "History",
+                            "noBookingsYet": "No bookings yet",
+
+                            "bookingStatusCompleted": "Completed",
+                            "bookingStatusCancelled": "Cancelled",
+                            "bookingStatusConfirmed": "Confirmed",
+                            "bookingStatusPending": "Pending",
+
+                            "rebook": "Re-book",
+                            "viewDetails": "View Details",
+
+                              "bookingDetailTitle": "Booking Detail",
+                              "complaintDetailTitle": "Complaint Detail",
+                              "failedToLoad": "Failed to load",
+
+                              "bookingNumberTitle": "Booking #{id}",
+                              "@bookingNumberTitle": { "placeholders": { "id": { "type": "int" } } },
+
+                              "complaintNumberTitle": "Complaint #{id}",
+                              "@complaintNumberTitle": { "placeholders": { "id": { "type": "int" } } },
+
+                              "bookingNumberLine": "Booking #{id}",
+                              "@bookingNumberLine": { "placeholders": { "id": { "type": "int" } } },
+
+                              "tankerLabel": "Tanker: {liters}L",
+                              "@tankerLabel": { "placeholders": { "liters": { "type": "int" } } },
+
+                              "priceLabel": "Price: {priceText}",
+                              "@priceLabel": { "placeholders": { "priceText": { "type": "String" } } },
+
+                              "bookingSlotsLabel": "Booking slots: {used}/{total}",
+                              "@bookingSlotsLabel": {
+                                "placeholders": {
+                                  "used": { "type": "int" },
+                                  "total": { "type": "int" }
+                                }
+                              },
+
+                              "trackingTitle": "Tracking",
+                              "noTrackingHistoryYet": "No tracking history yet.",
+
+                              "statusWithWhen": "{status} • {when}",
+                              "@statusWithWhen": {
+                                "placeholders": {
+                                  "status": { "type": "String" },
+                                  "when": { "type": "String" }
+                                }
+                              },
+
+                              "complaintStatusResolved": "Resolved",
+                              "complaintStatusInReview": "In review",
+                              "complaintStatusRejected": "Rejected",
+                              "complaintStatusOpen": "Open",
+
+                              "photos": "Photos",
+
+
+                                  "appName": "Hamro Pani",
+                                  "appTagline": "Kathmandu's Smart Water Management",
+
+                                  "roleResident": "Resident",
+                                  "roleVendor": "Vendor",
+                                  "roleWardAdmin": "Ward Admin",
+
+                                  "langEnglishShort": "EN",
+                                  "langNepaliShort": "NP",
+
+                                  "welcomeBack": "Welcome Back",
+                                  "emailHint": "Enter your email",
+                                  "passwordHint": "Enter your password",
+                                  "forgotPasswordShort": "Forgot?",
+                                  "signInArrow": "Sign In →",
+                                  "orContinueWith": "Or continue with",
+                                  "google": "Google",
+                                  "noAccount": "Don't have an account? ",
+                                  "signUpNow": "Sign up now",
+
+                                  "enterEmailAndPassword": "Please enter email and password",
+                                  "firebaseUserNotFound": "Firebase user not found",
+                                  "failedToGetIdToken": "Failed to get Firebase ID token",
+
+                                  "signupTitle": "Register",
+                                  "createAccount": "Create Account",
+
+                                  "fullName": "Full Name",
+                                  "fullNameHint": "Enter your name",
+
+                                  "emailLabel": "Email Address",
+                                  "phoneLabel": "Mobile Number",
+                                  "phoneHint": "+977 98XXXXXXXX",
+
+                                  "passwordLabel": "Password",
+                                  "confirmPasswordLabel": "Confirm Password",
+                                  "confirmPasswordHint": "Enter your password again",
+
+                                  "fillAllFields": "Please fill all fields",
+                                  "invalidEmailAddress": "Please enter a valid email address",
+                                  "passwordsDoNotMatchMsg": "Passwords do not match",
+                                  "agreeToTermsRequired": "Please agree to Terms & Conditions",
+
+                                  "signupFailedFirebaseNull": "Signup failed: Firebase user is null",
+                                  "signupFailedTokenNull": "Signup failed: Firebase token is null",
+
+                                  "backendRegisterFailed": "Backend register failed: {code}",
+                                  "@backendRegisterFailed": { "placeholders": { "code": { "type": "int" } } },
+
+                                  "signupFailedWithError": "Signup failed: {error}",
+                                  "@signupFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                                  "agreeToTermsText": "I agree to the Terms & Conditions and Privacy Policy.",
+                                  "haveAccount": "Already have an account? ",
+                                  "loginNow": "Log In",
+                                  "signupButton": "Sign Up",
+
+                                  "forgotPasswordTitle": "Forgot Password",
+                                  "resetYourPassword": "Reset your password",
+                                  "resetPasswordInstruction": "Enter your email and we will send a reset link to your email.",
+                                  "emailExampleHint": "name@example.com",
+                                  "sendResetLink": "Send Reset Link",
+
+                                    "loginSuccess": "Logged in successfully",
+                                    "loginFailedWithError": "Login failed: {error}",
+                                    "@loginFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                                    "accountCreatedSuccess": "Account created successfully",
+
+                                    "googleLoginSuccess": "Logged in with Google",
+                                    "googleLoginFailedWithError": "Google login failed: {error}",
+                                    "@googleLoginFailedWithError": { "placeholders": { "error": { "type": "String" } } },
+
+                                    "loginCancelled": "Login cancelled",
+
+                                    "enterEmailToReset": "Enter your email to reset password",
+                                    "passwordResetEmailSent": "Password reset email sent",
+                                    "failedToSendResetEmail": "Failed to send reset email",
+
+
+                                      "bookingStatusDelivered": "Delivered",
+                                      "confirmDeliveryTitle": "Confirm delivery",
+                                      "confirmDeliveryAndRate": "Confirm Delivery & Rate",
+                                      "rateVendorPrompt": "Did you receive the water? Please rate the vendor.",
+                                      "optionalCommentHint": "Optional comment...",
+                                      "thankYouForRating": "Thank you for your rating!",
+                                      "yourRatingLabel": "Your rating: {rating}/5",
+                                      "@yourRatingLabel": { "placeholders": { "rating": { "type": "int" } } },
+                                      "submit": "Submit",
+                                      "actionFailed": "Action failed",
+
+                                        "vendorBookingsTitle": "Vendor Bookings",
+                                        "vendorTabToDeliver": "To Deliver",
+                                        "vendorTabDelivered": "Delivered",
+                                        "vendorTabCompleted": "Completed",
+                                        "vendorTabCancelled": "Cancelled",
+                                        "noBookingsFound": "No bookings found",
+                                        "refresh": "Refresh",
+
+                                        "residentLabel": "Resident",
+                                        "locationLabel": "Location",
+                                        "timeLabel": "Time",
+
+                                        "markDelivered": "Mark Delivered",
+                                        "markedAsDelivered": "Marked as delivered",
+                                        "actionFailed": "Action failed",
+                                        "delivered": "Delivered",
+
+                                        "complaintNumber": "Complaint #{id}",
+                                        "fromPerson": "From: {name}",
+                                        "noComplaintsYet": "No complaints yet",
+                                        "viewComplaint": "View Complaint",
+                                        "complaintStatusLabel": "Status",
+
+                                        "reportsSearchHint": "Search (vendor / ward / resident / message / id)",
+                                        "reportsAllStatus": "All Status",
+                                        "reportsAllWards": "All Wards",
+                                        "reportsAllVendors": "All Vendors",
+                                        "reportsClear": "Clear",
+                                        "reportsRefresh": "Refresh",
+
+                                        "reportsTakeActionTitle": "Take Action (Ward Admin)",
+                                        "reportsStatusLabel": "Status",
+                                        "reportsSaveStatus": "Save Status",
+
+                                        "reportsPhotosTitle": "Photos",
+                                        "reportsFailedToLoadImage": "Failed to load image"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
