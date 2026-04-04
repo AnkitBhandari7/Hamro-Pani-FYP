@@ -41,6 +41,9 @@ dependencies:
   flutter_file_dialog: ^3.0.2
   file_selector: ^1.0.3
   file_saver: ^0.2.14
+  shared_preferences: ^2.2.3
+  syncfusion_flutter_pdfviewer: ^33.1.44
+  url_launcher: ^6.3.0
 
   # Maps + tracking
   flutter_map: ^7.0.2
