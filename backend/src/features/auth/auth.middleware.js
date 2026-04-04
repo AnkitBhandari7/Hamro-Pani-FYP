@@ -4,7 +4,7 @@ import prisma from "../../prisma.js";
 /**
   Auth middleware (Firebase)
  This middleware verifies the Firebase ID token sent from Flutter.
- If token is valid, we find the same user in our database (Prisma).
+ If token is valid, we find the same user in our database.
  Then we attach the user info to `req.auth` so every protected route can use it.
  If user is not in our DB, we return 404 (Not Found).
  In our app flow, user must be created by calling /auth/register at least once.
@@ -32,7 +32,7 @@ export async function authenticateFirebase(req, res, next) {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
 
     // Find the user in our DB by firebaseUid
-    // We also include ward so that `/auth/me` can return ward info easily.
+    // I also include ward so that `/auth/me` can return ward info easily.
     const user = await prisma.user.findUnique({
       where: { firebaseUid: decodedToken.uid },
       include: { ward: true },
@@ -46,7 +46,7 @@ export async function authenticateFirebase(req, res, next) {
 
     // Attach auth info to request for next controllers/routes
     req.auth = {
-      sub: user.id,                 // internal DB user id (used for Prisma queries)
+      sub: user.id,                 // internal DB user id
       uid: decodedToken.uid,        // firebase uid
       email: user.email,            // email from DB (or Firebase)
       role: user.role,              // role-based access (RESIDENT/VENDOR/WARD_ADMIN)
