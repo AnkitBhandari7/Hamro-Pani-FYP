@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fyp/features/shared/notifications/models/notification_model.dart';
 import 'package:fyp/features/shared/notifications/services/notification_service.dart';
+import 'package:fyp/l10n/app_localizations.dart';
 
 class NotificationsController extends ChangeNotifier {
   bool isLoading = true;
@@ -22,8 +23,12 @@ class NotificationsController extends ChangeNotifier {
       return _all.where((n) => n.type.toUpperCase() == "BOOKING").toList();
     }
 
+    if (tab == "REPORTS") {
+      return _all.where((n) => n.type.toUpperCase() == "COMPLAINT").toList();
+    }
+
     if (tab == "SYSTEM") {
-      return _all.where((n) => n.type.toUpperCase() != "BOOKING").toList();
+      return _all.where((n) => n.type.toUpperCase() != "BOOKING" && n.type.toUpperCase() != "COMPLAINT").toList();
     }
 
     return _all;
@@ -58,7 +63,22 @@ class NotificationsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  String timeAgo(DateTime dt) {
+  /// ✅ Localized time ago using l10n
+  String timeAgoLocalized(BuildContext context, DateTime dt) {
+    final t = AppLocalizations.of(context);
+    if (t == null) return _timeAgoEnglish(dt);
+
+    final diff = DateTime.now().difference(dt);
+
+    if (diff.inSeconds < 60) return t.justNow;
+    if (diff.inMinutes < 60) return t.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return t.hoursAgo(diff.inHours);
+    if (diff.inDays == 1) return t.yesterday;
+    return t.daysAgo(diff.inDays);
+  }
+
+  // fallback
+  String _timeAgoEnglish(DateTime dt) {
     final diff = DateTime.now().difference(dt);
 
     if (diff.inSeconds < 60) return "JUST NOW";
@@ -85,7 +105,6 @@ class NotificationsController extends ChangeNotifier {
 
   /// Permanent mark all read (DB) + local update
   Future<void> markAllReadPermanent() async {
-    // local first
     _all = _all.map((n) => n.isRead ? n : n.copyWith(isRead: true)).toList();
     notifyListeners();
 
