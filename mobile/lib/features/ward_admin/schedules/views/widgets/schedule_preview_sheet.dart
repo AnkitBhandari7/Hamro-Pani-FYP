@@ -14,6 +14,9 @@ class SchedulePreviewSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
 
+    final startTimeText = c.formatTimePreview(c.startTime);
+    final endTimeText = c.formatTimePreview(c.endTime);
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.88,
       decoration: BoxDecoration(
@@ -119,16 +122,16 @@ class SchedulePreviewSheet extends StatelessWidget {
                       children: [
                         Expanded(
                           child: _row(
-                            label: t.startTimeLabel,
-                            value: c.formatTimePreview(c.startTime),
+                            label: t.startTime,
+                            value: startTimeText,
                             icon: Icons.access_time,
                           ),
                         ),
                         SizedBox(width: 16.w),
                         Expanded(
                           child: _row(
-                            label: t.endTimeLabel,
-                            value: c.formatTimePreview(c.endTime),
+                            label: t.endTime,
+                            value: endTimeText,
                             icon: Icons.access_time_filled,
                           ),
                         ),
