@@ -7,7 +7,7 @@ import {
   getBookingDetail,
   confirmDeliveryAndRate,
   getVendorBookings,
-} from "./tankerbooking.controller.js";
+} from "./tankerBooking.controller.js";
 
 const router = Router();
 
