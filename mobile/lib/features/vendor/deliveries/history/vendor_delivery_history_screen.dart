@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'delivery_service.dart';
 import 'vendor_delivery_history_controller.dart';
 
+import 'package:fyp/l10n/app_localizations.dart';
+
 class VendorDeliveryHistoryScreen extends StatelessWidget {
   const VendorDeliveryHistoryScreen({super.key});
 
@@ -35,8 +37,22 @@ class _View extends StatelessWidget {
     }
   }
 
+  String _localizedStatus(AppLocalizations l10n, String status) {
+    switch (status.toUpperCase()) {
+      case 'DELIVERED':
+        return l10n.statusDelivered;
+      case 'CANCELLED':
+        return l10n.statusCancelled;
+      case 'PENDING':
+        return l10n.statusPending;
+      default:
+        return status;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final ctrl = context.watch<VendorDeliveryHistoryController>();
 
     return Scaffold(
@@ -51,9 +67,10 @@ class _View extends StatelessWidget {
             size: 24.w,
           ),
           onPressed: () => Navigator.pop(context),
+          tooltip: l10n.back,
         ),
         title: Text(
-          'Delivery History',
+          l10n.deliveryHistory,
           style: GoogleFonts.poppins(
             fontSize: 20.sp,
             fontWeight: FontWeight.w600,
@@ -64,52 +81,58 @@ class _View extends StatelessWidget {
       body: ctrl.isLoading
           ? const Center(child: CircularProgressIndicator())
           : (ctrl.error != null)
-          ? Center(child: Text(ctrl.error!))
+          ? Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.w),
+          child: Text(
+            l10n.loadFailed(ctrl.error!),
+            style: GoogleFonts.poppins(color: Colors.red),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      )
           : RefreshIndicator(
-              onRefresh: ctrl.refresh,
-              child: ListView(
-                padding: EdgeInsets.symmetric(horizontal: 16.w),
-                children: [
-                  SizedBox(height: 16.h),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _statCard(
-                          title: "TOTAL DELIVERIES",
-                          value: ctrl.stats.totalDeliveries.toString(),
-                          icon: Icons.local_shipping_outlined,
-                          color: Colors.blue,
-                        ),
-                      ),
-                      SizedBox(width: 12.w),
-                      Expanded(
-                        child: _statCard(
-                          title: "TOTAL EARNINGS",
-                          value:
-                              "NPR ${ctrl.stats.totalEarnings.toStringAsFixed(0)}",
-                          icon: Icons.currency_rupee_rounded,
-                          color: Colors.green,
-                        ),
-                      ),
-                    ],
+        onRefresh: ctrl.refresh,
+        child: ListView(
+          padding: EdgeInsets.symmetric(horizontal: 16.w),
+          children: [
+            SizedBox(height: 16.h),
+            Row(
+              children: [
+                Expanded(
+                  child: _statCard(
+                    title: l10n.totalDeliveries.toUpperCase(),
+                    value: ctrl.stats.totalDeliveries.toString(),
+                    icon: Icons.local_shipping_outlined,
+                    color: Colors.blue,
                   ),
-                  SizedBox(height: 12.h),
-                  _statCard(
-                    title: "AVG RATING",
-                    value: ctrl.stats.avgRating.toStringAsFixed(1),
-                    icon: Icons.star_rounded,
-                    color: Colors.amber,
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: _statCard(
+                    title: l10n.totalEarnings.toUpperCase(),
+                    value: l10n.nprAmount(
+                      ctrl.stats.totalEarnings.toStringAsFixed(0),
+                    ),
+                    icon: Icons.currency_rupee_rounded,
+                    color: Colors.green,
                   ),
-
-                  SizedBox(height: 20.h),
-
-                  ...ctrl.deliveries.map((d) => _deliveryCard(d)),
-
-                  SizedBox(height: 60.h),
-                ],
-              ),
+                ),
+              ],
             ),
+            SizedBox(height: 12.h),
+            _statCard(
+              title: l10n.avgRating.toUpperCase(),
+              value: ctrl.stats.avgRating.toStringAsFixed(1),
+              icon: Icons.star_rounded,
+              color: Colors.amber,
+            ),
+            SizedBox(height: 20.h),
+            ...ctrl.deliveries.map((d) => _deliveryCard(l10n, d)),
+            SizedBox(height: 60.h),
+          ],
+        ),
+      ),
     );
   }
 
@@ -139,11 +162,14 @@ class _View extends StatelessWidget {
             children: [
               Icon(icon, color: color, size: 20.w),
               SizedBox(width: 8.w),
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 12.sp,
-                  color: Colors.grey[700],
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.sp,
+                    color: Colors.grey[700],
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -161,8 +187,16 @@ class _View extends StatelessWidget {
     );
   }
 
-  Widget _deliveryCard(Delivery d) {
+  Widget _deliveryCard(AppLocalizations l10n, Delivery d) {
     final statusColor = _statusColor(d.status);
+    final statusLabel = _localizedStatus(l10n, d.status);
+
+    final formattedDateTime =
+    DateFormat('MMM dd, h:mm a').format(d.dateTime.toLocal());
+
+    final payment = (d.paymentMethod.trim().isEmpty)
+        ? l10n.notApplicable
+        : d.paymentMethod;
 
     return Container(
       margin: EdgeInsets.only(bottom: 12.h),
@@ -218,7 +252,7 @@ class _View extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20.r),
                 ),
                 child: Text(
-                  d.status,
+                  statusLabel,
                   style: GoogleFonts.poppins(
                     fontSize: 12.sp,
                     color: statusColor,
@@ -238,7 +272,7 @@ class _View extends StatelessWidget {
               ),
               SizedBox(width: 6.w),
               Text(
-                DateFormat('MMM dd, h:mm a').format(d.dateTime.toLocal()),
+                formattedDateTime,
                 style: GoogleFonts.poppins(
                   fontSize: 13.sp,
                   color: Colors.grey[700],
@@ -252,7 +286,7 @@ class _View extends StatelessWidget {
               Icon(Icons.water_drop_outlined, size: 16.w, color: Colors.blue),
               SizedBox(width: 6.w),
               Text(
-                "${d.quantityLiters} L",
+                l10n.liters(d.quantityLiters),
                 style: GoogleFonts.poppins(
                   fontSize: 14.sp,
                   color: Colors.grey[800],
@@ -260,7 +294,7 @@ class _View extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                d.paymentMethod,
+                payment,
                 style: GoogleFonts.poppins(
                   fontSize: 13.sp,
                   color: Colors.grey[700],
