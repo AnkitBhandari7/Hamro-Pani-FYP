@@ -1,109 +1,94 @@
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
+# -------------------------
+# Environment / secrets
+# -------------------------
+.env
+.env.*
+!.env.example
 
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Secrets / keys (general)
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*.mobileprovision
+*.cer
+*.crt
+*.der
 
-# Linux
-*~
-
-# Editor directories and files
-.idea/
-.vscode/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Flutter/Dart
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-build/
-ios/Flutter/flutter_export_environment.sh
-ios/Flutter/Generated.xcconfig
-ios/Flutter/app.flx
-ios/Flutter/Flutter.podspec
-ios/Pods/
-ios/Runner.xcworkspace/
-ios/Runner.xcarchive/
-ios/build/
-android/.gradle/
-android/app/build/
-android/local.properties
-android/gradlew
-android/gradlew.bat
-
-# Firebase (NEVER commit these!)
-google-services.json
-GoogleService-Info.plist
-firebase_options.dart
-
-# Android related
-android/app/src/main/kotlin/*/GeneratedPluginRegistrant.java
-android/key.properties
-
-# iOS related
-ios/Runner/GeneratedPluginRegistrant.*
-
-# Web
-web/icons/Icon-*
-web/manifest.json
-
-# Logs and databases
-*.log
+# -------------------------
+# Node / Backend (repo-wide)
+# -------------------------
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+*.log
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+# Backend runtime generated
+backend/uploads/
 
-# Node.js / Backend
-node_modules/
-dist/
-.env
-.env.local
-.env.development
-.env.production
+# Prisma local artifacts (keep schema + migrations tracked)
+backend/node_modules/.prisma/
+backend/prisma/.cache/
+backend/prisma/*.db
+backend/prisma/*.db-journal
 
-# Prisma
-prisma/generated/
-prisma/dev.db
+# -------------------------
+# Flutter / Mobile (mobile/)
+# -------------------------
+# Dart/Flutter tooling
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/build/
+mobile/coverage/
 
-# Coverage directory used by tools like istanbul
-coverage/
+# (Recommended) commit pubspec.lock for apps.
+# If you really want to ignore it, keep this line.
+# mobile/pubspec.lock
 
-# Dependency directories
-jspm_packages/
+# Android
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/**/build/
+mobile/android/captures/
+mobile/android/key.properties
+mobile/android/.idea/
 
-# Optional npm cache directory
-.npm
+# iOS / CocoaPods / Xcode
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/ephemeral/
+mobile/ios/Podfile.lock
+mobile/ios/Runner.xcworkspace/
+mobile/ios/Runner.xcodeproj/xcuserdata/
+mobile/ios/Runner/DerivedData/
+DerivedData/
 
-# Optional eslint cache
-.eslintcache
+# macOS / Xcode (if you have macos/)
+mobile/macos/Pods/
+mobile/macos/Flutter/ephemeral/
+mobile/macos/Podfile.lock
 
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
+# Firebase config (ONLY ignore if you do NOT want to commit them)
+# mobile/android/app/google-services.json
+# mobile/ios/Runner/GoogleService-Info.plist
 
-# Misc
+# -------------------------
+# OS / IDE
+# -------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
 *.iml
-*.ipr
-*.iws
-.history
-.svn
-.migrate_working_dir
+
+# -------------------------
+# Optional: PDFs (only if you truly want to ignore all pdf assets)
+# -------------------------
+# If PDFs in assets should be committed, REMOVE these lines.
+mobile/assets/*.pdf
+mobile/**/assets/**/*.pdf

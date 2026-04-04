@@ -7,14 +7,23 @@ class AppRoutes {
   // Main Screens
   static const String home = '/home';
   static const String newSchedule = '/new-schedule';
-  static const String orders = '/orders';
+  static const String findTankers = '/find-tankers';
+  static const String vendorProfile = '/vendor/profile';
+  //static const String orders = '/orders';
   static const String profile = '/profile';
   static const String sendNotice = '/send-notice';
-
+  static const String reportIssue = '/report-issue';
   static const String changePassword = '/change-password';
   static const String notifications = '/notifications';
   static const String bookingDetails = '/booking-details';
   static const String locationPicker = '/location-picker';
+  static const String languagePreference = '/language-preference';
+  //manage tanker slots
+  static const String manageSlots = '/vendor/manage-slots';
+  static const String vendorBookings = '/vendor/bookings';
+
+  //  Ward Admin profile
+  static const String wardAdminProfile = '/ward-admin/profile';
 
   // Initial route
   static const String initial = login;

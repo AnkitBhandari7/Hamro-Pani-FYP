@@ -1,24 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import '../models/auth_user.dart';
-import 'package:fyp/profile/session_manager.dart';
+import 'package:fyp/core/models/auth_user.dart';
+import 'package:fyp/features/resident/profile/services/session_manager.dart';
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> main
 class AuthService {
   final FirebaseAuth _fa = FirebaseAuth.instance;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email', 'profile'],
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
 
-<<<<<<< HEAD
-=======
-
->>>>>>> main
   // GOOGLE SIGN IN
 
   Future<AuthUser?> signInWithGoogle({required bool remember}) async {
@@ -27,15 +16,14 @@ class AuthService {
       if (googleUser == null) return null;
 
       final GoogleSignInAuthentication googleAuth =
-      await googleUser.authentication;
+          await googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      final userCredential =
-      await _fa.signInWithCredential(credential);
+      final userCredential = await _fa.signInWithCredential(credential);
 
       return AuthUser(
         uid: userCredential.user!.uid,
@@ -49,7 +37,6 @@ class AuthService {
     }
   }
 
-
   // EMAIL / PASSWORD LOGIN
 
   Future<AuthUser> loginWithEmail({
@@ -62,12 +49,8 @@ class AuthService {
       password: password,
     );
 
-    return AuthUser(
-      uid: cred.user!.uid,
-      email: cred.user!.email ?? email,
-    );
+    return AuthUser(uid: cred.user!.uid, email: cred.user!.email ?? email);
   }
-
 
   // REGISTER
 
@@ -92,13 +75,11 @@ class AuthService {
     );
   }
 
-
   // PASSWORD RESET
 
   Future<void> sendPasswordReset(String email) async {
     await _fa.sendPasswordResetEmail(email: email);
   }
-
 
   // LOGOUT
 
