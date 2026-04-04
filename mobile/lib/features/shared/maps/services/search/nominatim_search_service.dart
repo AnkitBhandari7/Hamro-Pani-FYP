@@ -33,6 +33,31 @@ class NominatimSearchService {
         .map((e) => NominatimPlace.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  Future<String?> reverseGeocode(double lat, double lng) async {
+    final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+      'lat': lat.toString(),
+      'lon': lng.toString(),
+      'format': 'json',
+      'addressdetails': '1',
+    });
+
+    final res = await http.get(
+      uri,
+      headers: {
+        'User-Agent': 'hamro-pani-student-app/1.0 (contact: student)',
+        'Accept-Language': 'en',
+      },
+    );
+
+    if (res.statusCode != 200) return null;
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    if (data.containsKey('display_name')) {
+      return data['display_name'].toString();
+    }
+    return null;
+  }
 }
 
 class NominatimPlace {
