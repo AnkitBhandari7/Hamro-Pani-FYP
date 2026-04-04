@@ -1,27 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocaleController extends ChangeNotifier {
-  Locale? _locale;
+  static const String _prefsKey = 'app_locale'; // stores "en" / "ne"
 
+  Locale? _locale;
   Locale? get locale => _locale;
 
-  void setLocale(Locale? locale) {
-    _locale = locale;
+  /// Load saved locale from device (must be awaited before runApp for best UX)
+  Future<void> loadFromDevice() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString(_prefsKey);
+
+    if (code == null || code.trim().isEmpty) {
+      _locale = null; // system default
+    } else {
+      _locale = Locale(code.trim());
+    }
     notifyListeners();
   }
 
-  void setEnglish() => setLocale(const Locale('en'));
-  void setNepali() => setLocale(const Locale('ne'));
+  Future<void> setLocale(Locale? locale) async {
+    _locale = locale;
 
-  /// if backend returns "EN"/"NP"
-  void setFromBackendCode(String? code) {
+    final prefs = await SharedPreferences.getInstance();
+    if (locale == null) {
+      await prefs.remove(_prefsKey);
+    } else {
+      await prefs.setString(_prefsKey, locale.languageCode);
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> setEnglish() => setLocale(const Locale('en'));
+  Future<void> setNepali() => setLocale(const Locale('ne'));
+
+  /// if backend returns "EN"/"NP" (or "NE")
+  Future<void> setFromBackendCode(String? code) async {
     final c = (code ?? '').toUpperCase().trim();
     if (c == "NP" || c == "NE") {
-      setNepali();
+      await setNepali();
     } else if (c == "EN") {
-      setEnglish();
+      await setEnglish();
     } else {
-      setLocale(null); // system default
+      await setLocale(null); // system default
     }
   }
 }
