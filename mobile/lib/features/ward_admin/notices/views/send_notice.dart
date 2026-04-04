@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'package:fyp/services/api_service.dart';
+import 'package:fyp/l10n/app_localizations.dart';
 
 class SendNoticeScreen extends StatefulWidget {
   const SendNoticeScreen({super.key});
@@ -53,28 +55,28 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
     }
   }
 
-  String _noticeTypeLabel() {
+  String _noticeTypeLabel(AppLocalizations l10n) {
     switch (selectedNoticeType) {
       case 1:
-        return "Emergency";
+        return l10n.noticeTypeEmergency;
       case 2:
-        return "Maintenance";
+        return l10n.noticeTypeMaintenance;
       default:
-        return "General";
+        return l10n.noticeTypeGeneral;
     }
   }
 
-  bool _validate() {
+  bool _validate(AppLocalizations l10n) {
     if (titleController.text.trim().isEmpty ||
         messageController.text.trim().isEmpty) {
-      _toast("Title and message are required", isError: true);
+      _toast(l10n.noticeValidationRequired, isError: true);
       return false;
     }
     return true;
   }
 
-  Future<void> _sendNotice() async {
-    if (!_validate()) return;
+  Future<void> _sendNotice(AppLocalizations l10n) async {
+    if (!_validate(l10n)) return;
 
     setState(() => isSending = true);
     try {
@@ -93,7 +95,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
       });
 
       if (res.statusCode == 201 || res.statusCode == 200) {
-        _toast("Notice sent to everyone");
+        _toast(l10n.noticeSentToEveryone);
         if (mounted) Navigator.pop(context);
       } else {
         String msg = res.body;
@@ -103,17 +105,17 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
             msg = decoded["error"].toString();
           }
         } catch (_) {}
-        _toast("Failed to send: $msg", isError: true);
+        _toast(l10n.noticeFailedToSend(msg), isError: true);
       }
     } catch (e) {
-      _toast("Error sending notice: $e", isError: true);
+      _toast(l10n.noticeErrorSending(e.toString()), isError: true);
     } finally {
       if (mounted) setState(() => isSending = false);
     }
   }
 
-  void _previewNotice() {
-    if (!_validate()) return;
+  void _previewNotice(AppLocalizations l10n) {
+    if (!_validate(l10n)) return;
 
     showModalBottomSheet(
       context: context,
@@ -132,25 +134,26 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Preview",
+                l10n.preview,
                 style: GoogleFonts.poppins(
                   fontSize: 18.sp,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               SizedBox(height: 12.h),
-
-              _previewRow("Type", _noticeTypeLabel()),
-              _previewRow("Audience", "Everyone (Residents + Vendors)"),
-              _previewRow("High Priority", isHighPriority ? "Yes" : "No"),
+              _previewRow(l10n.type, _noticeTypeLabel(l10n)),
+              _previewRow(l10n.audience, l10n.noticeAudienceEveryone),
               _previewRow(
-                "Push Notification",
-                isPushNotification ? "Yes" : "No",
+                l10n.highPriority,
+                isHighPriority ? l10n.yes : l10n.no,
               ),
-
+              _previewRow(
+                l10n.pushNotification,
+                isPushNotification ? l10n.yes : l10n.no,
+              ),
               SizedBox(height: 12.h),
               Text(
-                "Title",
+                l10n.noticeTitleLabel,
                 style: GoogleFonts.poppins(
                   fontSize: 12.sp,
                   color: Colors.grey[600],
@@ -164,10 +167,9 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-
               SizedBox(height: 12.h),
               Text(
-                "Message",
+                l10n.message,
                 style: GoogleFonts.poppins(
                   fontSize: 12.sp,
                   color: Colors.grey[600],
@@ -178,7 +180,6 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                 messageController.text.trim(),
                 style: GoogleFonts.poppins(fontSize: 14.sp),
               ),
-
               SizedBox(height: 18.h),
               SizedBox(
                 width: double.infinity,
@@ -186,9 +187,9 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                   onPressed: isSending
                       ? null
                       : () async {
-                          Navigator.pop(context);
-                          await _sendNotice();
-                        },
+                    Navigator.pop(context);
+                    await _sendNotice(l10n);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     padding: EdgeInsets.symmetric(vertical: 14.h),
@@ -197,7 +198,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                     ),
                   ),
                   child: Text(
-                    isSending ? "Sending..." : "Confirm & Send",
+                    isSending ? l10n.sending : l10n.confirmAndSend,
                     style: GoogleFonts.poppins(
                       fontSize: 16.sp,
                       fontWeight: FontWeight.bold,
@@ -255,6 +256,8 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -265,7 +268,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "Send Notice",
+          l10n.sendNotice,
           style: GoogleFonts.poppins(
             fontSize: 20.sp,
             fontWeight: FontWeight.w600,
@@ -277,6 +280,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.black),
             onPressed: _reset,
+            tooltip: l10n.reset,
           ),
         ],
       ),
@@ -286,9 +290,8 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Notice Type
               Text(
-                "NOTICE TYPE",
+                l10n.noticeTypeHeader,
                 style: GoogleFonts.poppins(
                   fontSize: 12.sp,
                   color: Colors.grey[600],
@@ -300,20 +303,27 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                 spacing: 12.w,
                 runSpacing: 12.h,
                 children: [
-                  _buildTypeChip("General", Icons.info_outline, 0, Colors.blue),
                   _buildTypeChip(
-                    "Emergency",
+                    l10n.noticeTypeGeneral,
+                    Icons.info_outline,
+                    0,
+                    Colors.blue,
+                  ),
+                  _buildTypeChip(
+                    l10n.noticeTypeEmergency,
                     Icons.warning_amber,
                     1,
                     Colors.red,
                   ),
-                  _buildTypeChip("Maintenance", Icons.build, 2, Colors.orange),
+                  _buildTypeChip(
+                    l10n.noticeTypeMaintenance,
+                    Icons.build,
+                    2,
+                    Colors.orange,
+                  ),
                 ],
               ),
-
               SizedBox(height: 32.h),
-
-              // Notice Content Card
               Container(
                 padding: EdgeInsets.all(20.w),
                 decoration: BoxDecoration(
@@ -339,7 +349,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                         ),
                         SizedBox(width: 12.w),
                         Text(
-                          "Notice Content",
+                          l10n.noticeContent,
                           style: GoogleFonts.poppins(
                             fontSize: 18.sp,
                             fontWeight: FontWeight.w600,
@@ -348,9 +358,8 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                       ],
                     ),
                     SizedBox(height: 20.h),
-
                     Text(
-                      "NOTICE TITLE",
+                      l10n.noticeTitleHeader,
                       style: GoogleFonts.poppins(
                         fontSize: 12.sp,
                         color: Colors.grey[600],
@@ -360,7 +369,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                     TextField(
                       controller: titleController,
                       decoration: InputDecoration(
-                        hintText: "e.g. Weekly Tanker Schedule Update",
+                        hintText: l10n.noticeTitleHint,
                         hintStyle: GoogleFonts.poppins(
                           color: Colors.grey[500],
                           fontSize: 14.sp,
@@ -377,11 +386,9 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                         ),
                       ),
                     ),
-
                     SizedBox(height: 20.h),
-
                     Text(
-                      "MESSAGE",
+                      l10n.messageHeader,
                       style: GoogleFonts.poppins(
                         fontSize: 12.sp,
                         color: Colors.grey[600],
@@ -392,7 +399,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                       controller: messageController,
                       maxLines: 6,
                       decoration: InputDecoration(
-                        hintText: "Type your announcement details here...",
+                        hintText: l10n.noticeMessageHint,
                         hintStyle: GoogleFonts.poppins(
                           color: Colors.grey[500],
                           fontSize: 14.sp,
@@ -409,36 +416,30 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                   ],
                 ),
               ),
-
               SizedBox(height: 32.h),
-
               _switchCard(
                 icon: Icons.priority_high,
                 iconColor: Colors.orange,
-                title: "High Priority",
-                subtitle: "Mark notice as urgent",
+                title: l10n.highPriority,
+                subtitle: l10n.noticeHighPrioritySubtitle,
                 value: isHighPriority,
                 onChanged: (val) => setState(() => isHighPriority = val),
               ),
-
               SizedBox(height: 16.h),
-
               _switchCard(
                 icon: Icons.notifications_active,
                 iconColor: Colors.purple,
-                title: "Push Notification",
-                subtitle: "Send instant alert to devices",
+                title: l10n.pushNotification,
+                subtitle: l10n.noticePushNotificationSubtitle,
                 value: isPushNotification,
                 onChanged: (val) => setState(() => isPushNotification = val),
               ),
-
               SizedBox(height: 40.h),
-
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: isSending ? null : _previewNotice,
+                      onPressed: isSending ? null : () => _previewNotice(l10n),
                       style: OutlinedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: 16.h),
                         side: const BorderSide(color: Colors.grey),
@@ -447,7 +448,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                         ),
                       ),
                       child: Text(
-                        "Preview",
+                        l10n.preview,
                         style: GoogleFonts.poppins(
                           fontSize: 16.sp,
                           fontWeight: FontWeight.w600,
@@ -458,7 +459,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                   SizedBox(width: 16.w),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: isSending ? null : _sendNotice,
+                      onPressed: isSending ? null : () => _sendNotice(l10n),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         padding: EdgeInsets.symmetric(vertical: 16.h),
@@ -467,7 +468,7 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                         ),
                       ),
                       child: Text(
-                        isSending ? "Sending..." : "Send →",
+                        isSending ? l10n.sending : l10n.sendArrow,
                         style: GoogleFonts.poppins(
                           fontSize: 16.sp,
                           fontWeight: FontWeight.bold,
@@ -478,7 +479,6 @@ class _SendNoticeScreenState extends State<SendNoticeScreen> {
                   ),
                 ],
               ),
-
               SizedBox(height: 40.h),
             ],
           ),
