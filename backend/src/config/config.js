@@ -9,11 +9,11 @@ const config = {
   publicBaseUrl: (process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, ""),
 
   firebase: {
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    projectId: (process.env.FIREBASE_PROJECT_ID || "").replace(/"/g, ""),
+    clientEmail: (process.env.FIREBASE_CLIENT_EMAIL || "").replace(/"/g, ""),
     privateKey: (process.env.FIREBASE_PRIVATE_KEY || "")
       .replace(/\\n/g, "\n")
-      .replace(/(^"|"$)/g, ""),
+      .replace(/"/g, ""),
   },
 };
 
