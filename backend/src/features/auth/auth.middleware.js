@@ -16,14 +16,15 @@ export async function authenticateFirebase(req, res, next) {
   const authHeader = req.headers.authorization;
 
   // Every request must send token like:
-  // Authorization: Bearer <FIREBASE_ID_TOKEN>
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    console.error("DEBUG: 401 - No valid Bearer token header sent. Header was:", authHeader);
     return res.status(401).json({ error: "No authorization header" });
   }
 
   // Extract token from "Bearer <token>"
   const idToken = authHeader.split("Bearer ")[1]?.trim();
   if (!idToken) {
+    console.error("DEBUG: 401 - Token extraction failed/missing.");
     return res.status(401).json({ error: "Missing token" });
   }
 
@@ -58,7 +59,7 @@ export async function authenticateFirebase(req, res, next) {
     next();
   } catch (error) {
     // Token invalid / expired / other error
-    console.error("authenticateFirebase error:", error);
-    return res.status(401).json({ error: "Invalid or expired token" });
+    console.error("CRITICAL DEBUG: authenticateFirebase verifyIdToken error:", error);
+    return res.status(401).json({ error: "Invalid or expired token", trace: error.message });
   }
 }
