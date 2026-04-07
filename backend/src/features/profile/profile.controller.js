@@ -359,3 +359,33 @@ export async function deleteMyPhoto(req, res) {
     return res.status(500).json({ error: "Failed to delete photo" });
   }
 }
+
+/*
+  PATCH /profile/me/photo-url
+  Accepts a Firebase Storage HTTPS URL and persists it to the database.
+  Replaces the old multer file-upload flow (Render ephemeral storage → 404s).
+*/
+export async function updateMyPhotoUrl(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { photoUrl } = req.body || {};
+  if (typeof photoUrl !== "string" || !photoUrl.startsWith("https://")) {
+    return res.status(400).json({ error: "photoUrl must be an HTTPS URL" });
+  }
+
+  try {
+    const me = await prisma.user.findUnique({ where: { id: userId } });
+    if (!me) return res.status(404).json({ error: "User not found" });
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { profileImageUrl: photoUrl },
+    });
+
+    return res.json({ success: true, profileImageUrl: photoUrl });
+  } catch (e) {
+    console.error("updateMyPhotoUrl error:", e);
+    return res.status(500).json({ error: "Failed to save photo URL" });
+  }
+}

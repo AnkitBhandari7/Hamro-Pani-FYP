@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -14,6 +16,8 @@ import 'package:fyp/features/resident/complaints/views/complaint_detail_screen.d
 import 'package:fyp/core/routes/app_navigation.dart';
 import 'package:fyp/core/routes/routes.dart';
 import 'package:fyp/features/shared/notifications/services/fcm_service.dart';
+import 'package:fyp/services/api_service.dart';
+import 'package:fyp/services/firebase_storage_service.dart';
 import '../widgets/profile_menu_section.dart';
 
 import 'package:fyp/l10n/app_localizations.dart';
@@ -125,8 +129,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  static const String _baseUrl = "http://10.0.2.2:3000";
-
   bool _loadingProfile = true;
   bool _isSaving = false;
 
@@ -262,9 +264,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _absPhotoUrl(String url) {
     final u = url.trim();
     if (u.isEmpty) return "";
+    // Firebase Storage and other absolute URLs are returned as-is.
+    // Relative paths from old backend uploads get the API base URL prepended.
     if (u.startsWith("http://") || u.startsWith("https://")) return u;
-    if (!u.startsWith("/")) return "$_baseUrl/$u";
-    return "$_baseUrl$u";
+    final base = ApiService.baseUrl;
+    if (!u.startsWith("/")) return "$base/$u";
+    return "$base$u";
   }
 
   Future<void> _pickAndUploadPhoto() async {
@@ -275,37 +280,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       if (picked == null) return;
 
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception("Not authenticated. Please login again.");
+
       final idToken = await _getFirebaseToken();
-      if (idToken == null) {
-        throw Exception("Not authenticated. Please login again.");
-      }
+      if (idToken == null) throw Exception("Not authenticated. Please login again.");
 
       setState(() => _uploadingPhoto = true);
 
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse("$_baseUrl/profile/me/photo"),
+      // 1. Upload image to Firebase Storage → get HTTPS download URL
+      final downloadUrl = await FirebaseStorageService.uploadProfileImage(
+        user.uid,
+        File(picked.path),
       );
 
-      request.headers['Authorization'] = 'Bearer $idToken';
-      request.files.add(
-        await http.MultipartFile.fromPath('photo', picked.path),
+      // 2. Persist the URL in the backend (MySQL)
+      final res = await http.patch(
+        Uri.parse("${ApiService.baseUrl}/profile/me/photo-url"),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'photoUrl': downloadUrl}),
       );
-
-      final streamed = await request.send();
-      final res = await http.Response.fromStream(streamed);
 
       if (res.statusCode != 200) {
         throw Exception("Upload failed: ${res.statusCode} - ${res.body}");
       }
 
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final newUrl = (data['profileImageUrl'] ?? '').toString();
-      final refreshedUrl = newUrl.contains("?")
-          ? newUrl
-          : "$newUrl?t=${DateTime.now().millisecondsSinceEpoch}";
-
-      setState(() => _profileImageUrl = refreshedUrl);
+      setState(() => _profileImageUrl = downloadUrl);
       _snack("Profile photo updated!", isError: false);
     } catch (e) {
       _snack("Photo upload failed: $e", isError: true);
@@ -344,15 +347,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirm != true) return;
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
       final idToken = await _getFirebaseToken();
-      if (idToken == null) {
-        throw Exception("Not authenticated. Please login again.");
-      }
+      if (idToken == null) throw Exception("Not authenticated. Please login again.");
 
       setState(() => _uploadingPhoto = true);
 
+      // Delete from Firebase Storage (best-effort)
+      if (user != null) {
+        await FirebaseStorageService.deleteProfileImage(user.uid);
+      }
+
+      // Clear URL in backend
       final res = await http.delete(
-        Uri.parse("$_baseUrl/profile/me/photo"),
+        Uri.parse("${ApiService.baseUrl}/profile/me/photo"),
         headers: {'Authorization': 'Bearer $idToken'},
       );
 
@@ -429,7 +437,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       final res = await http.get(
-        Uri.parse("$_baseUrl/profile/me"),
+        Uri.parse("${ApiService.baseUrl}/profile/me"),
         headers: {'Authorization': 'Bearer $idToken'},
       );
 
@@ -498,7 +506,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final oldWardName = _originalWard;
 
       final updateResponse = await http.patch(
-        Uri.parse('$_baseUrl/auth/update-profile'),
+        Uri.parse('${ApiService.baseUrl}/auth/update-profile'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
@@ -652,7 +660,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (token == null) throw Exception("Not authenticated");
 
       final res = await http.post(
-        Uri.parse("$_baseUrl/profile/locations"),
+        Uri.parse("${ApiService.baseUrl}/profile/locations"),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -684,7 +692,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (token == null) throw Exception("Not authenticated");
 
       final res = await http.patch(
-        Uri.parse("$_baseUrl/profile/locations/$id/default"),
+        Uri.parse("${ApiService.baseUrl}/profile/locations/$id/default"),
         headers: {'Authorization': 'Bearer $token'},
       );
 
@@ -703,7 +711,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (token == null) throw Exception("Not authenticated");
 
       final res = await http.delete(
-        Uri.parse("$_baseUrl/profile/locations/$id"),
+        Uri.parse("${ApiService.baseUrl}/profile/locations/$id"),
         headers: {'Authorization': 'Bearer $token'},
       );
 
@@ -894,7 +902,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   radius: 54.r,
                                   backgroundColor: const Color(0xFFF1F5F9),
                                   backgroundImage: photoUrl.isNotEmpty
-                                      ? NetworkImage(photoUrl)
+                                      ? CachedNetworkImageProvider(photoUrl)
                                       : null,
                                   child: photoUrl.isEmpty
                                       ? Text(

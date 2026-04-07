@@ -43,22 +43,38 @@ class EsewaPaymentService {
 
     final completer = Completer<String?>();
 
-    EsewaFlutterSdk.initPayment(
-      esewaConfig: EsewaConfig(
-        environment: environment,
-        clientId: clientId,
-        secretId: secretId,
-      ),
-      esewaPayment: EsewaPayment(
-        productId: bookingId.toString(),
-        productName: productName,
-        productPrice: totalAmount.toStringAsFixed(2),
-        callbackUrl: "https://example.com",
-      ),
-      onPaymentSuccess: (res) => completer.complete(res.refId),
-      onPaymentFailure: (_) => completer.complete(null),
-      onPaymentCancellation: (_) => completer.complete(null),
-    );
+    // Wrap SDK call in try-catch to handle BadTokenException and similar
+    // activity-context errors that can occur in debug mode when the activity
+    // stack is in a non-standard state (e.g. launched via Android Studio Run).
+    try {
+      EsewaFlutterSdk.initPayment(
+        esewaConfig: EsewaConfig(
+          environment: environment,
+          clientId: clientId,
+          secretId: secretId,
+        ),
+        esewaPayment: EsewaPayment(
+          productId: bookingId.toString(),
+          productName: productName,
+          productPrice: totalAmount.toStringAsFixed(2),
+          callbackUrl: "https://example.com",
+        ),
+        onPaymentSuccess: (res) {
+          if (!completer.isCompleted) completer.complete(res.refId);
+        },
+        onPaymentFailure: (_) {
+          if (!completer.isCompleted) completer.complete(null);
+        },
+        onPaymentCancellation: (_) {
+          if (!completer.isCompleted) completer.complete(null);
+        },
+      );
+    } catch (e) {
+      debugPrint("eSewa SDK error: $e");
+      // Complete with null so the caller can cancel the booking gracefully
+      if (!completer.isCompleted) completer.complete(null);
+      return completer.future;
+    }
 
     return completer.future;
   }

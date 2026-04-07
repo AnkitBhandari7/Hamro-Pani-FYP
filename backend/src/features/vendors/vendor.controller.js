@@ -1232,3 +1232,70 @@ export async function deleteVendorPhotoMe(req, res) {
     return res.status(500).json({ error: "Failed to delete vendor photo" });
   }
 }
+
+/*
+  PATCH /vendors/profile/me/photo-url
+  Accepts a Firebase Storage HTTPS URL and saves it to the database.
+  This replaces the old multer file-upload flow (Render ephemeral storage → 404s).
+*/
+export async function updateVendorPhotoUrlMe(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { error } = await getVendorByUserId(userId);
+  if (error) return res.status(error.status).json({ error: error.message });
+
+  const { photoUrl } = req.body || {};
+  if (typeof photoUrl !== "string" || !photoUrl.startsWith("https://")) {
+    return res.status(400).json({ error: "photoUrl must be an HTTPS URL" });
+  }
+
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { profileImageUrl: photoUrl },
+    });
+
+    return res.json({ success: true, logoUrl: photoUrl });
+  } catch (e) {
+    console.error("updateVendorPhotoUrlMe error:", e);
+    return res.status(500).json({ error: "Failed to save photo URL" });
+  }
+}
+
+/*
+  POST /vendors/location
+  Called by the vendor Flutter app every 15 seconds while foregrounded.
+  Stores current GPS coordinates so residents can track delivery progress.
+*/
+export async function updateVendorLocation(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { vendor, error } = await getVendorByUserId(userId);
+  if (error) return res.status(error.status).json({ error: error.message });
+
+  const { lat, lng } = req.body || {};
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+
+  if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+    return res.status(400).json({ error: "lat and lng are required numbers" });
+  }
+
+  try {
+    await prisma.vendor.update({
+      where: { id: vendor.id },
+      data: {
+        currentLatitude: latNum,
+        currentLongitude: lngNum,
+        lastLocationUpdatedAt: new Date(),
+      },
+    });
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error("updateVendorLocation error:", e);
+    return res.status(500).json({ error: "Failed to update location" });
+  }
+}

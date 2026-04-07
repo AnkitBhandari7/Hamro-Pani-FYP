@@ -7,6 +7,7 @@ import {
   getBookingDetail,
   confirmDeliveryAndRate,
   getVendorBookings,
+  getBookingTracking,
 } from "./tankerBooking.controller.js";
 
 const router = Router();
@@ -23,6 +24,9 @@ router.patch("/:id/status", authenticateFirebase, updateBookingStatus);
 
 // Resident rating (works even if booking is COMPLETED)
 router.post("/:id/confirm-delivery", authenticateFirebase, confirmDeliveryAndRate);
+
+// Live tracking: vendor GPS + resident destination
+router.get("/:id/tracking", authenticateFirebase, getBookingTracking);
 
 // Resident booking detail (keep this LAST among GET routes)
 router.get("/:id", authenticateFirebase, getBookingDetail);

@@ -24,6 +24,10 @@ import {
   updateVendorProfileMe,
   uploadVendorPhotoMe,
   deleteVendorPhotoMe,
+  updateVendorPhotoUrlMe,
+
+  // vendor live location
+  updateVendorLocation,
 } from "./vendor.controller.js";
 
 const router = Router();
@@ -87,6 +91,12 @@ router.post(
 );
 
 router.delete("/profile/me/photo", authenticateFirebase, deleteVendorPhotoMe);
+
+// Accept Firebase Storage URL (replaces local disk upload)
+router.patch("/profile/me/photo-url", authenticateFirebase, updateVendorPhotoUrlMe);
+
+// Live vendor GPS location (called by Flutter LocationService every 15s)
+router.post("/location", authenticateFirebase, updateVendorLocation);
 
 
 // Routes + Slots

@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../routing/osrm_route_service.dart';
+import 'package:fyp/services/api_service.dart';
 
 class VendorRouteView extends StatefulWidget {
   final int bookingId;
@@ -18,8 +19,6 @@ class VendorRouteView extends StatefulWidget {
 }
 
 class _VendorRouteViewState extends State<VendorRouteView> {
-  static const String _baseUrl = "http://10.0.2.2:3000";
-
   final _map = MapController();
   final _osrm = OsrmRouteService();
 
@@ -51,7 +50,7 @@ class _VendorRouteViewState extends State<VendorRouteView> {
       if (t == null) throw Exception("Not authenticated");
 
       final res = await http.get(
-        Uri.parse("$_baseUrl/vendors/bookings/${widget.bookingId}/destination"),
+        Uri.parse("${ApiService.baseUrl}/vendors/bookings/${widget.bookingId}/destination"),
         headers: {'Authorization': 'Bearer $t'},
       );
 

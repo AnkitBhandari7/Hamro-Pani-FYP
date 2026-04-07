@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -155,7 +156,7 @@ class _VendorProfileContent extends StatelessWidget {
                                 radius: 52.r,
                                 backgroundColor: const Color(0xFFEFF6FF),
                                 backgroundImage: c.logoUrl.isNotEmpty
-                                    ? NetworkImage(c.logoUrl)
+                                    ? CachedNetworkImageProvider(c.logoUrl)
                                     : null,
                                 child: c.logoUrl.isEmpty
                                     ? Icon(Icons.local_shipping_rounded,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -674,7 +675,7 @@ class _WardAdminDashboardScreenState extends State<WardAdminDashboardScreen> {
               radius: 24.w,
               backgroundColor: const Color(0xFFEFF6FF),
               backgroundImage: _profileImageUrl.isNotEmpty
-                  ? NetworkImage(_profileImageUrl)
+                  ? CachedNetworkImageProvider(_profileImageUrl)
                   : null,
               child: _profileImageUrl.isEmpty
                   ? Icon(Icons.person_rounded,

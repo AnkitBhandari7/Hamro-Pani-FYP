@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fyp/core/routes/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:intl/intl.dart';
 import 'package:fyp/services/api_service.dart';
+import 'package:fyp/services/location_service.dart';
 import 'package:fyp/features/shared/notifications/models/notification_model.dart';
 import 'package:fyp/features/shared/notifications/services/notification_service.dart';
 import 'package:fyp/features/vendor/deliveries/history/vendor_delivery_history_screen.dart';
@@ -60,6 +62,8 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
   final Set<int> _updatingBookingIds = {};
   StreamSubscription<RemoteMessage>? _onMessageSub;
 
+  final LocationService _locationService = LocationService();
+
   Future<void> _openVendorProfile() async {
     await Navigator.pushNamed(context, AppRoutes.vendorProfile);
     if (!mounted) return;
@@ -73,12 +77,15 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
 
     _initVendorFCM();
     _refreshAll();
+    // Start sending GPS location to backend every 15 seconds
+    _locationService.startVendorLocationUpdates();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _onMessageSub?.cancel();
+    _locationService.stopVendorLocationUpdates();
     super.dispose();
   }
 
@@ -594,7 +601,7 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                     radius: 26.w,
                     backgroundColor: const Color(0xFFEFF6FF),
                     backgroundImage:
-                        logoUrl.trim().isNotEmpty ? NetworkImage(logoUrl) : null,
+                        logoUrl.trim().isNotEmpty ? CachedNetworkImageProvider(logoUrl) : null,
                     child: logoUrl.trim().isEmpty
                         ? Icon(Icons.local_shipping_rounded,
                             size: 26.w, color: const Color(0xFF2563EB))

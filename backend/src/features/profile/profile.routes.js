@@ -9,6 +9,7 @@ import {
   meDetails,
   uploadMyPhoto,
   deleteMyPhoto,
+  updateMyPhotoUrl,
   createLocation,
   updateLocation,
   deleteLocation,
@@ -70,6 +71,9 @@ router.post("/me/photo", authenticateFirebase, (req, res, next) => {
 }, uploadMyPhoto);
 
 router.delete("/me/photo", authenticateFirebase, deleteMyPhoto);
+
+// Accept Firebase Storage URL (replaces local disk upload)
+router.patch("/me/photo-url", authenticateFirebase, updateMyPhotoUrl);
 
 // compatibility endpoints
 router.post("/locations", authenticateFirebase, createLocation);

@@ -405,3 +405,89 @@ export async function getBookingDetail(req, res) {
     return res.status(500).json({ error: "Failed to load booking detail" });
   }
 }
+/*
+  GET /bookings/:id/tracking
+  Returns vendor's current GPS location + resident destination so the Flutter
+  tracking screen can display a Pathao-style live map.
+  Only the resident who owns the booking may call this endpoint.
+*/
+export async function getBookingTracking(req, res) {
+  const userIdRaw = req.auth?.sub;
+  const userId = Number(userIdRaw);
+  if (!userId || Number.isNaN(userId)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const bookingId = Number(req.params.id);
+  if (!Number.isFinite(bookingId)) {
+    return res.status(400).json({ error: "Invalid bookingId" });
+  }
+
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            locations: {
+              where: { isDefault: true },
+              take: 1,
+              select: { lat: true, lng: true, address: true, label: true },
+            },
+          },
+        },
+        slot: {
+          include: {
+            route: {
+              include: {
+                vendor: {
+                  select: {
+                    id: true,
+                    currentLatitude: true,
+                    currentLongitude: true,
+                    lastLocationUpdatedAt: true,
+                    user: { select: { name: true, phoneNumber: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+    // Only the owning resident may access tracking
+    if (booking.userId !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const vendor = booking.slot?.route?.vendor;
+    const defaultLoc = booking.user?.locations?.[0] ?? null;
+
+    return res.json({
+      bookingId: booking.id,
+      status: booking.status,
+      vendor: {
+        name: vendor?.user?.name ?? null,
+        phone: vendor?.user?.phoneNumber ?? null,
+        lat: vendor?.currentLatitude ?? null,
+        lng: vendor?.currentLongitude ?? null,
+        lastUpdatedAt: vendor?.lastLocationUpdatedAt ?? null,
+      },
+      destination: defaultLoc
+        ? {
+            lat: defaultLoc.lat,
+            lng: defaultLoc.lng,
+            address: defaultLoc.address,
+            label: defaultLoc.label,
+          }
+        : null,
+    });
+  } catch (e) {
+    console.error("getBookingTracking error:", e);
+    return res.status(500).json({ error: "Failed to get tracking info" });
+  }
+}

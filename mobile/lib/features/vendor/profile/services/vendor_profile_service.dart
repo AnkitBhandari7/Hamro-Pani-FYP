@@ -3,13 +3,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:fyp/services/api_service.dart';
+import 'package:fyp/services/firebase_storage_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class VendorProfileService {
-  static const String baseUrl = "http://10.0.2.2:3000";
-
   static Future<Map<String, dynamic>> fetchVendorProfile(String token) async {
     final res = await http.get(
-      Uri.parse('$baseUrl/vendors/profile/me'),
+      Uri.parse('${ApiService.baseUrl}/vendors/profile/me'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -26,7 +27,7 @@ class VendorProfileService {
     Map<String, dynamic> data,
   ) async {
     final res = await http.patch(
-      Uri.parse('$baseUrl/vendors/profile/me'),
+      Uri.parse('${ApiService.baseUrl}/vendors/profile/me'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -41,28 +42,44 @@ class VendorProfileService {
     }
   }
 
+  /// Upload vendor profile photo via Firebase Storage, then persist the
+  /// HTTPS download URL to the backend.
   static Future<String> uploadVendorPhoto(String token, File file) async {
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('$baseUrl/vendors/profile/me/photo'),
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not authenticated');
+
+    // 1. Upload to Firebase Storage → get HTTPS URL
+    final downloadUrl = await FirebaseStorageService.uploadProfileImage(
+      user.uid,
+      file,
     );
 
-    request.headers['Authorization'] = 'Bearer $token';
-    request.files.add(await http.MultipartFile.fromPath('photo', file.path));
+    // 2. Save the URL in the backend MySQL row
+    final res = await http.patch(
+      Uri.parse('${ApiService.baseUrl}/vendors/profile/me/photo-url'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'photoUrl': downloadUrl}),
+    );
 
-    final streamed = await request.send();
-    final res = await http.Response.fromStream(streamed);
-
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      return (data['logoUrl'] ?? '').toString();
+    if (res.statusCode != 200) {
+      throw Exception('Photo URL save failed: ${res.statusCode} - ${res.body}');
     }
-    throw Exception('Photo upload failed: ${res.statusCode} - ${res.body}');
+
+    return downloadUrl;
   }
 
+  /// Delete vendor profile photo from Firebase Storage and clear it on backend.
   static Future<void> deleteVendorPhoto(String token) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseStorageService.deleteProfileImage(user.uid);
+    }
+
     final res = await http.delete(
-      Uri.parse('$baseUrl/vendors/profile/me/photo'),
+      Uri.parse('${ApiService.baseUrl}/vendors/profile/me/photo'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
