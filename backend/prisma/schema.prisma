@@ -151,6 +151,11 @@ model Vendor {
   ratingAverage Float  @default(0) @map("rating_average")
   ratingCount   Int    @default(0) @map("rating_count")
 
+  // live location — updated every ~15 s while vendor is on active delivery
+  currentLat            Float?   @map("current_lat")
+  currentLng            Float?   @map("current_lng")
+  lastLocationUpdatedAt DateTime? @map("last_location_updated_at")
+
   user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   routes      Route[]
 

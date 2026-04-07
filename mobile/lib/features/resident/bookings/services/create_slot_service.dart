@@ -195,7 +195,7 @@ final apiBaseUrlProvider = Provider<String>((ref) {
   if (fromEnv.isNotEmpty) return fromEnv;
 
   if (defaultTargetPlatform == TargetPlatform.android) {
-    return 'http://10.0.2.2:3000';
+    return 'https://hamro-pani-fyp-backend.onrender.com';
   }
   return 'http://localhost:3000';
 });

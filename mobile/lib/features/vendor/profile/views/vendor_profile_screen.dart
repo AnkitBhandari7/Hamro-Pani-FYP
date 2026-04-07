@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../controllers/vendor_profile_controller.dart';
 import 'package:fyp/l10n/app_localizations.dart';
@@ -155,8 +156,9 @@ class _VendorProfileContent extends StatelessWidget {
                                 radius: 52.r,
                                 backgroundColor: const Color(0xFFEFF6FF),
                                 backgroundImage: c.logoUrl.isNotEmpty
-                                    ? NetworkImage(c.logoUrl)
+                                    ? CachedNetworkImageProvider(c.logoUrl, errorListener: (err) => debugPrint('Vendor Avatar 404: $err')) as ImageProvider
                                     : null,
+                                onBackgroundImageError: c.logoUrl.isNotEmpty ? (_, __) {} : null,
                                 child: c.logoUrl.isEmpty
                                     ? Icon(Icons.local_shipping_rounded,
                                         size: 48.w,

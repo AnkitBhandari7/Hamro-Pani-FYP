@@ -38,7 +38,7 @@ class _LoginViewState extends State<LoginView> {
 
   late final AuthController _authController;
 
-  static const String _baseUrl = "http://10.0.2.2:3000";
+  static const String _baseUrl = "https://hamro-pani-fyp-backend.onrender.com";
 
   @override
   void initState() {

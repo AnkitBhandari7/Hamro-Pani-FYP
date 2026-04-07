@@ -5,7 +5,7 @@ class AppConfig {
     const override = String.fromEnvironment('API_URL', defaultValue: '');
     if (override.isNotEmpty) return override;
 
-    return 'http://10.0.2.2:3000';
+    return 'https://hamro-pani-fyp-backend.onrender.com';
   }
 }
 

@@ -15,7 +15,7 @@ class ApiService {
     // Defaults if API_BASE_URL is not provided
     if (defaultTargetPlatform == TargetPlatform.android) {
       // Android Emulator special IP to access host machine
-      return 'http://10.0.2.2:3000';
+      return 'https://hamro-pani-fyp-backend.onrender.com';
     }
 
     // iOS simulator / macOS / Windows / Linux

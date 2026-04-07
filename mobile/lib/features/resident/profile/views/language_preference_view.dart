@@ -17,7 +17,7 @@ class LanguagePreferenceView extends StatefulWidget {
 }
 
 class _LanguagePreferenceViewState extends State<LanguagePreferenceView> {
-  static const String _baseUrl = "http://10.0.2.2:3000";
+  static const String _baseUrl = "https://hamro-pani-fyp-backend.onrender.com";
 
   String _selected = "EN";
   bool _loading = false;

@@ -24,7 +24,7 @@ class SignUpView extends StatefulWidget {
 }
 
 class _SignUpViewState extends State<SignUpView> {
-  static const String _baseUrl = "http://10.0.2.2:3000";
+  static const String _baseUrl = "https://hamro-pani-fyp-backend.onrender.com";
 
   int selectedRole = 0;
   final List<String> roles = ["Resident", "Vendor", "Ward Admin"];

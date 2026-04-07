@@ -37,7 +37,7 @@ class _WardAdminDashboardScreenState extends State<WardAdminDashboardScreen> {
   List<AppNotification> _notifications = [];
   bool get _hasUnread => _notifications.any((n) => n.isUnread);
 
-  static const String baseUrl = "http://10.0.2.2:3000";
+  static const String baseUrl = "https://hamro-pani-fyp-backend.onrender.com";
 
   StreamSubscription<User?>? _authSub;
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authenticateFirebase } from "../auth/auth.middleware.js";
 
 import { getBookingDestination } from "./vendor.tracking.controller.js";
+import { updateVendorLocation } from "./vendor.location.controller.js";
 
 import multer from "multer";
 import path from "path";
@@ -109,4 +110,8 @@ router.patch("/requests/:bookingId", authenticateFirebase, updateBookingStatus);
 router.get("/deliveries", authenticateFirebase, getVendorDeliveries);
 
 router.get("/bookings/:bookingId/destination", authenticateFirebase, getBookingDestination);
+
+// Live location: vendor pushes GPS every ~15 s during active delivery
+router.post("/location", authenticateFirebase, updateVendorLocation);
+
 export default router;

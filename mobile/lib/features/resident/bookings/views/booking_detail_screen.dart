@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:fyp/l10n/app_localizations.dart';
 import '../controllers/booking_detail_controller.dart';
 import '../services/booking_service.dart';
+import '../../../shared/maps/tracking/vendor_tracking_view.dart';
 
 class BookingDetailScreen extends StatelessWidget {
   const BookingDetailScreen({super.key, required this.bookingId});
@@ -243,9 +244,32 @@ class BookingDetailScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          t.trackingTitle,
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              t.trackingTitle,
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                            ),
+                            if (["PENDING", "CONFIRMED", "DELIVERED"].contains(d.status.toUpperCase()))
+                              TextButton.icon(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ResidentTrackingScreen(bookingId: d.bookingId),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.my_location_rounded, size: 18),
+                                label: const Text('Live Track'),
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.blue.withOpacity(0.1),
+                                  foregroundColor: Colors.blue,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                ),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 10),
                         if (d.history.isEmpty)

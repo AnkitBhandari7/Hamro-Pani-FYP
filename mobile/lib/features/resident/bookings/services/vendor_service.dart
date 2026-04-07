@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class VendorDetailsService {
-  static const String baseUrl = "http://10.0.2.2:3000";
+  static const String baseUrl = "https://hamro-pani-fyp-backend.onrender.com";
 
   static Future<Map<String, dynamic>> getSlotDetails({
     required String token,

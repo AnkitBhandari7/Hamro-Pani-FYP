@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
@@ -125,7 +126,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  static const String _baseUrl = "http://10.0.2.2:3000";
+  static const String _baseUrl = "https://hamro-pani-fyp-backend.onrender.com";
 
   bool _loadingProfile = true;
   bool _isSaving = false;
@@ -369,55 +370,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  int _totalPages(int totalItems) =>
-      ((totalItems / _pageSize).ceil() <= 0) ? 1 : (totalItems / _pageSize).ceil();
-
-  List<BookingModel> get _visibleBookings {
-    final start = _bookingPage * _pageSize;
-    if (start >= _bookings.length) return [];
-    final end = (start + _pageSize).clamp(0, _bookings.length);
-    return _bookings.sublist(start, end);
-  }
-
-  List<IssueModel> get _visibleIssues {
-    final start = _issuePage * _pageSize;
-    if (start >= _issues.length) return [];
-    final end = (start + _pageSize).clamp(0, _issues.length);
-    return _issues.sublist(start, end);
-  }
-
-  Widget _buildPagination({
-    required int page,
-    required int totalItems,
-    required VoidCallback onPrev,
-    required VoidCallback onNext,
-  }) {
-    final totalPages = _totalPages(totalItems);
-
-    return Padding(
-      padding: EdgeInsets.only(top: 6.h),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            onPressed: page > 0 ? onPrev : null,
-            icon: Icon(Icons.chevron_left_rounded, size: 24.w),
-          ),
-          Text(
-            "Page ${page + 1} of $totalPages",
-            style: GoogleFonts.poppins(
-                fontSize: 12.sp,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF64748B)),
-          ),
-          IconButton(
-            onPressed: (page + 1) < totalPages ? onNext : null,
-            icon: Icon(Icons.chevron_right_rounded, size: 24.w),
-          ),
-        ],
-      ),
-    );
-  }
 
   Future<void> _loadProfile() async {
     setState(() => _loadingProfile = true);
@@ -894,8 +846,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   radius: 54.r,
                                   backgroundColor: const Color(0xFFF1F5F9),
                                   backgroundImage: photoUrl.isNotEmpty
-                                      ? NetworkImage(photoUrl)
+                                      ? CachedNetworkImageProvider(photoUrl, errorListener: (err) => debugPrint('Avatar 404: $err')) as ImageProvider
                                       : null,
+                                  onBackgroundImageError: photoUrl.isNotEmpty ? (_, __) {} : null,
                                   child: photoUrl.isEmpty
                                       ? Text(
                                           displayName.isNotEmpty
@@ -1033,29 +986,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     SizedBox(height: 24.h),
 
-                    // ─── Stats ───────────────────────
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _statCard(
-                            "${_bookings.length}",
-                            t.bookings,
-                            const Color(0xFFEFF6FF),
-                            const Color(0xFF2563EB),
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: _statCard(
-                            "${_issues.length}",
-                            t.reports,
-                            const Color(0xFFFFF7ED),
-                            const Color(0xFFF97316),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 32.h),
+                    // ─── Stats Removed (Now in Dashboard Tabs) ────
 
                     // ─── Personal Details ────────────
                     _sectionHeader(t.personalDetailsUpper, Icons.person_outlined,
@@ -1142,163 +1073,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     SizedBox(height: 24.h),
 
-                    // ─── Recent Activity Toggle ──────
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => setState(
-                          () => _showRecentActivity = !_showRecentActivity,
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 14.h),
-                          side: const BorderSide(color: Color(0xFFBFDBFE)),
-                          backgroundColor: _showRecentActivity
-                              ? const Color(0xFFEFF6FF)
-                              : Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.r),
-                          ),
-                        ),
-                        child: Text(
-                          _showRecentActivity
-                              ? t.hideRecentActivity
-                              : t.showRecentActivity,
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF2563EB),
-                          ),
-                        ),
-                      ),
-                    ),
 
-                    if (_showRecentActivity) ...[
-                      SizedBox(height: 20.h),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _sectionHeader(t.recentActivity, Icons.history_rounded,
-                              const Color(0xFF7C3AED)),
-                          TextButton(
-                            onPressed: () {
-                              if (selectedTab == 0) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const MyBookingsHistoryScreen(),
-                                  ),
-                                );
-                              } else {
-                                _snack(t.complaintsHistoryNotAdded,
-                                    isError: false);
-                              }
-                            },
-                            child: Text(
-                              t.seeAll,
-                              style: GoogleFonts.poppins(
-                                color: const Color(0xFF2563EB),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13.sp,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 12.h),
-                      Container(
-                        padding: EdgeInsets.all(4.w),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE2E8F0),
-                          borderRadius: BorderRadius.circular(30.r),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(child: _activityTab(t.tabBookings, 0)),
-                            Expanded(child: _activityTab(t.tabComplaints, 1)),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 16.h),
-                      if (selectedTab == 0) ...[
-                        if (_bookings.isEmpty)
-                          _card(
-                            child: Text(
-                              t.noBookingsYet,
-                              style: GoogleFonts.poppins(
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                          )
-                        else ...[
-                          ..._visibleBookings.map(
-                            (b) => Padding(
-                              padding: EdgeInsets.only(bottom: 12.h),
-                              child: _activityItem(
-                                icon: Icons.local_shipping_rounded,
-                                title: "Booking #${b.id}",
-                                subtitle:
-                                    "${b.routeLocation ?? "-"} • ${_formatTimeRange(b.slotStartTime, b.slotEndTime)} • ${_formatDate(b.createdAt)}",
-                                status: b.status,
-                                statusColor: _bookingStatusColor(b.status),
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        BookingDetailScreen(bookingId: b.id),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          _buildPagination(
-                            page: _bookingPage,
-                            totalItems: _bookings.length,
-                            onPrev: () => setState(() => _bookingPage--),
-                            onNext: () => setState(() => _bookingPage++),
-                          ),
-                        ],
-                      ] else ...[
-                        if (_issues.isEmpty)
-                          _card(
-                            child: Text(
-                              t.noComplaintsYet,
-                              style: GoogleFonts.poppins(
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                          )
-                        else ...[
-                          ..._visibleIssues.map(
-                            (i) => Padding(
-                              padding: EdgeInsets.only(bottom: 12.h),
-                              child: _activityItem(
-                                icon: Icons.warning_amber_rounded,
-                                title: i.title,
-                                subtitle:
-                                    "Complaint #${i.id} • ${_formatDate(i.createdAt)}",
-                                status: i.status,
-                                statusColor: _issueStatusColor(i.status),
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ComplaintDetailScreen(
-                                      complaintId: i.id,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          _buildPagination(
-                            page: _issuePage,
-                            totalItems: _issues.length,
-                            onPrev: () => setState(() => _issuePage--),
-                            onNext: () => setState(() => _issuePage++),
-                          ),
-                        ],
-                      ],
-                    ],
-                    SizedBox(height: 32.h),
 
                     // ─── Menu Items ──────────────────
                     ProfileMenuSection(
@@ -1655,117 +1430,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _activityTab(String title, int index) {
-    final isSelected = selectedTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => selectedTab = index),
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 10.h),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(24.r),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  )
-                ]
-              : null,
-        ),
-        child: Text(
-          title,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.poppins(
-            fontSize: 13.sp,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF64748B),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _activityItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String status,
-    required Color statusColor,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(10.w),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12.r),
-              ),
-              child: Icon(icon, color: statusColor, size: 24.w),
-            ),
-            SizedBox(width: 14.w),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                  SizedBox(height: 2.h),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12.sp,
-                      color: const Color(0xFF64748B),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20.r),
-                border: Border.all(color: statusColor.withValues(alpha: 0.2)),
-              ),
-              child: Text(
-                status,
-                style: GoogleFonts.poppins(
-                  fontSize: 10.sp,
-                  fontWeight: FontWeight.w600,
-                  color: statusColor,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

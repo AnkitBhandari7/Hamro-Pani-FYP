@@ -8,6 +8,7 @@ import {
   confirmDeliveryAndRate,
   getVendorBookings,
 } from "./tankerBooking.controller.js";
+import { getBookingTracking } from "../vendors/vendor.location.controller.js";
 
 const router = Router();
 
@@ -17,6 +18,9 @@ router.get("/my", authenticateFirebase, getMyBookings);
 
 // Vendor lists bookings (MUST be before "/:id")
 router.get("/vendor/list", authenticateFirebase, getVendorBookings);
+
+// Live tracking (resident polls vendor location when socket drops)
+router.get("/:id/tracking", authenticateFirebase, getBookingTracking);
 
 // Status updates
 router.patch("/:id/status", authenticateFirebase, updateBookingStatus);

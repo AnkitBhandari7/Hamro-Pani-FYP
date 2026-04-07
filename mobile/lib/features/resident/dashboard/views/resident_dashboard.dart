@@ -12,6 +12,8 @@ import 'package:fyp/features/shared/notifications/models/notification_model.dart
 import 'package:fyp/features/shared/notifications/services/notification_service.dart';
 import 'package:fyp/features/resident/bookings/services/tanker_service.dart';
 import 'package:fyp/features/resident/complaints/views/complaint_detail_screen.dart';
+import 'package:fyp/features/resident/profile/views/profile_screen.dart' show BookingModel, IssueModel;
+import 'package:fyp/features/resident/bookings/views/booking_detail_screen.dart';
 
 // main dashboard screen for resident users
 // shows greeting, supply card, quick actions, nearby tankers, and reports
@@ -49,6 +51,12 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
   static const Color yellowText = Color(0xFFCA8A04);
 
   int _navIndex = 0;
+
+  List<BookingModel> _bookings = [];
+  List<IssueModel> _issues = [];
+  int _bookingPage = 0;
+  int _issuePage = 0;
+  final int _pageSize = 5;
 
   // data lists
   List<AppNotification> notifications = [];
@@ -101,7 +109,6 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     } catch (_) {}
   }
 
-  // fetch user reports/complaints from server
   Future<void> fetchMyReports() async {
     if (!mounted) return;
     setState(() => loadingReports = true);
@@ -109,35 +116,215 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     try {
       final res = await ApiService.get('/profile/me');
       if (res.statusCode != 200) {
-        throw Exception(
-            "Failed to load profile (${res.statusCode}) ${res.body}");
+        throw Exception("Failed to load profile (${res.statusCode})");
       }
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final issues = (data['issues'] as List? ?? []).cast<dynamic>();
-      final mapped =
-          issues.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-
-      // sort newest first
-      mapped.sort((a, b) {
-        final ad =
-            DateTime.tryParse(a['createdAt']?.toString() ?? '') ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-        final bd =
-            DateTime.tryParse(b['createdAt']?.toString() ?? '') ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-        return bd.compareTo(ad);
-      });
+      
+      final bks = ((data['bookings'] ?? []) as List)
+          .map((e) => BookingModel.fromJson(e as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        
+      final iss = ((data['issues'] ?? []) as List)
+          .map((e) => IssueModel.fromJson(e as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       if (!mounted) return;
       setState(() {
-        myReports = mapped;
+        _bookings = bks;
+        _issues = iss;
         loadingReports = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => loadingReports = false);
     }
+  }
+
+  int _totalPages(int totalItems) => ((totalItems / _pageSize).ceil() <= 0) ? 1 : (totalItems / _pageSize).ceil();
+
+  List<BookingModel> get _visibleBookings {
+    final start = _bookingPage * _pageSize;
+    if (start >= _bookings.length) return [];
+    final end = (start + _pageSize).clamp(0, _bookings.length);
+    return _bookings.sublist(start, end);
+  }
+
+  List<IssueModel> get _visibleIssues {
+    final start = _issuePage * _pageSize;
+    if (start >= _issues.length) return [];
+    final end = (start + _pageSize).clamp(0, _issues.length);
+    return _issues.sublist(start, end);
+  }
+
+  String _formatDateList(DateTime dt) => DateFormat('MMM d, yyyy • hh:mm a').format(dt.toLocal());
+  String _formatTimeRange(DateTime? start, DateTime? end) {
+    if (start == null || end == null) return "-";
+    final fmt = DateFormat('hh:mm a');
+    return "${fmt.format(start.toLocal())} – ${fmt.format(end.toLocal())}";
+  }
+  
+  Color _bookingStatusColor(String status) {
+    final s = status.toUpperCase();
+    if (s == "COMPLETED" || s == "DELIVERED") return const Color(0xFF16A34A);
+    if (s == "CONFIRMED") return const Color(0xFF2563EB);
+    if (s == "CANCELLED") return const Color(0xFFDC2626);
+    return const Color(0xFFF59E0B);
+  }
+  
+  Color _issueStatusColor(String status) {
+    final s = status.toUpperCase();
+    if (s == "RESOLVED") return const Color(0xFF16A34A);
+    if (s == "IN_REVIEW") return const Color(0xFF2563EB);
+    return const Color(0xFFF97316);
+  }
+  
+  Widget _buildPagination({
+    required int page,
+    required int totalItems,
+    required VoidCallback onPrev,
+    required VoidCallback onNext,
+  }) {
+    final totalPages = _totalPages(totalItems);
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 20.h),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(onPressed: page > 0 ? onPrev : null, icon: Icon(Icons.chevron_left_rounded, size: 24.w)),
+          Text("Page ${page + 1} of $totalPages", style: GoogleFonts.poppins(fontSize: 12.sp, fontWeight: FontWeight.w500, color: const Color(0xFF64748B))),
+          IconButton(onPressed: (page + 1) < totalPages ? onNext : null, icon: Icon(Icons.chevron_right_rounded, size: 24.w)),
+        ],
+      ),
+    );
+  }
+
+  Widget _activityItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String status,
+    required Color statusColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              height: 46.w, width: 46.w,
+              decoration: BoxDecoration(color: const Color(0xFFF8FAFC), shape: BoxShape.circle, border: Border.all(color: const Color(0xFFE2E8F0))),
+              child: Icon(icon, size: 22.w, color: const Color(0xFF0F172A)),
+            ),
+            SizedBox(width: 14.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: GoogleFonts.poppins(fontSize: 15.sp, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A))),
+                  SizedBox(height: 4.h),
+                  Text(subtitle, style: GoogleFonts.poppins(fontSize: 12.sp, color: const Color(0xFF64748B))),
+                ],
+              ),
+            ),
+            SizedBox(width: 10.w),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+              decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10.r)),
+              child: Text(status, style: GoogleFonts.poppins(fontSize: 10.sp, fontWeight: FontWeight.w700, color: statusColor, letterSpacing: 0.5)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookingsTab(AppLocalizations t) {
+    if (loadingReports) return const Center(child: CircularProgressIndicator());
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Padding(
+        padding: EdgeInsets.all(16.w),
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(height: 12.h),
+          Text(t.tabBookings, style: GoogleFonts.poppins(fontSize: 22.sp, fontWeight: FontWeight.w700, color: textDark)),
+          SizedBox(height: 20.h),
+          if (_bookings.isEmpty)
+            Center(child: Text(t.noBookingsYet, style: GoogleFonts.poppins(color: textMuted)))
+          else ...[
+            ..._visibleBookings.map((b) => Padding(
+              padding: EdgeInsets.only(bottom: 12.h),
+              child: _activityItem(
+                icon: Icons.local_shipping_rounded,
+                title: "Booking #${b.id}",
+                subtitle: "${b.routeLocation ?? "-"} • ${_formatTimeRange(b.slotStartTime, b.slotEndTime)} • ${_formatDateList(b.createdAt)}",
+                status: b.status,
+                statusColor: _bookingStatusColor(b.status),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: b.id))),
+              ),
+            )),
+            _buildPagination(
+              page: _bookingPage,
+              totalItems: _bookings.length,
+              onPrev: () => setState(() => _bookingPage--),
+              onNext: () => setState(() => _bookingPage++),
+            ),
+          ],
+        ],
+      ),
+    ),
+    );
+  }
+
+  Widget _buildReportsTab(AppLocalizations t) {
+    if (loadingReports) return const Center(child: CircularProgressIndicator());
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Padding(
+        padding: EdgeInsets.all(16.w),
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(height: 12.h),
+          Text(t.tabComplaints, style: GoogleFonts.poppins(fontSize: 22.sp, fontWeight: FontWeight.w700, color: textDark)),
+          SizedBox(height: 20.h),
+          if (_issues.isEmpty)
+            Center(child: Text(t.noComplaintsYet, style: GoogleFonts.poppins(color: textMuted)))
+          else ...[
+            ..._visibleIssues.map((i) => Padding(
+              padding: EdgeInsets.only(bottom: 12.h),
+              child: _activityItem(
+                icon: Icons.warning_amber_rounded,
+                title: i.title,
+                subtitle: "Complaint #${i.id} • ${_formatDateList(i.createdAt)}",
+                status: i.status,
+                statusColor: _issueStatusColor(i.status),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ComplaintDetailScreen(complaintId: i.id))),
+              ),
+            )),
+            _buildPagination(
+              page: _issuePage,
+              totalItems: _issues.length,
+              onPrev: () => setState(() => _issuePage--),
+              onNext: () => setState(() => _issuePage++),
+            ),
+          ],
+        ],
+      ),
+    ),
+    );
   }
 
   // fetch nearby available tankers for the horizontal scroll list
@@ -284,13 +471,16 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: _buildBottomBar(t),
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        child: IndexedStack(
+          index: _navIndex,
+          children: [
+            SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                 SizedBox(height: 12.h),
 
                 // outer white container to hold all dashboard content
@@ -337,11 +527,16 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                     ],
                   ),
                 ),
-
                 SizedBox(height: 16.h),
               ],
             ),
           ),
+        ),
+        _buildBookingsTab(t),
+        const SizedBox(), // Fab index
+        _buildReportsTab(t),
+        const SizedBox(), // Profile handled by onTap
+        ],
         ),
       ),
     );
@@ -1300,8 +1495,12 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
       return Expanded(
         child: InkWell(
           onTap: () {
+            if (index == 4) {
+              _openProfile();
+              return;
+            }
             setState(() => _navIndex = index);
-            onTap();
+            if (index == 0) onTap();
           },
           child: Center(
             child: SizedBox(
@@ -1353,20 +1552,20 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
               index: 1,
               icon: Icons.receipt_long_rounded,
               label: t.bookings,
-              onTap: _openBookings,
+              onTap: () {},
             ),
             SizedBox(width: 60.w), // space for fab
             navItem(
               index: 3,
               icon: Icons.access_time_rounded,
               label: t.reports,
-              onTap: () => _openReportIssue(),
+              onTap: () {},
             ),
             navItem(
               index: 4,
               icon: Icons.person_outline_rounded,
               label: t.profile,
-              onTap: _openProfile,
+              onTap: () {}, // Handled directly inside navItem logic
             ),
           ],
         ),

@@ -244,18 +244,68 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
             _buildSectionHeader(t.paymentMethodTitle.toUpperCase()),
             SizedBox(height: 10.h),
 
-            Wrap(
-              spacing: 10.w,
+            Row(
               children: [
-                ChoiceChip(
-                  label: Text(t.cash, style: GoogleFonts.poppins()),
-                  selected: _paymentMethod == "CASH",
-                  onSelected: (_) => setState(() => _paymentMethod = "CASH"),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _paymentMethod = "CASH"),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 14.h),
+                      decoration: BoxDecoration(
+                        color: _paymentMethod == "CASH" ? Colors.green.shade50 : Colors.white,
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: _paymentMethod == "CASH" ? Colors.green : Colors.grey.shade300,
+                          width: _paymentMethod == "CASH" ? 2 : 1,
+                        ),
+                        boxShadow: [
+                           if (_paymentMethod == "CASH")
+                             BoxShadow(color: Colors.green.shade100, blurRadius: 8, offset: const Offset(0, 4))
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(Icons.money, color: _paymentMethod == "CASH" ? Colors.green : Colors.grey, size: 28.sp),
+                          SizedBox(height: 8.h),
+                          Text(t.cash, style: GoogleFonts.poppins(
+                            fontWeight: _paymentMethod == "CASH" ? FontWeight.w600 : FontWeight.w400,
+                            color: _paymentMethod == "CASH" ? Colors.green.shade800 : Colors.black87,
+                          )),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                ChoiceChip(
-                  label: Text(t.esewa, style: GoogleFonts.poppins()),
-                  selected: _paymentMethod == "ESEWA",
-                  onSelected: (_) => setState(() => _paymentMethod = "ESEWA"),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _paymentMethod = "ESEWA"),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 14.h),
+                      decoration: BoxDecoration(
+                        color: _paymentMethod == "ESEWA" ? const Color(0xFFF1F8E9) : Colors.white,
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: _paymentMethod == "ESEWA" ? const Color(0xFF60BB46) : Colors.grey.shade300,
+                          width: _paymentMethod == "ESEWA" ? 2 : 1,
+                        ),
+                        boxShadow: [
+                           if (_paymentMethod == "ESEWA")
+                             const BoxShadow(color: Color(0x3360BB46), blurRadius: 8, offset: Offset(0, 4))
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(Icons.account_balance_wallet, color: _paymentMethod == "ESEWA" ? const Color(0xFF60BB46) : Colors.grey, size: 28.sp),
+                          SizedBox(height: 8.h),
+                          Text(t.esewa, style: GoogleFonts.poppins(
+                            fontWeight: _paymentMethod == "ESEWA" ? FontWeight.w600 : FontWeight.w400,
+                            color: _paymentMethod == "ESEWA" ? const Color(0xFF2C5E24) : Colors.black87,
+                          )),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -303,12 +353,19 @@ class _VendorDetailsContentState extends State<_VendorDetailsContent> {
                       return;
                     }
 
-                    // ESEWA -> open SDK
-                    final refId = await EsewaPaymentService.pay(
-                      bookingId: bookingId,
-                      totalAmount: amount,
-                      productName: t.esewaProductName,
-                    );
+                    // ESEWA -> open SDK (uses mounted guard internally)
+                    String? refId;
+                    try {
+                      refId = await EsewaPaymentService.startPayment(
+                        context: context,
+                        bookingId: bookingId,
+                        totalAmount: amount,
+                        productName: t.esewaProductName,
+                      );
+                    } catch (e) {
+                      debugPrint('eSewa error: $e');
+                      refId = null;
+                    }
 
                     // Cancel/fail -> cancel booking to free slot
                     if (refId == null) {

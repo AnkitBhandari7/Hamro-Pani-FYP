@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -19,7 +20,7 @@ class CustomerTrackView extends StatefulWidget {
 }
 
 class _CustomerTrackViewState extends State<CustomerTrackView> {
-  static const String _serverUrl = "http://10.0.2.2:3000";
+  static const String _serverUrl = "https://hamro-pani-fyp-backend.onrender.com";
 
   final _map = MapController();
   late final SocketTrackingService _socket;
@@ -27,6 +28,7 @@ class _CustomerTrackViewState extends State<CustomerTrackView> {
   final _osrm = OsrmRouteService();
 
   LatLng? _driver;
+  double _heading = 0.0;
   List<LatLng> _routePoints = [];
   String _status = "Connecting...";
 
@@ -52,10 +54,12 @@ class _CustomerTrackViewState extends State<CustomerTrackView> {
 
       final lat = (data['lat'] as num).toDouble();
       final lng = (data['lng'] as num).toDouble();
+      final hdg = (data['heading'] as num?)?.toDouble() ?? 0.0;
 
       final p = LatLng(lat, lng);
       setState(() {
         _driver = p;
+        _heading = hdg;
         _status = "Live";
       });
 
@@ -129,8 +133,10 @@ class _CustomerTrackViewState extends State<CustomerTrackView> {
                     polylines: [
                       Polyline(
                         points: _routePoints,
-                        strokeWidth: 5,
-                        color: Colors.blue,
+                        strokeWidth: 6,
+                        color: Colors.blue.withOpacity(0.7),
+                        strokeJoin: StrokeJoin.round,
+                        strokeCap: StrokeCap.round,
                       ),
                     ],
                   ),
@@ -143,20 +149,42 @@ class _CustomerTrackViewState extends State<CustomerTrackView> {
                         width: 50,
                         height: 50,
                         child: const Icon(
-                          Icons.flag,
+                          Icons.location_on, // Premium red drop-pin
                           color: Colors.red,
-                          size: 36,
+                          size: 42,
+                          shadows: [
+                            Shadow(color: Colors.black45, blurRadius: 4, offset: Offset(2, 2)),
+                          ],
                         ),
                       ),
                     if (_driver != null)
                       Marker(
                         point: _driver!,
-                        width: 50,
-                        height: 50,
-                        child: const Icon(
-                          Icons.local_shipping,
-                          color: Colors.blue,
-                          size: 36,
+                        width: 54,
+                        height: 54,
+                        child: Transform.rotate(
+                          angle: _heading * (math.pi / 180),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.blue.shade200, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.navigation, // Classic triangular vehicle icon
+                                color: Colors.blue,
+                                size: 30,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                   ],

@@ -22,7 +22,7 @@ class FCMService {
   FCMService._internal();
 
   // change base url if you deploy backend
-  static const String _baseUrl = 'http://10.0.2.2:3000';
+  static const String _baseUrl = 'https://hamro-pani-fyp-backend.onrender.com';
 
   static const String _androidChannelId = 'high_importance_channel';
   static const String _androidChannelName = 'High Importance Notifications';
