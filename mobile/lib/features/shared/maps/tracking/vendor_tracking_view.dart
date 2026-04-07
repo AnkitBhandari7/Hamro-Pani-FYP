@@ -219,8 +219,19 @@ class _ResidentTrackingScreenState extends State<ResidentTrackingScreen>
     final v = _vendor;
     final d = _dest;
     if (v == null || d == null) return 0;
-    const calc = Distance();
-    return calc.as(LengthUnit.Kilometer, v, d);
+
+    // Direct Haversine implementation perfectly guarantees kilometers
+    const r = 6371.0;
+    final dLat = (d.latitude - v.latitude) * (math.pi / 180.0);
+    final dLng = (d.longitude - v.longitude) * (math.pi / 180.0);
+    
+    final lat1 = v.latitude * (math.pi / 180.0);
+    final lat2 = d.latitude * (math.pi / 180.0);
+    
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+              math.sin(dLng / 2) * math.sin(dLng / 2) * math.cos(lat1) * math.cos(lat2);
+    final c = 2 * math.asin(math.sqrt(a));
+    return r * c;
   }
 
   String _etaLabel() {
