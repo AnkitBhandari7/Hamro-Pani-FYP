@@ -95,7 +95,9 @@ class _VendorRouteViewState extends State<VendorRouteView> {
         _status = 'Navigating to ${_destLabel}';
       });
 
-      _map.move(dest, 14);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _map.move(dest, 14);
+      });
       _scheduleRouteUpdate();
     } catch (e) {
       setState(() => _status = 'Failed to load destination');
@@ -117,10 +119,21 @@ class _VendorRouteViewState extends State<VendorRouteView> {
       }
 
       // 1. Instant grab — renders map immediately without waiting for movement
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      _updateVendorPosition(pos);
+      Position? pos = await Geolocator.getLastKnownPosition();
+      if (pos != null) {
+         _updateVendorPosition(pos);
+      }
+
+      // 2. Fetch fresh but don't hang if GPS is weak or emulator is mocked poorly
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        );
+        _updateVendorPosition(pos);
+      } catch (e) {
+        debugPrint('Geolocator getCurrentPosition timed out or failed: $e');
+      }
 
       // 2. Continuous stream for live movement
       _posSub = Geolocator.getPositionStream(

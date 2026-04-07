@@ -146,7 +146,9 @@ class _ResidentTrackingScreenState extends State<ResidentTrackingScreen>
         final dbLng = (vendorData?['currentLng'] as num?)?.toDouble();
         if (_vendor == null && dbLat != null && dbLng != null) {
           _vendor = LatLng(dbLat, dbLng);
-          _fitCamera();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _fitCamera();
+          });
         }
 
         _loading = false;
@@ -176,7 +178,9 @@ class _ResidentTrackingScreenState extends State<ResidentTrackingScreen>
     _markerAnim.forward(from: 0);
 
     // Keep camera centred on vendor (slightly offset so destination is visible)
-    _map.move(newPos, _map.camera.zoom);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _map.move(newPos, _map.camera.zoom);
+    });
     _scheduleRouteUpdate();
   }
 

@@ -44,9 +44,10 @@ class VendorLocationService {
 
   Future<void> _sendLocation() async {
     try {
-      // Get current position
+      // Get current position safely
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
       );
 
       // Get Firebase auth token
