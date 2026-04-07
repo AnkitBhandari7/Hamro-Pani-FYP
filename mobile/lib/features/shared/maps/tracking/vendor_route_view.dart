@@ -124,7 +124,19 @@ class _VendorRouteViewState extends State<VendorRouteView> {
          _updateVendorPosition(pos);
       }
 
-      // 2. Continuous stream for live movement (bypasses Android getCurrentPosition hangs)
+      // 2. Force a fresh GPS grab to ensure the Vendor sees their own truck immediately 
+      // (even if stationary, which getPositionStream might ignore initially)
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.bestForNavigation,
+          timeLimit: const Duration(seconds: 8),
+        );
+        _updateVendorPosition(pos);
+      } catch (_) {
+        // Silently ignore timeout; getPositionStream will take over
+      }
+
+      // 3. Continuous stream for live movement (bypasses Android getCurrentPosition hangs)
       _posSub = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.bestForNavigation,
