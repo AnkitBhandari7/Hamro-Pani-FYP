@@ -14,7 +14,7 @@ import '../routing/osrm_route_service.dart';
 import 'socket_tracking_service.dart';
 import '../../../../services/vendor_location_service.dart';
 
-/// Vendor's active delivery map screen (Pathao-style).
+/// Vendor's active delivery map screen
 /// Shows vendor's own moving location + resident's destination.
 /// • Socket: instant broadcast to resident
 /// • REST (VendorLocationService): durable DB save every 15s
@@ -118,13 +118,13 @@ class _VendorRouteViewState extends State<VendorRouteView> {
         throw Exception('Location permission denied');
       }
 
-      // 1. Instant grab from last known
+      // Instant grab from last known
       Position? pos = await Geolocator.getLastKnownPosition();
       if (pos != null) {
          _updateVendorPosition(pos);
       }
 
-      // 2. Force a fresh GPS grab to ensure the Vendor sees their own truck immediately 
+      // Force a fresh GPS grab to ensure the Vendor sees their own truck immediately
       // (even if stationary, which getPositionStream might ignore initially)
       try {
         pos = await Geolocator.getCurrentPosition(
@@ -133,10 +133,10 @@ class _VendorRouteViewState extends State<VendorRouteView> {
         );
         _updateVendorPosition(pos);
       } catch (_) {
-        // Silently ignore timeout; getPositionStream will take over
+        // Silently ignore timeout getPositionStream will take over
       }
 
-      // 3. Continuous stream for live movement (bypasses Android getCurrentPosition hangs)
+      // Continuous stream for live movement (bypasses Android getCurrentPosition hangs)
       _posSub = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.bestForNavigation,
@@ -219,7 +219,7 @@ class _VendorRouteViewState extends State<VendorRouteView> {
       ),
       body: Stack(
         children: [
-          // ── Map ────────────────────────────────────────────────────────────
+          //  Map
           FlutterMap(
             mapController: _map,
             options: MapOptions(
@@ -319,7 +319,7 @@ class _VendorRouteViewState extends State<VendorRouteView> {
             ],
           ),
           
-          // ── GPS Status Banner ──────────────────────────────────────────────
+          // GPS Status Banner
           if (_status.isNotEmpty && !_status.contains('active') && !_status.contains('Navigating'))
             Positioned(
               top: 0, left: 0, right: 0,
@@ -334,7 +334,7 @@ class _VendorRouteViewState extends State<VendorRouteView> {
               ),
             ),
 
-          // ── Bottom info bar ────────────────────────────────────────────────
+          // Bottom info bar
           if (_dest != null)
             Positioned(
               left: 0, right: 0, bottom: 0,

@@ -416,7 +416,28 @@ class _WardAdminProfileContent extends StatelessWidget {
                       title: t.logOut,
                       iconColor: const Color(0xFFEF4444),
                       isDestructive: true,
-                      onTap: () => controller.onLogout(context),
+                      onTap: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text(t.logOut),
+                            content: const Text('Are you sure you want to log out?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Logout', style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          if (context.mounted) controller.onLogout(context);
+                        }
+                      },
                     ),
 
                     SizedBox(height: 80.h),

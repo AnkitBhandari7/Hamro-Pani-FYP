@@ -496,7 +496,28 @@ class _VendorProfileContent extends StatelessWidget {
                     iconColor: const Color(0xFFEF4444),
                     titleColor: const Color(0xFFEF4444),
                     showDivider: false,
-                    onTap: () => c.onLogout(context),
+                    onTap: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(t.logOut),
+                          content: const Text('Are you sure you want to log out?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Logout', style: TextStyle(color: Colors.red)),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        if (context.mounted) c.onLogout(context);
+                      }
+                    },
                   ),
 
                   SizedBox(height: 60.h),

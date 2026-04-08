@@ -15,10 +15,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../routing/osrm_route_service.dart';
 import 'socket_tracking_service.dart';
 
-/// Pathao-style live tracking screen for RESIDENTS.
-/// Shows:
-/// • Animated vendor vehicle marker (rotating truck icon, moves with GPS)
-/// • Resident's destination (red home pin)
+
+/// •Animated vendor vehicle marker (rotating truck icon, moves with GPS)
+/// • Resident's destination
 /// • Blue OSRM polyline route between them
 /// • Bottom sheet: vendor name, phone, distance, ETA, booking status
 ///
@@ -72,7 +71,7 @@ class _ResidentTrackingScreenState extends State<ResidentTrackingScreen>
       duration: const Duration(milliseconds: 800),
     );
 
-    // 1. Socket — instant live updates from vendor
+    // Socket — instant live updates from vendor
     _socket = SocketTrackingService(serverUrl: _baseUrl);
     _socket.connect();
     _socket.onConnect(() {
@@ -88,10 +87,10 @@ class _ResidentTrackingScreenState extends State<ResidentTrackingScreen>
       _onVendorMoved(LatLng(lat, lng), heading);
     });
 
-    // 2. Initial data load (vendor info + last known location)
+    // Initial data load (vendor info + last known location)
     _loadTrackingData();
 
-    // 3. Fallback poll every 10s (activates if socket goes quiet for 30s)
+    //  Fallback poll every 10s (activates if socket goes quiet for 30s)
     _fallbackTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _loadTrackingData(silent: true);
     });
@@ -220,7 +219,7 @@ class _ResidentTrackingScreenState extends State<ResidentTrackingScreen>
     final d = _dest;
     if (v == null || d == null) return 0;
 
-    // Direct Haversine implementation perfectly guarantees kilometers
+    // Direct Haversine implementation perfectly works for kilometers
     const r = 6371.0;
     final dLat = (d.latitude - v.latitude) * (math.pi / 180.0);
     final dLng = (d.longitude - v.longitude) * (math.pi / 180.0);
