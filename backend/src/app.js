@@ -33,6 +33,7 @@ if (config.corsOrigins === "*") {
   app.use(cors({ origin: origins, credentials: true }));
 }
 
+app.get("/", (_req, res) => res.send("Hamro Pani API is running"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
