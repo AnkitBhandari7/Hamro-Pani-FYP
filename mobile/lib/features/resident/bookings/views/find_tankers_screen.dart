@@ -985,6 +985,7 @@ class _FindTankersContent extends StatelessWidget {
 
   // avatar with colored icon and rating overlay
   Widget _buildVendorAvatar(Map<String, dynamic> vendor) {
+    final rating = (vendor['ratingAverage'] as num?)?.toDouble() ?? 0.0;
     // we dont have real images yet, so use a styled icon
     return Stack(
       clipBehavior: Clip.none,
@@ -1030,7 +1031,7 @@ class _FindTankersContent extends StatelessWidget {
                 ),
                 SizedBox(width: 2.w),
                 Text(
-                  '4.5',
+                  rating == 0 ? '0' : rating.toStringAsFixed(1),
                   style: GoogleFonts.poppins(
                     fontSize: 9.sp,
                     fontWeight: FontWeight.w700,

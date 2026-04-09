@@ -126,7 +126,23 @@ export async function getNearbyTankers(req, res) {
 
         price: s.price ?? null,
         tankerCapacityLiters: s.tankerCapacityLiters ?? 12000,
+        ratingAverage: r.vendor?.ratingAverage ?? 0,
       });
+    }
+
+    const vendorIds = Array.from(byVendor.keys());
+    if (vendorIds.length > 0) {
+      const aggs = await prisma.vendorRating.groupBy({
+        by: ['vendorId'],
+        _avg: { rating: true },
+        where: { vendorId: { in: vendorIds } },
+      });
+      for (const agg of aggs) {
+        const v = byVendor.get(agg.vendorId);
+        if (v) {
+          v.ratingAverage = agg._avg.rating ?? v.ratingAverage;
+        }
+      }
     }
 
     return res.json(Array.from(byVendor.values()));

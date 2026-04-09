@@ -14,6 +14,7 @@ import 'package:fyp/features/resident/bookings/services/tanker_service.dart';
 import 'package:fyp/features/resident/complaints/views/complaint_detail_screen.dart';
 import 'package:fyp/features/resident/profile/views/profile_screen.dart' show BookingModel, IssueModel;
 import 'package:fyp/features/resident/bookings/views/booking_detail_screen.dart';
+import 'package:fyp/features/resident/bookings/views/my_bookings_history_screen.dart';
 
 // main dashboard screen for resident users
 // shows greeting, supply card, quick actions, nearby tankers, and reports
@@ -532,7 +533,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
             ),
           ),
         ),
-        _buildBookingsTab(t),
+        const MyBookingsHistoryScreen(isTab: true),
         const SizedBox(), // Fab index
         _buildReportsTab(t),
         const SizedBox(), // Profile handled by onTap
@@ -819,21 +820,19 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     return Row(
       children: [
         Expanded(
-          child: _quickActionCard(
+          child: _actionCard(
+            title: t.bookTanker,
             icon: Icons.local_shipping_rounded,
-            iconBg: const Color(0xFFEFF6FF),
-            iconColor: primaryBlue,
-            label: t.bookTanker,
+            color: const Color(0xFF2563EB),
             onTap: _openBookings,
           ),
         ),
         SizedBox(width: 14.w),
         Expanded(
-          child: _quickActionCard(
+          child: _actionCard(
+            title: t.reportIssue,
             icon: Icons.warning_amber_rounded,
-            iconBg: const Color(0xFFFFF7ED),
-            iconColor: const Color(0xFFF97316),
-            label: t.reportIssue,
+            color: const Color(0xFFF97316),
             onTap: () => _openReportIssue(),
           ),
         ),
@@ -842,11 +841,10 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
   }
 
   // single quick action card with icon and label
-  Widget _quickActionCard({
+  Widget _actionCard({
+    required String title,
     required IconData icon,
-    required Color iconBg,
-    required Color iconColor,
-    required String label,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -873,14 +871,14 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                 height: 50.w,
                 width: 50.w,
                 decoration: BoxDecoration(
-                  color: iconBg,
+                  color: color.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: iconColor, size: 26.w),
+                child: Icon(icon, color: color, size: 26.w),
               ),
               SizedBox(height: 10.h),
               Text(
-                label,
+                title,
                 style: GoogleFonts.poppins(
                   fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
@@ -1077,6 +1075,8 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
     final priceRaw = tank['price'];
     final int priceInt = priceRaw is num ? priceRaw.toInt() : 0;
 
+    final double rating = (tank['ratingAverage'] as num?)?.toDouble() ?? 0.0;
+    
     // check if vendor is available
     final bool isAvailable = status == 'AVAILABLE';
 
@@ -1144,7 +1144,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                           SizedBox(width: 3.w),
                           Flexible(
                             child: Text(
-                              '4.8 (120 reviews)',
+                              rating == 0 ? '0' : rating.toStringAsFixed(1),
                               style: GoogleFonts.poppins(
                                 fontSize: 11.sp,
                                 color: textMuted,
@@ -1261,7 +1261,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
           _buildReportShimmer()
 
         // empty state
-        else if (myReports.isEmpty)
+        else if (_issues.isEmpty)
           Container(
             width: double.infinity,
             padding: EdgeInsets.all(20.w),
@@ -1293,7 +1293,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
 
         // show latest report card
         else
-          _buildReportCard(t, myReports.first),
+          _buildReportCard(t, _issues.first),
       ],
     );
   }
@@ -1348,15 +1348,11 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
   }
 
   // report card showing complaint title, ticket and status
-  Widget _buildReportCard(AppLocalizations t, Map<String, dynamic> r) {
-    final complaintIdRaw = r['id'];
-    final complaintId = complaintIdRaw is num
-        ? complaintIdRaw.toInt()
-        : int.tryParse(complaintIdRaw?.toString() ?? '');
-
-    final title = (r['title'] ?? t.issue).toString();
-    final status = (r['status'] ?? 'IN_REVIEW').toString();
-    final createdAt = DateTime.tryParse((r['createdAt'] ?? '').toString());
+  Widget _buildReportCard(AppLocalizations t, IssueModel r) {
+    final complaintId = r.id;
+    final title = r.title.isNotEmpty ? r.title : t.issue;
+    final status = r.status.isNotEmpty ? r.status : 'IN_REVIEW';
+    final createdAt = r.createdAt;
 
     final statusUpper = status.toUpperCase();
     final label = statusUpper == "IN_REVIEW" ? t.inReview : status;
@@ -1380,7 +1376,6 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(18.r),
         onTap: () {
-          if (complaintId == null) return;
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -1437,10 +1432,8 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
                     SizedBox(height: 3.h),
                     Text(
                       t.ticketWithDate(
-                        (complaintId ?? '-').toString(),
-                        createdAt != null
-                            ? _relativeDayLocalized(t, createdAt)
-                            : '-',
+                        complaintId.toString(),
+                        _relativeDayLocalized(t, createdAt),
                       ),
                       style: GoogleFonts.poppins(
                         fontSize: 12.sp,

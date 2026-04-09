@@ -108,6 +108,7 @@ export async function getMyBookings(req, res) {
             },
           },
         },
+        payment: true,
       },
     });
 
@@ -158,6 +159,7 @@ export async function getVendorBookings(req, res) {
             route: { include: { ward: true, vendor: { include: { user: true } } } },
           },
         },
+        payment: true,
       },
     });
 

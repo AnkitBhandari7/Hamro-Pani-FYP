@@ -10,19 +10,21 @@ import 'vendor_delivery_history_controller.dart';
 import 'package:fyp/l10n/app_localizations.dart';
 
 class VendorDeliveryHistoryScreen extends StatelessWidget {
-  const VendorDeliveryHistoryScreen({super.key});
+  final VoidCallback? onBack;
+  const VendorDeliveryHistoryScreen({super.key, this.onBack});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => VendorDeliveryHistoryController(),
-      child: const _View(),
+      child: _View(onBack: onBack),
     );
   }
 }
 
 class _View extends StatelessWidget {
-  const _View();
+  final VoidCallback? onBack;
+  const _View({this.onBack});
 
   Color _statusColor(String status) {
     switch (status.toUpperCase()) {
@@ -60,15 +62,17 @@ class _View extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.black,
-            size: 24.w,
-          ),
-          onPressed: () => Navigator.pop(context),
-          tooltip: l10n.back,
-        ),
+        leading: onBack != null
+            ? IconButton(
+                icon: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.black,
+                  size: 24.w,
+                ),
+                onPressed: onBack,
+                tooltip: l10n.back,
+              )
+            : null,
         title: Text(
           l10n.deliveryHistory,
           style: GoogleFonts.poppins(

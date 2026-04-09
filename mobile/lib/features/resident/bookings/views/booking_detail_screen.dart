@@ -163,6 +163,29 @@ class BookingDetailScreen extends StatelessWidget {
                         Text(t.tankerLabel(d.liters), style: GoogleFonts.poppins()),
                         Text(t.priceLabel(d.price?.toString() ?? '—'),
                             style: GoogleFonts.poppins()),
+                        if (d.payment != null) ...[
+                          Text(
+                            (d.payment!['status']?.toString().toUpperCase() == 'COMPLETED')
+                                ? (d.payment!['method']?.toString().toUpperCase() == 'ESEWA'
+                                    ? 'Paid via eSewa'
+                                    : 'Paid')
+                                : 'Unpaid (Cash on Delivery)',
+                            style: GoogleFonts.poppins(
+                              color: (d.payment!['status']?.toString().toUpperCase() == 'COMPLETED')
+                                  ? Colors.green
+                                  : Colors.orange,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ] else ...[
+                          Text(
+                            'Unpaid (Cash on Delivery)',
+                            style: GoogleFonts.poppins(
+                              color: Colors.orange,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                         Text(
                           t.bookingSlotsLabel(d.bookingSlotsUsed, d.bookingSlotsTotal),
                           style: GoogleFonts.poppins(),

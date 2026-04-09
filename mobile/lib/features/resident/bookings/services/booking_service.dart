@@ -11,6 +11,8 @@ class BookingSummary {
   final int liters;
   final int? price;
   final bool canRebook;
+  final bool isPaid;
+  final String? paymentMethod;
 
   BookingSummary({
     required this.bookingId,
@@ -21,6 +23,8 @@ class BookingSummary {
     required this.liters,
     required this.price,
     required this.canRebook,
+    required this.isPaid,
+    required this.paymentMethod,
   });
 
   static BookingSummary fromApi(Map<String, dynamic> b) {
@@ -65,6 +69,10 @@ class BookingSummary {
 
     final status = (b['status'] ?? 'PENDING').toString().toUpperCase();
     final canRebook = status == "COMPLETED" || status == "CANCELLED";
+    
+    final payment = b['payment'] is Map ? Map<String, dynamic>.from(b['payment'] as Map) : null;
+    final paymentMethod = payment?['method']?.toString();
+    final isPaid = payment?['status']?.toString().toUpperCase() == "COMPLETED";
 
     return BookingSummary(
       bookingId: (b['id'] as num).toInt(),
@@ -75,6 +83,8 @@ class BookingSummary {
       liters: liters,
       price: priceInt,
       canRebook: canRebook,
+      isPaid: isPaid,
+      paymentMethod: paymentMethod,
     );
   }
 }

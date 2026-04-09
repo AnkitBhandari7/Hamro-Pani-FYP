@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fyp/services/api_service.dart';
 import 'package:fyp/features/shared/notifications/models/notification_model.dart';
 import 'package:fyp/features/shared/notifications/services/notification_service.dart';
@@ -593,8 +594,9 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
                   child: CircleAvatar(
                     radius: 26.w,
                     backgroundColor: const Color(0xFFEFF6FF),
-                    backgroundImage:
-                        logoUrl.trim().isNotEmpty ? NetworkImage(logoUrl) : null,
+                    backgroundImage: logoUrl.trim().isNotEmpty 
+                        ? CachedNetworkImageProvider(logoUrl, errorListener: (err) => debugPrint('Vendor Avatar 404: $err')) as ImageProvider 
+                        : null,
                     child: logoUrl.trim().isEmpty
                         ? Icon(Icons.local_shipping_rounded,
                             size: 26.w, color: const Color(0xFF2563EB))
@@ -1241,7 +1243,9 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen>
         complaints: complaints,
         onRefresh: fetchVendorComplaints,
       ),
-      2 => const VendorDeliveryHistoryScreen(),
+      2 => VendorDeliveryHistoryScreen(
+        onBack: () => setState(() => _tabIndex = 0),
+      ),
       _ => _buildHomeTab(l10n),
     };
 

@@ -10,19 +10,21 @@ import '../controllers/my_bookings_history_controller.dart';
 import 'package:fyp/features/resident/bookings/views/booking_detail_screen.dart';
 
 class MyBookingsHistoryScreen extends StatelessWidget {
-  const MyBookingsHistoryScreen({super.key});
+  final bool isTab;
+  const MyBookingsHistoryScreen({super.key, this.isTab = false});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => MyBookingsHistoryController(),
-      child: const _View(),
+      child: _View(isTab),
     );
   }
 }
 
 class _View extends StatelessWidget {
-  const _View();
+  final bool isTab;
+  const _View(this.isTab);
 
   Color _statusColor(String s) {
     switch (s.toUpperCase()) {
@@ -64,15 +66,17 @@ class _View extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.black,
-            size: 24.w,
-          ),
-          onPressed: () => Navigator.pop(context),
-          tooltip: t.back,
-        ),
+        leading: isTab
+            ? null
+            : IconButton(
+                icon: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.black,
+                  size: 24.w,
+                ),
+                onPressed: () => Navigator.pop(context),
+                tooltip: t.back,
+              ),
         title: Text(
           t.myBookingsTitle,
           style: GoogleFonts.poppins(
@@ -289,13 +293,42 @@ class _View extends StatelessWidget {
               ),
               const Spacer(),
               if (b.price != null)
-                Text(
-                  t.nprAmount(b.price.toString()),
-                  style: GoogleFonts.poppins(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      t.nprAmount(b.price.toString()),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    SizedBox(height: 2.h),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          b.isPaid ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
+                          size: 12.sp,
+                          color: b.isPaid ? Colors.green : Colors.orange,
+                        ),
+                        SizedBox(width: 4.w),
+                        Text(
+                          b.isPaid
+                              ? (b.paymentMethod != null && b.paymentMethod!.toUpperCase() == 'ESEWA'
+                                  ? 'Paid via eSewa'
+                                  : 'Paid')
+                              : 'Unpaid (Cash on Delivery)',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w500,
+                            color: b.isPaid ? Colors.green : Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
             ],
           ),
